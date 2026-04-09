@@ -38,6 +38,7 @@ dependencies {
     implementation(project(":data"))
 
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.recyclerview)
     implementation(libs.kotlinx.coroutines.android)
