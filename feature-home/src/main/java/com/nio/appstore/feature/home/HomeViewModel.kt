@@ -9,10 +9,8 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
-class HomeViewModel(
-    private val appManager: AppManager,
-    private val stateCenter: StateCenter,
-) : BaseViewModel<HomeUiState>(HomeUiState()) {
+class HomeViewModel(private val appManager: AppManager, private val stateCenter: StateCenter) :
+    BaseViewModel<HomeUiState>(HomeUiState()) {
 
     private var observeJob: Job? = null
 

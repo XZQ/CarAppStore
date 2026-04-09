@@ -26,11 +26,7 @@ class DeveloperSettingsFragment : Fragment() {
         environmentProvider = LocalDownloadEnvironmentProvider(context.applicationContext)
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?,
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentDeveloperSettingsBinding.inflate(inflater, container, false)
         return binding.root
     }

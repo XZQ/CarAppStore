@@ -9,9 +9,13 @@ enum class DownloadEnvironment {
 }
 
 data class DownloadEnvironmentConfig(
+    /** 当前选中的下载环境。 */
     val environment: DownloadEnvironment = DownloadEnvironment.DEV,
+    /** 当前环境下默认采用的下载源策略。 */
     val defaultSourcePolicy: DownloadSourcePolicy = DownloadSourcePolicy.FALLBACK_SIMULATED,
+    /** 当前环境是否允许模拟下载源。 */
     val allowMockSource: Boolean = true,
+    /** 当前环境是否允许直连下载源。 */
     val allowDirectHttp: Boolean = true,
 ) {
     companion object {

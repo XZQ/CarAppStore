@@ -50,7 +50,7 @@ import com.nio.appstore.domain.upgrade.UpgradeManager
 class AppContainer(context: Context) : AppServices {
     private val appContext = context.applicationContext
 
-    /** 统一管理 app 壳层会用到的本地文件路径。 */
+    /** 统一管理应用壳层会用到的本地文件路径。 */
     private val storagePaths: AppStoragePaths by lazy { AppStoragePaths(appContext) }
 
     /** 日志器，当前作为全局基础能力在壳层统一创建。 */
@@ -59,12 +59,12 @@ class AppContainer(context: Context) : AppServices {
     /** 打点器，供下载、安装、升级等链路复用。 */
     val tracker: EventTracker by lazy { EventTracker() }
 
-    /** 统一数据层 facade，当前默认采用结构化 JSON 落盘实现。 */
+    /** 统一数据层访问入口，当前默认采用结构化 JSON 落盘实现。 */
     val localStoreFacade: LocalStoreFacade by lazy {
         JsonBackedLocalStoreFacade(storagePaths.structuredLocalStoreFile)
     }
 
-    /** 下载环境配置入口，当前从 facade 优先读取，并保留兼容 fallback。 */
+    /** 下载环境配置入口，当前优先从统一数据层读取，并保留兼容兜底逻辑。 */
     val downloadEnvironmentProvider: LocalDownloadEnvironmentProvider by lazy {
         LocalDownloadEnvironmentProvider(appContext, localStoreFacade)
     }
@@ -84,7 +84,7 @@ class AppContainer(context: Context) : AppServices {
         )
     }
 
-    /** 本地数据源，当前已开始统一接入结构化 facade。 */
+    /** 本地数据源，当前已开始统一接入结构化访问入口。 */
     private val localDataSource: AppLocalDataSource by lazy {
         AppLocalDataSource(appContext, localStoreFacade)
     }
@@ -94,7 +94,7 @@ class AppContainer(context: Context) : AppServices {
         AppSystemDataSource(appContext)
     }
 
-    /** Repository 装配入口，负责聚合远端、本地、系统三类数据。 */
+    /** 仓库层装配入口，负责聚合远端、本地、系统三类数据。 */
     val repository: AppRepository by lazy {
         FakeAppRepository(remoteDataSource, localDataSource, systemDataSource)
     }

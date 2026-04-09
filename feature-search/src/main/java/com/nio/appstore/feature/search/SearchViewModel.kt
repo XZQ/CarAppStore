@@ -9,10 +9,8 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
-class SearchViewModel(
-    private val appManager: AppManager,
-    private val stateCenter: StateCenter,
-) : BaseViewModel<SearchUiState>(SearchUiState()) {
+class SearchViewModel(private val appManager: AppManager, private val stateCenter: StateCenter) :
+    BaseViewModel<SearchUiState>(SearchUiState()) {
 
     private var observeJob: Job? = null
 

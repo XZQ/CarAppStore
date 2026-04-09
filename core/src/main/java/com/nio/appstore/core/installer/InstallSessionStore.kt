@@ -53,7 +53,7 @@ class InstallSessionStore(
                 record.copy(
                     status = InstallSessionStatus.RECOVERED_INTERRUPTED,
                     failureCode = record.failureCode ?: InstallFailureCode.INSTALL_INTERRUPTED.name,
-                    failureMessage = record.failureMessage ?: "安装会话在上次退出时中断，可重试安装",
+                    failureMessage = record.failureMessage ?: InstallerText.SESSION_INTERRUPTED_RECOVERABLE,
                     updatedAt = System.currentTimeMillis(),
                 )
             )

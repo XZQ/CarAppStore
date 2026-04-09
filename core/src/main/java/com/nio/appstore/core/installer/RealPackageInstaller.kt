@@ -29,7 +29,7 @@ class RealPackageInstaller(
 
         if (!sessionAdapter.supportsRealSession()) {
             fallbackInstaller?.install(request, onEvent)
-                ?: onEvent(InstallEvent.Failed(InstallFailureCode.UNKNOWN, "无可用安装器"))
+                ?: onEvent(InstallEvent.Failed(InstallFailureCode.UNKNOWN, InstallerText.NO_AVAILABLE_INSTALLER))
             return@withContext
         }
 
