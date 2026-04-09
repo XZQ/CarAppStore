@@ -6,6 +6,7 @@ import com.nio.appstore.data.local.entity.DownloadTaskEntity
 import com.nio.appstore.data.local.entity.InstallSessionEntity
 import com.nio.appstore.data.local.entity.InstalledAppEntity
 import com.nio.appstore.data.local.entity.SettingsEntity
+import com.nio.appstore.core.storage.VersionedJsonStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -13,6 +14,14 @@ import java.io.File
 class JsonBackedLocalStoreFacade(
     private val storeFile: File,
 ) : LocalStoreFacade {
+
+    /** 结构化本地数据文件的统一版本化存储入口。 */
+    private val jsonStore = VersionedJsonStore(
+        storeFile = storeFile,
+        schemaVersion = STRUCTURED_STORE_SCHEMA_VERSION,
+        defaultRootFactory = ::createEmptyRoot,
+        migration = ::migrateRoot,
+    )
 
     override fun saveInstalledApp(entity: InstalledAppEntity) {
         updateStore { root ->
@@ -228,12 +237,7 @@ class JsonBackedLocalStoreFacade(
             .sortedByDescending { it.updatedAt }
     }
 
-    private fun readRoot(): JSONObject {
-        if (!storeFile.exists()) return createEmptyRoot()
-        val text = storeFile.readText()
-        if (text.isBlank()) return createEmptyRoot()
-        return runCatching { JSONObject(text) }.getOrElse { createEmptyRoot() }
-    }
+    private fun readRoot(): JSONObject = jsonStore.read { it }
 
     private fun createEmptyRoot(): JSONObject = JSONObject().apply {
         put("installedApps", JSONObject())
@@ -245,10 +249,19 @@ class JsonBackedLocalStoreFacade(
     }
 
     private fun updateStore(block: (JSONObject) -> Unit) {
-        val root = readRoot()
-        block(root)
-        storeFile.parentFile?.mkdirs()
-        storeFile.writeText(root.toString())
+        jsonStore.update { root -> block(root) }
+    }
+
+    private fun migrateRoot(rawValue: Any): JSONObject {
+        val legacyRoot = rawValue as? JSONObject ?: return createEmptyRoot()
+        return createEmptyRoot().apply {
+            copyObjectSectionFrom(legacyRoot, "installedApps")
+            copyObjectSectionFrom(legacyRoot, "downloadTasks")
+            copyObjectSectionFrom(legacyRoot, "downloadSegments")
+            copyObjectSectionFrom(legacyRoot, "downloadArtifactRefs")
+            copyObjectSectionFrom(legacyRoot, "installSessions")
+            copyObjectSectionFrom(legacyRoot, "settings")
+        }
     }
 
     private fun readMap(name: String): Map<String, JSONObject> {
@@ -290,6 +303,11 @@ class JsonBackedLocalStoreFacade(
         obj.remove(key)
     }
 
+    private fun JSONObject.copyObjectSectionFrom(source: JSONObject, key: String) {
+        val value = source.optJSONObject(key) ?: return
+        put(key, JSONObject(value.toString()))
+    }
+
     private fun JSONObject.toDownloadTaskEntity(): DownloadTaskEntity {
         return DownloadTaskEntity(
             taskId = optString("taskId"),
@@ -314,5 +332,10 @@ class JsonBackedLocalStoreFacade(
             createdAt = optLong("createdAt"),
             updatedAt = optLong("updatedAt"),
         )
+    }
+
+    private companion object {
+        /** 结构化本地 store 当前 schema 版本。 */
+        const val STRUCTURED_STORE_SCHEMA_VERSION = 1
     }
 }
