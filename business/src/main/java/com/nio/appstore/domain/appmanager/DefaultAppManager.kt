@@ -19,6 +19,7 @@ import com.nio.appstore.domain.state.InstallStatus
 import com.nio.appstore.domain.state.PrimaryAction
 import com.nio.appstore.domain.state.StateCenter
 import com.nio.appstore.domain.state.UpgradeStatus
+import com.nio.appstore.domain.text.BusinessText
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -68,7 +69,7 @@ class DefaultAppManager(
             buildViewData(
                 appId = appId,
                 name = installed?.name ?: home?.name,
-                description = if (installed != null) "已安装应用" else home?.description ?: "应用任务",
+                description = if (installed != null) BusinessText.DESCRIPTION_INSTALLED_APP else home?.description ?: BusinessText.DESCRIPTION_APP_TASK,
                 versionName = installed?.versionName ?: home?.versionName,
                 packageName = installed?.packageName ?: home?.packageName,
             )
@@ -108,7 +109,7 @@ class DefaultAppManager(
             buildViewData(
                 appId = appId,
                 name = home?.name ?: installed?.name,
-                description = home?.description ?: "下载/安装任务",
+                description = home?.description ?: BusinessText.DESCRIPTION_DOWNLOAD_INSTALL_TASK,
                 versionName = stateCenter.snapshot(appId).installedVersion ?: home?.versionName ?: installed?.versionName,
                 packageName = home?.packageName ?: installed?.packageName,
             )
@@ -124,9 +125,9 @@ class DefaultAppManager(
             val file = File(task.targetFilePath)
             val actualSize = if (file.exists()) file.length() else task.downloadedBytes
             val secondaryActionText = when {
-                task.status == DownloadStatus.COMPLETED -> "清理安装包"
-                task.status == DownloadStatus.FAILED || task.status == DownloadStatus.CANCELED -> "删除任务"
-                else -> "取消任务"
+                task.status == DownloadStatus.COMPLETED -> BusinessText.ACTION_CLEAR_APK
+                task.status == DownloadStatus.FAILED || task.status == DownloadStatus.CANCELED -> BusinessText.ACTION_DELETE_TASK
+                else -> BusinessText.ACTION_CANCEL_TASK
             }
             DownloadTaskViewData(
                 appId = task.appId,
@@ -140,7 +141,7 @@ class DefaultAppManager(
                 sizeText = "${formatBytes(actualSize)} / ${formatBytes(task.totalBytes)}",
                 speedText = if (task.status == DownloadStatus.RUNNING && task.speedBytesPerSec > 0L) formatSpeed(task.speedBytesPerSec) else "-",
                 timeText = buildTaskTimeText(task.updatedAt, task.retryCount),
-                pathText = if (task.targetFilePath.isBlank()) "未生成安装包" else task.targetFilePath,
+                pathText = if (task.targetFilePath.isBlank()) BusinessText.PATH_APK_NOT_READY else task.targetFilePath,
                 secondaryActionText = secondaryActionText,
                 showSecondaryAction = true,
                 installed = state.installStatus == InstallStatus.INSTALLED,
@@ -182,8 +183,8 @@ class DefaultAppManager(
                 ),
                 updatedAt = session?.updatedAt ?: System.currentTimeMillis(),
                 sessionIdText = session?.sessionId?.takeIf { it >= 0 }?.let { "Session #$it" },
-                sessionPhaseText = session?.status?.let { "阶段：$it" },
-                sessionProgressText = session?.let { "会话进度 ${it.progress}%" },
+                sessionPhaseText = session?.status?.let(BusinessText::sessionPhase),
+                sessionProgressText = session?.let { BusinessText.sessionProgress(it.progress) },
                 sessionBucket = mapSessionBucket(session?.status),
             )
         }.sortedWith(compareBy<InstallTaskViewData> {
@@ -217,8 +218,8 @@ class DefaultAppManager(
         val appText = buildReasonText(appErrorCode, appErrorMessage)
         val sessionText = when {
             !sessionFailureMessage.isNullOrBlank() -> sessionFailureMessage
-            sessionStatus == InstallSessionStatus.RECOVERED_INTERRUPTED -> "安装会话在上次退出时中断，可重试安装"
-            sessionStatus?.let { InstallSessionStatus.isFailed(it) } == true -> "安装会话失败：$sessionStatus"
+            sessionStatus == InstallSessionStatus.RECOVERED_INTERRUPTED -> com.nio.appstore.core.installer.InstallerText.SESSION_INTERRUPTED_RECOVERABLE
+            sessionStatus?.let { InstallSessionStatus.isFailed(it) } == true -> BusinessText.sessionFailed(sessionStatus)
             else -> null
         }
         return listOfNotNull(appText, sessionText)
@@ -232,7 +233,7 @@ class DefaultAppManager(
             AppViewData(
                 appId = it.appId,
                 name = it.name,
-                description = "当前 ${it.currentVersion} -> 目标 ${it.targetVersion}",
+                description = BusinessText.upgradeTarget(it.currentVersion, it.targetVersion),
                 versionName = it.currentVersion,
                 packageName = it.packageName,
                 stateText = it.stateText,
@@ -288,10 +289,10 @@ class DefaultAppManager(
     override fun getPolicyPrompt(): String {
         val settings = repository.getPolicySettings()
         val prompts = mutableListOf<String>()
-        if (!settings.wifiConnected) prompts += "当前为蜂窝网络，下载会受限"
-        if (!settings.parkingMode) prompts += "当前为行车状态，安装会受限"
-        if (settings.lowStorageMode) prompts += "当前存储不足，下载和安装会受限"
-        return if (prompts.isEmpty()) "当前策略正常：可在 Wi‑Fi + 驻车 + 存储正常条件下执行任务" else prompts.joinToString("；")
+        if (!settings.wifiConnected) prompts += BusinessText.POLICY_DOWNLOAD_CELLULAR
+        if (!settings.parkingMode) prompts += BusinessText.POLICY_INSTALL_DRIVING
+        if (settings.lowStorageMode) prompts += BusinessText.POLICY_STORAGE_LIMITED
+        return if (prompts.isEmpty()) BusinessText.POLICY_ALL_CLEAR else prompts.joinToString("；")
     }
 
     override fun openApp(packageName: String): Boolean = repository.openApp(packageName)
@@ -380,8 +381,8 @@ class DefaultAppManager(
     }
 
     private fun buildTaskTimeText(updatedAt: Long, retryCount: Int): String {
-        val retryPart = if (retryCount > 0) " · 重试${retryCount}次" else ""
-        return "更新于 ${formatTime(updatedAt)}$retryPart"
+        val retryPart = if (retryCount > 0) BusinessText.retryPart(retryCount) else ""
+        return BusinessText.updatedAt(formatTime(updatedAt)) + retryPart
     }
 
     private fun buildReasonText(failureCode: String?, failureMessage: String?): String? {

@@ -6,16 +6,24 @@ interface TaskCenterExtensionController<UiState, Handlers> {
 }
 
 data class ThreeActionHandlers(
+    /** 主动作按钮的点击处理。 */
     val onPrimary: () -> Unit,
+    /** 次动作按钮的点击处理。 */
     val onSecondary: () -> Unit,
+    /** 第三动作按钮的点击处理。 */
     val onTertiary: () -> Unit,
 )
 
 data class FiveActionHandlers(
+    /** 第一动作按钮的点击处理。 */
     val onFirst: () -> Unit,
+    /** 第二动作按钮的点击处理。 */
     val onSecond: () -> Unit,
+    /** 第三动作按钮的点击处理。 */
     val onThird: () -> Unit,
+    /** 第四动作按钮的点击处理。 */
     val onFourth: () -> Unit,
+    /** 第五动作按钮的点击处理。 */
     val onFifth: () -> Unit,
 )
 

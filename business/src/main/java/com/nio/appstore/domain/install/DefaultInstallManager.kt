@@ -11,6 +11,7 @@ import com.nio.appstore.domain.policy.PolicyCenter
 import com.nio.appstore.domain.state.DownloadStatus
 import com.nio.appstore.domain.state.InstallStatus
 import com.nio.appstore.domain.state.StateCenter
+import com.nio.appstore.domain.text.BusinessText
 import java.io.File
 
 class DefaultInstallManager(
@@ -28,7 +29,7 @@ class DefaultInstallManager(
             stateCenter.updateInstall(
                 appId,
                 InstallStatus.FAILED,
-                errorMessage = "安装受限：${policy.reason}",
+                errorMessage = BusinessText.installRestricted(policy.reason),
                 errorCode = InstallFailureCode.POLICY_BLOCKED.name,
             )
             return
@@ -41,13 +42,13 @@ class DefaultInstallManager(
                 DownloadStatus.FAILED,
                 progress = 0,
                 localApkPath = null,
-                errorMessage = "安装包缺失，请重新下载",
+                errorMessage = BusinessText.DOWNLOAD_APK_MISSING,
                 errorCode = "APK_MISSING",
             )
             stateCenter.updateInstall(
                 appId,
                 InstallStatus.FAILED,
-                errorMessage = "安装失败：安装包不存在",
+                errorMessage = BusinessText.installFailed(InstallFailureCode.APK_MISSING.displayText),
                 errorCode = InstallFailureCode.APK_MISSING.name,
             )
             return
@@ -99,14 +100,14 @@ class DefaultInstallManager(
                             DownloadStatus.FAILED,
                             progress = 0,
                             localApkPath = null,
-                            errorMessage = "${event.message}，请重新下载",
+                            errorMessage = BusinessText.retryDownload(event.message),
                             errorCode = event.code.name,
                         )
                     }
                     stateCenter.updateInstall(
                         appId,
                         InstallStatus.FAILED,
-                        errorMessage = "安装失败：${event.message}",
+                        errorMessage = BusinessText.installFailed(event.message),
                         errorCode = event.code.name,
                     )
                     tracker.track("install_fail_${event.code.name.lowercase()}_$appId")

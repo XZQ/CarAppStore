@@ -33,15 +33,23 @@ class HomeAdapter(
         fun bind(item: AppViewData) {
             binding.tvAppName.text = item.name
             binding.tvAppDesc.text = item.description
-            binding.tvAppVersion.text = "版本 ${item.versionName}"
+            binding.tvAppVersion.text = binding.root.context.getString(R.string.adapter_home_version_format, item.versionName)
             binding.tvAppState.applyTagStyle(CarUiStyle.tagStyle(item.stateText, item.statusTone))
             binding.tvPrimaryAction.applyTagStyle(CarUiStyle.tagStyle(CarUiStyle.actionStyle(item.primaryAction).text, item.statusTone))
             binding.progressDownload.progress = item.progress
-            binding.tvProgress.text = if (item.progress > 0) "当前进度 ${item.progress}%" else "当前无下载进度"
+            binding.tvProgress.text = if (item.progress > 0) {
+                binding.root.context.getString(R.string.adapter_home_progress_format, item.progress)
+            } else {
+                binding.root.context.getString(R.string.adapter_home_no_progress)
+            }
             val showProgress = item.progress > 0
             binding.progressDownload.visibility = if (showProgress) View.VISIBLE else View.GONE
             binding.tvProgress.visibility = if (showProgress) View.VISIBLE else View.GONE
-            binding.btnDetail.text = if (item.installed) "进入详情 / 打开" else "进入详情"
+            binding.btnDetail.text = if (item.installed) {
+                binding.root.context.getString(R.string.adapter_home_open_detail)
+            } else {
+                binding.root.context.getString(R.string.adapter_home_go_detail)
+            }
             binding.btnDetail.setOnClickListener { onDetailClick(item) }
         }
     }

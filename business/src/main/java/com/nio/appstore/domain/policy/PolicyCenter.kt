@@ -11,6 +11,8 @@ interface PolicyCenter {
 }
 
 data class PolicyResult(
+    /** 当前策略判断是否允许执行目标动作。 */
     val allow: Boolean,
+    /** 被策略拦截时展示给用户的原因文案。 */
     val reason: String = "",
 )

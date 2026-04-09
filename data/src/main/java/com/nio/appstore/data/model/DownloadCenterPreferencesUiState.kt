@@ -1,36 +1,34 @@
 package com.nio.appstore.data.model
 
 data class DownloadCenterPreferencesUiState(
+    /** 启动应用时是否自动恢复中断下载。 */
     val autoResumeEnabled: Boolean = false,
+    /** 下载失败后是否自动重试。 */
     val autoRetryEnabled: Boolean = true,
+    /** 自动重试的最大次数。 */
     val maxAutoRetryCount: Int = 2,
+    /** 当前网络条件是否为无线网络。 */
     val wifiConnected: Boolean = true,
+    /** 当前车辆状态是否为驻车。 */
     val parkingMode: Boolean = true,
+    /** 当前设备是否处于低存储状态。 */
     val lowStorageMode: Boolean = false,
 ) {
     val autoResumeText: String
-        get() = "启动自动续传：" + if (autoResumeEnabled) "开" else "关"
+        get() = ModelText.autoResumeText(autoResumeEnabled)
 
     val autoRetryText: String
-        get() = "失败自动重试：" + if (autoRetryEnabled) "开" else "关"
+        get() = ModelText.autoRetryText(autoRetryEnabled)
 
     val wifiText: String
-        get() = "网络：" + if (wifiConnected) "Wi‑Fi" else "蜂窝"
+        get() = ModelText.networkText(wifiConnected)
 
     val parkingText: String
-        get() = "车况：" + if (parkingMode) "驻车" else "行车"
+        get() = ModelText.parkingText(parkingMode)
 
     val storageText: String
-        get() = "存储：" + if (lowStorageMode) "不足" else "正常"
+        get() = ModelText.storageText(lowStorageMode)
 
     val summaryText: String
-        get() = buildString {
-            append("自动续传")
-            append(if (autoResumeEnabled) "已开启" else "已关闭")
-            append("，自动重试")
-            append(if (autoRetryEnabled) "已开启" else "已关闭")
-            append("，最多重试 ")
-            append(maxAutoRetryCount)
-            append(" 次。")
-        }
+        get() = ModelText.downloadSummaryText(autoResumeEnabled, autoRetryEnabled, maxAutoRetryCount)
 }

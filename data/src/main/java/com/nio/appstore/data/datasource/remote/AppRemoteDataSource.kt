@@ -2,6 +2,7 @@ package com.nio.appstore.data.datasource.remote
 
 import com.nio.appstore.data.model.AppDetail
 import com.nio.appstore.data.model.AppInfo
+import com.nio.appstore.data.model.ModelText
 import com.nio.appstore.data.model.UpgradeInfo
 
 class AppRemoteDataSource(
@@ -23,7 +24,7 @@ class AppRemoteDataSource(
             appId = app.appId,
             packageName = app.packageName,
             name = app.name,
-            description = "${app.description}，这是一个用于演示的详情页数据。",
+            description = ModelText.demoDetailDescription(app.description),
             versionName = app.versionName,
             apkUrl = source.apkUrl,
             checksumType = source.checksumType,

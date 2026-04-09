@@ -3,11 +3,11 @@ package com.nio.appstore.data.model
 enum class InstallSessionFilter(
     val label: String,
 ) {
-    ALL("Session-全部"),
-    ACTIVE("Session-进行中"),
-    FAILED("Session-失败"),
-    RECOVERED("Session-中断恢复"),
-    COMPLETED("Session-已完成");
+    ALL(ModelText.SESSION_FILTER_ALL),
+    ACTIVE(ModelText.SESSION_FILTER_ACTIVE),
+    FAILED(ModelText.SESSION_FILTER_FAILED),
+    RECOVERED(ModelText.SESSION_FILTER_RECOVERED),
+    COMPLETED(ModelText.SESSION_FILTER_COMPLETED);
 
     fun next(): InstallSessionFilter {
         val values = entries
