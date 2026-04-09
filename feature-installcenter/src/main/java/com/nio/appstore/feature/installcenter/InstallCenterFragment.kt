@@ -2,14 +2,6 @@
 package com.nio.appstore.feature.installcenter
 
 import com.nio.appstore.common.R
-import com.nio.appstore.data.model.TaskCenterActionUiState
-import com.nio.appstore.data.model.TaskCenterEmptyUiState
-import com.nio.appstore.data.model.TaskCenterFailureUiState
-import com.nio.appstore.data.model.InstallSessionFilter
-import com.nio.appstore.data.model.TaskCenterExtensionUiState
-import com.nio.appstore.data.model.SessionBucket
-import com.nio.appstore.feature.installcenter.databinding.ViewInstallCenterControlsBinding
-
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -21,7 +13,12 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.nio.appstore.common.base.BaseTaskCenterFragment
 import com.nio.appstore.common.ui.TaskCenterText
 import com.nio.appstore.common.ui.TaskCenterUiFormatter
+import com.nio.appstore.data.model.TaskCenterActionUiState
+import com.nio.appstore.data.model.TaskCenterEmptyUiState
+import com.nio.appstore.data.model.TaskCenterExtensionUiState
+import com.nio.appstore.data.model.TaskCenterFailureUiState
 import com.nio.appstore.feature.installcenter.databinding.FragmentInstallCenterBinding
+import com.nio.appstore.feature.installcenter.databinding.ViewInstallCenterControlsBinding
 import com.nio.appstore.feature.downloadmanager.InstallTaskAdapter
 import kotlinx.coroutines.launch
 
@@ -96,35 +93,41 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    val showFailurePanel = state.clearFailedCount > 0
                     controlsController?.bind(state.controlsUiState)
-
-                    val activeSessionCount = state.tasks.count { it.sessionBucket == SessionBucket.ACTIVE }
-                    val failedSessionCount = state.tasks.count { it.sessionBucket == SessionBucket.FAILED }
-                    val recoveredSessionCount = state.tasks.count { it.sessionBucket == SessionBucket.RECOVERED }
 
                     bindHeaderBlock(
                         headerBinding = binding.headerBlock,
                         centerName = getString(R.string.screen_install_center_name),
                         subtitle = TaskCenterUiFormatter.subtitle(
                             filter = state.selectedFilter,
-                            primaryLabel = getString(R.string.install),
+                            primaryLabel = getString(R.string.screen_install_primary_label),
                             primaryCount = state.tasks.size,
                             failedCount = state.failedCount,
-                        ) + TaskCenterText.sessionFilterLine(state.selectedSessionFilter.label, activeSessionCount, failedSessionCount, recoveredSessionCount),
-                        hint = TaskCenterUiFormatter.headerHint(getString(R.string.screen_install_tasks)) + "\n" +
-                            TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.tasks.size, state.failedCount) +
-                            "\n" + TaskCenterText.sessionSummary(activeSessionCount, failedSessionCount, recoveredSessionCount),
+                        ) + TaskCenterText.sessionFilterLine(
+                            state.selectedSessionFilter.label,
+                            state.activeSessionCount,
+                            state.failedSessionCount,
+                            state.recoveredSessionCount,
+                        ),
+                        hint = listOf(
+                            TaskCenterUiFormatter.headerHint(getString(R.string.screen_install_tasks)),
+                            TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.tasks.size, state.failedCount),
+                            TaskCenterText.sessionSummary(
+                                state.activeSessionCount,
+                                state.failedSessionCount,
+                                state.recoveredSessionCount,
+                            ),
+                        ).joinToString("\n"),
                         visibleCount = state.tasks.size,
                         totalCount = state.allTaskCount,
-                        statsPrefix = getString(R.string.install),
+                        statsPrefix = getString(R.string.screen_install_primary_label),
                         stats = state.stats,
                     )
                     bindActionBlock(
                         actionBinding = binding.actionBlock,
                         uiState = TaskCenterActionUiState(
                             centerName = getString(R.string.screen_install_center_name),
-                            scopeHint = TaskCenterText.batchActionSummary(state.batchRunnableCount, state.clearFailedCount),
+                            scopeHint = getString(R.string.screen_install_controls_hint),
                             selectedFilter = state.selectedFilter,
                             secondaryText = TaskCenterText.switchSessionView(state.selectedSessionFilter.label),
                             tertiaryText = getString(R.string.screen_install_start_runnable_format, state.batchRunnableCount),
@@ -141,7 +144,7 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
                             primaryText = getString(R.string.ui_go_download_manager),
                             secondaryText = getString(R.string.ui_clear_failed_state),
                             showEmpty = state.tasks.isEmpty(),
-                            showSecondary = showFailurePanel,
+                            showSecondary = state.showFailurePanel,
                         ),
                     )
                     bindListBlock(
@@ -154,9 +157,9 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
                         uiState = TaskCenterFailureUiState(
                             centerName = getString(R.string.screen_install_center_name),
                             failedCount = state.clearFailedCount,
-                            primaryText = getString(R.string.screen_upgrade_retry_failed_format, state.failedCount),
+                            primaryText = getString(R.string.screen_install_retry_failed_format, state.failedCount),
                             secondaryText = getString(R.string.ui_clear_failed_state_format, state.clearFailedCount),
-                            showPanel = showFailurePanel,
+                            showPanel = state.showFailurePanel,
                         ),
                     )
                     bindFailureHandlers(

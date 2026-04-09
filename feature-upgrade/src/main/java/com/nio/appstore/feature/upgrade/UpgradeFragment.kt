@@ -97,8 +97,10 @@ class UpgradeFragment : BaseTaskCenterFragment() {
                             primaryCount = state.tasks.size,
                             failedCount = state.failedCount,
                         ),
-                        hint = TaskCenterUiFormatter.headerHint(getString(R.string.screen_upgrade_tasks)) + "\n" +
+                        hint = listOf(
+                            TaskCenterUiFormatter.headerHint(getString(R.string.screen_upgrade_tasks)),
                             TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.tasks.size, state.failedCount),
+                        ).joinToString("\n"),
                         visibleCount = state.tasks.size,
                         totalCount = state.availableCount,
                         statsPrefix = getString(R.string.screen_upgrade_primary_label),
@@ -124,7 +126,7 @@ class UpgradeFragment : BaseTaskCenterFragment() {
                             failedCount = state.failedCount,
                             primaryText = getString(R.string.screen_upgrade_retry_failed_format, state.failedCount),
                             secondaryText = getString(R.string.screen_upgrade_start_runnable_format, state.batchRunnableCount),
-                            showPanel = state.failedCount > 0,
+                            showPanel = state.showFailurePanel,
                             showSecondary = state.batchRunnableCount > 0,
                         ),
                     )
