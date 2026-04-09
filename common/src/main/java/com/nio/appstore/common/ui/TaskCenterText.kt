@@ -38,24 +38,40 @@ object TaskCenterText {
     const val FAILURE_MESSAGE = "可以先批量重试失败项；如果问题来自策略限制或安装包缺失，也可以先清理失败态，再回到下载管理或详情页重新发起。"
 
     // 公共说明文案
-    fun actionHint(centerName: String, scope: String): String =
-        "可在${centerName}统一管理筛选、$scope，并保持和其它任务中心一致的操作方式。"
+    private const val ACTION_HINT_TEMPLATE = "可在%s统一管理筛选、%s，并保持和其它任务中心一致的操作方式。"
+    private const val CENTER_SUMMARY_TEMPLATE = "%s当前展示 %d 个任务，全部任务共 %d 个"
+    private const val FILTERED_EMPTY_TITLE_TEMPLATE = "%s在“%s”下暂无任务"
+    private const val SUBTITLE_EMPTY_TEMPLATE = "%s%s，暂无任务"
+    private const val SUBTITLE_SUMMARY_TEMPLATE = "%s%s，%s %d 个%s，失败 %d 个"
+    private const val SECONDARY_SUMMARY_TEMPLATE = "，%s %d 个"
+    private const val STATS_LINE_TEMPLATE = "%s：执行中%d%s待处理%d%s失败%d%s完成%d"
+    private const val HEADER_HINT_TEMPLATE = "可在此统一查看%s统计、切换筛选并执行批量操作。"
+    private const val BATCH_SUMMARY_TEMPLATE = "已加载 %s 范围内任务 %d 个，其中失败任务 %d 个"
+    private const val EMPTY_PANEL_HINT_TEMPLATE = "%s 会在任务创建、失败恢复和批量处理后自动刷新。"
+    private const val FAILURE_PANEL_TITLE_TEMPLATE = "%s 当前有 %d 个失败任务"
+    private const val FAILURE_PANEL_HINT_TEMPLATE = "%s 的失败任务在处理完成后，会自动刷新统计区、列表区和空态展示。"
+    private const val BATCH_ACTION_SUMMARY_TEMPLATE = "可直接执行 %d 项，可清理失败态 %d 项"
+    private const val EXTENSION_TITLE_TEMPLATE = "%s · %s"
+    private const val EXTENSION_HINT_TEMPLATE = "%s的专属控制会放在这里，%s"
+    private const val SESSION_SUMMARY_TEMPLATE = "Session 摘要：进行中 %d，失败 %d，中断恢复 %d"
+    private const val SESSION_FILTER_LINE_TEMPLATE = "｜%s｜会话 进行中 %d / 失败 %d / 恢复 %d"
+    private const val SWITCH_SESSION_VIEW_TEMPLATE = "切换 Session 视图（%s）"
+
+    fun actionHint(centerName: String, scope: String): String = ACTION_HINT_TEMPLATE.format(centerName, scope)
 
     fun centerSummary(centerName: String, visibleCount: Int, totalCount: Int): String =
-        "${centerName}当前展示 $visibleCount 个任务，全部任务共 $totalCount 个"
+        CENTER_SUMMARY_TEMPLATE.format(centerName, visibleCount, totalCount)
 
     fun emptyTitle(centerName: String): String = centerName + EMPTY_SUFFIX
 
-    fun filteredEmptyTitle(centerName: String, filterLabel: String): String =
-        "${centerName}在“$filterLabel”下暂无任务"
+    fun filteredEmptyTitle(centerName: String, filterLabel: String): String = FILTERED_EMPTY_TITLE_TEMPLATE.format(centerName, filterLabel)
 
     fun emptyAll(centerName: String): String = EMPTY_ALL_TEMPLATE.format(centerName)
 
     fun emptyFailed(centerName: String): String = EMPTY_FAILED_TEMPLATE.format(centerName)
 
     // 摘要与统计文案
-    fun subtitleEmpty(filterLabel: String): String =
-        "$FILTER_PREFIX$filterLabel，暂无任务"
+    fun subtitleEmpty(filterLabel: String): String = SUBTITLE_EMPTY_TEMPLATE.format(FILTER_PREFIX, filterLabel)
 
     fun subtitleSummary(
         filterLabel: String,
@@ -63,10 +79,9 @@ object TaskCenterText {
         primaryCount: Int,
         secondarySummary: String,
         failedCount: Int,
-    ): String = "$FILTER_PREFIX$filterLabel，$primaryLabel $primaryCount 个$secondarySummary，失败 $failedCount 个"
+    ): String = SUBTITLE_SUMMARY_TEMPLATE.format(FILTER_PREFIX, filterLabel, primaryLabel, primaryCount, secondarySummary, failedCount)
 
-    fun secondarySummary(secondaryLabel: String, secondaryCount: Int): String =
-        "，$secondaryLabel $secondaryCount 个"
+    fun secondarySummary(secondaryLabel: String, secondaryCount: Int): String = SECONDARY_SUMMARY_TEMPLATE.format(secondaryLabel, secondaryCount)
 
     fun statsLine(
         prefix: String,
@@ -74,32 +89,25 @@ object TaskCenterText {
         pending: Int,
         failed: Int,
         completed: Int,
-    ): String =
-        "${prefix}：执行中${active}${STATS_DIVIDER}待处理${pending}${STATS_DIVIDER}失败${failed}${STATS_DIVIDER}完成$completed"
+    ): String = STATS_LINE_TEMPLATE.format(prefix, active, STATS_DIVIDER, pending, STATS_DIVIDER, failed, STATS_DIVIDER, completed)
 
     fun filterButtonText(filterLabel: String): String =
         FILTER_BUTTON_PREFIX + filterLabel
 
-    fun headerHint(primary: String): String =
-        "可在此统一查看${primary}统计、切换筛选并执行批量操作。"
+    fun headerHint(primary: String): String = HEADER_HINT_TEMPLATE.format(primary)
 
-    fun batchSummary(filterLabel: String, total: Int, failed: Int): String =
-        "已加载 $filterLabel 范围内任务 $total 个，其中失败任务 $failed 个"
+    fun batchSummary(filterLabel: String, total: Int, failed: Int): String = BATCH_SUMMARY_TEMPLATE.format(filterLabel, total, failed)
 
     fun compactStatTitle(label: String, count: Int): String =
         "$label\n$count"
 
-    fun emptyPanelHint(centerName: String): String =
-        "$centerName 会在任务创建、失败恢复和批量处理后自动刷新。"
+    fun emptyPanelHint(centerName: String): String = EMPTY_PANEL_HINT_TEMPLATE.format(centerName)
 
-    fun failurePanelTitle(centerName: String, failedCount: Int): String =
-        "$centerName 当前有 $failedCount 个失败任务"
+    fun failurePanelTitle(centerName: String, failedCount: Int): String = FAILURE_PANEL_TITLE_TEMPLATE.format(centerName, failedCount)
 
-    fun failurePanelHint(centerName: String): String =
-        "$centerName 的失败任务在处理完成后，会自动刷新统计区、列表区和空态展示。"
+    fun failurePanelHint(centerName: String): String = FAILURE_PANEL_HINT_TEMPLATE.format(centerName)
 
-    fun batchActionSummary(runnableCount: Int, failedCount: Int): String =
-        "可直接执行 $runnableCount 项，可清理失败态 $failedCount 项"
+    fun batchActionSummary(runnableCount: Int, failedCount: Int): String = BATCH_ACTION_SUMMARY_TEMPLATE.format(runnableCount, failedCount)
 
     fun sectionTitle(sectionName: String): String =
         sectionName
@@ -107,19 +115,15 @@ object TaskCenterText {
     fun sectionHint(sectionName: String): String =
         sectionName + SECTION_HINT_SUFFIX
 
-    fun extensionTitle(centerName: String, title: String): String =
-        "$centerName · $title"
+    fun extensionTitle(centerName: String, title: String): String = EXTENSION_TITLE_TEMPLATE.format(centerName, title)
 
-    fun extensionHint(centerName: String, hint: String): String =
-        "${centerName}的专属控制会放在这里，$hint"
+    fun extensionHint(centerName: String, hint: String): String = EXTENSION_HINT_TEMPLATE.format(centerName, hint)
 
-    // 安装中心 session 相关文案
-    fun sessionSummary(active: Int, failed: Int, recovered: Int): String =
-        "Session 摘要：进行中 $active，失败 $failed，中断恢复 $recovered"
+    // 安装中心会话相关文案
+    fun sessionSummary(active: Int, failed: Int, recovered: Int): String = SESSION_SUMMARY_TEMPLATE.format(active, failed, recovered)
 
     fun sessionFilterLine(label: String, active: Int, failed: Int, recovered: Int): String =
-        "｜$label｜会话 进行中 $active / 失败 $failed / 恢复 $recovered"
+        SESSION_FILTER_LINE_TEMPLATE.format(label, active, failed, recovered)
 
-    fun switchSessionView(label: String): String =
-        "切换 Session 视图（$label）"
+    fun switchSessionView(label: String): String = SWITCH_SESSION_VIEW_TEMPLATE.format(label)
 }

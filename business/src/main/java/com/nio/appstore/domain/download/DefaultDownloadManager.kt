@@ -14,6 +14,7 @@ import com.nio.appstore.domain.policy.PolicyCenter
 import com.nio.appstore.domain.state.DownloadStatus
 import com.nio.appstore.domain.state.InstallStatus
 import com.nio.appstore.domain.state.StateCenter
+import com.nio.appstore.domain.text.BusinessText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,7 +44,7 @@ class DefaultDownloadManager(
                 appId = appId,
                 record = repository.getDownloadTask(appId),
                 errorCode = DownloadFailureCode.UNKNOWN.name,
-                errorMessage = "下载受限：${policy.reason}",
+                errorMessage = BusinessText.downloadRestricted(policy.reason),
             )
             return
         }
@@ -417,7 +418,7 @@ class DefaultDownloadManager(
                 totalBytes = totalBytes,
                 speedBytesPerSec = 0L,
                 failureCode = null,
-                failureMessage = if (downloadedBytes > 0L) "上次下载中断，可继续下载" else null,
+                failureMessage = if (downloadedBytes > 0L) BusinessText.DOWNLOAD_INTERRUPTED_RESUMABLE else null,
                 updatedAt = now,
             )
             record.downloadedBytes != downloadedBytes || record.totalBytes != totalBytes || record.progress != progress -> record.copy(

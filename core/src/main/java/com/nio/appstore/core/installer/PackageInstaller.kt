@@ -10,21 +10,25 @@ interface PackageInstaller {
 }
 
 data class InstallRequest(
+    /** 安装链路对应的稳定应用标识。 */
     val appId: String,
+    /** 安装完成后期望得到的包名。 */
     val packageName: String,
+    /** 成功后应写入为已安装的目标版本。 */
     val targetVersion: String,
+    /** 当前用于安装的本地安装包文件。 */
     val apkFile: File,
 )
 
 enum class InstallFailureCode(val displayText: String) {
-    APK_MISSING("安装包不存在"),
-    APK_INVALID("安装包无效"),
-    POLICY_BLOCKED("安装受限"),
-    SESSION_CREATE_FAILED("安装会话创建失败"),
-    SESSION_WRITE_FAILED("安装包写入失败"),
-    SESSION_COMMIT_FAILED("安装会话提交失败"),
-    INSTALL_INTERRUPTED("安装中断"),
-    UNKNOWN("未知安装错误"),
+    APK_MISSING(InstallerText.FAILURE_APK_MISSING),
+    APK_INVALID(InstallerText.FAILURE_APK_INVALID),
+    POLICY_BLOCKED(InstallerText.FAILURE_POLICY_BLOCKED),
+    SESSION_CREATE_FAILED(InstallerText.FAILURE_SESSION_CREATE_FAILED),
+    SESSION_WRITE_FAILED(InstallerText.FAILURE_SESSION_WRITE_FAILED),
+    SESSION_COMMIT_FAILED(InstallerText.FAILURE_SESSION_COMMIT_FAILED),
+    INSTALL_INTERRUPTED(InstallerText.FAILURE_INSTALL_INTERRUPTED),
+    UNKNOWN(InstallerText.FAILURE_UNKNOWN),
 }
 
 sealed class InstallEvent {

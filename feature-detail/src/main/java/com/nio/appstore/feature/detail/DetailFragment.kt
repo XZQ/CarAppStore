@@ -34,11 +34,7 @@ class DetailFragment : BaseFragment() {
         )
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?,
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentDetailBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -63,7 +59,11 @@ class DetailFragment : BaseFragment() {
                     binding.tvDetailDesc.text = state.appDetail?.description ?: ""
                     binding.tvState.applyTagStyle(CarUiStyle.tagStyle(state.stateText, state.statusTone))
                     binding.progressDownload.progress = state.progress
-                    binding.tvProgress.text = if (state.progress > 0) "下载进度：${state.progress}%" else "当前没有下载进度"
+                    binding.tvProgress.text = if (state.progress > 0) {
+                        getString(R.string.screen_detail_progress_format, state.progress)
+                    } else {
+                        getString(R.string.screen_detail_no_progress)
+                    }
                     binding.btnPrimaryAction.applyActionStyle(CarUiStyle.actionStyle(state.primaryAction))
                 }
             }

@@ -21,13 +21,18 @@ enum class ActionTone {
 }
 
 data class TagStyle(
+    /** 状态标签上展示的文案。 */
     val text: String,
+    /** 状态标签使用的背景资源。 */
     @DrawableRes val backgroundRes: Int,
 )
 
 data class ActionStyle(
+    /** 主动作按钮上展示的文案。 */
     val text: String,
+    /** 当前动作是否可交互。 */
     val enabled: Boolean,
+    /** 动作按钮使用的背景资源。 */
     @DrawableRes val backgroundRes: Int,
 )
 
@@ -41,10 +46,10 @@ object CarUiStyle {
     }
 
     fun taskBucketText(status: TaskOverallStatus): String = when (status) {
-        TaskOverallStatus.ACTIVE -> "执行中"
-        TaskOverallStatus.PENDING -> "待处理"
-        TaskOverallStatus.FAILED -> "失败待处理"
-        TaskOverallStatus.COMPLETED -> "已完成"
+        TaskOverallStatus.ACTIVE -> CommonUiText.TASK_ACTIVE
+        TaskOverallStatus.PENDING -> CommonUiText.TASK_PENDING
+        TaskOverallStatus.FAILED -> CommonUiText.TASK_FAILED_PENDING
+        TaskOverallStatus.COMPLETED -> CommonUiText.TASK_COMPLETED
     }
 
     fun taskBucketTone(status: TaskOverallStatus): StatusTone = when (status) {
@@ -89,15 +94,15 @@ object CarUiStyle {
 
     fun actionStyle(action: PrimaryAction): ActionStyle {
         val text = when (action) {
-            PrimaryAction.DOWNLOAD -> "下载"
-            PrimaryAction.PAUSE -> "暂停"
-            PrimaryAction.RESUME -> "继续"
-            PrimaryAction.INSTALL -> "安装"
-            PrimaryAction.OPEN -> "打开"
-            PrimaryAction.UPGRADE -> "升级"
-            PrimaryAction.RETRY_DOWNLOAD -> "重试下载"
-            PrimaryAction.RETRY_INSTALL -> "重试安装"
-            PrimaryAction.DISABLED -> "处理中"
+            PrimaryAction.DOWNLOAD -> CommonUiText.ACTION_DOWNLOAD
+            PrimaryAction.PAUSE -> CommonUiText.ACTION_PAUSE
+            PrimaryAction.RESUME -> CommonUiText.ACTION_RESUME
+            PrimaryAction.INSTALL -> CommonUiText.ACTION_INSTALL
+            PrimaryAction.OPEN -> CommonUiText.ACTION_OPEN
+            PrimaryAction.UPGRADE -> CommonUiText.ACTION_UPGRADE
+            PrimaryAction.RETRY_DOWNLOAD -> CommonUiText.ACTION_RETRY_DOWNLOAD
+            PrimaryAction.RETRY_INSTALL -> CommonUiText.ACTION_RETRY_INSTALL
+            PrimaryAction.DISABLED -> CommonUiText.ACTION_PROCESSING
         }
         val tone = when (action) {
             PrimaryAction.DOWNLOAD,

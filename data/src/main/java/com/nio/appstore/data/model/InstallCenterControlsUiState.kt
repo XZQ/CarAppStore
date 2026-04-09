@@ -1,31 +1,24 @@
 package com.nio.appstore.data.model
 
 data class InstallCenterControlsUiState(
+    /** 当前可直接开始的安装任务数。 */
     val runnableCount: Int = 0,
+    /** 当前可清理的失败项数量。 */
     val failedCount: Int = 0,
+    /** 当前可重试的安装会话数量。 */
     val retryableSessionCount: Int = 0,
+    /** 中断恢复得到的安装会话数量。 */
     val recoveredSessionCount: Int = 0,
 ) {
     val summaryText: String
-        get() = buildString {
-            append("当前可直接安装 ")
-            append(runnableCount)
-            append(" 项，失败待整理 ")
-            append(failedCount)
-            append(" 项，")
-            append("可重试会话 ")
-            append(retryableSessionCount)
-            append(" 项，中断恢复 ")
-            append(recoveredSessionCount)
-            append(" 项。")
-        }
+        get() = ModelText.installCenterSummary(runnableCount, failedCount, retryableSessionCount, recoveredSessionCount)
 
     val primaryText: String
-        get() = "批量开始安装（$runnableCount）"
+        get() = ModelText.installCenterPrimaryText(runnableCount)
 
     val secondaryText: String
-        get() = "清理失败 Session（$failedCount）"
+        get() = ModelText.installCenterSecondaryText(failedCount)
 
     val tertiaryText: String
-        get() = "重试 Session（$retryableSessionCount）"
+        get() = ModelText.installCenterTertiaryText(retryableSessionCount)
 }

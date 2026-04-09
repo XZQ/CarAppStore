@@ -26,11 +26,7 @@ class MyAppFragment : BaseFragment() {
         MyAppAdapter { app -> navigator.openDetail(app.appId) }
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?,
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentMyAppBinding.inflate(inflater, container, false)
         return binding.root
     }

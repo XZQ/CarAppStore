@@ -7,12 +7,20 @@ import com.nio.appstore.data.model.TaskCenterFilter
 import com.nio.appstore.data.model.TaskCenterStats
 
 data class DownloadManagerUiState(
+    /** 当前筛选条件下展示的下载任务列表。 */
     val tasks: List<DownloadTaskViewData> = emptyList(),
+    /** 同页展示的待安装任务列表。 */
     val installTasks: List<InstallTaskViewData> = emptyList(),
+    /** 筛选前的任务总数。 */
     val allTaskCount: Int = 0,
+    /** 当前选中的任务筛选条件。 */
     val selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL,
+    /** 下载偏好扩展区的界面状态。 */
     val preferencesUiState: DownloadCenterPreferencesUiState = DownloadCenterPreferencesUiState(),
+    /** 筛选前的失败任务总数。 */
     val failedCount: Int = 0,
+    /** 下载任务的聚合统计数据。 */
     val downloadStats: TaskCenterStats = TaskCenterStats(),
+    /** 安装任务的聚合统计数据。 */
     val installStats: TaskCenterStats = TaskCenterStats(),
 )

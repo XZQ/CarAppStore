@@ -32,7 +32,7 @@ class MyAppAdapter(
         fun bind(item: AppViewData) {
             binding.tvAppName.text = item.name
             binding.tvState.applyTagStyle(CarUiStyle.tagStyle(item.stateText, item.statusTone))
-            binding.tvDesc.text = "当前版本 ${item.versionName}"
+            binding.tvDesc.text = binding.root.context.getString(R.string.adapter_myapp_current_version_format, item.versionName)
             binding.tvAction.applyTagStyle(
                 CarUiStyle.tagStyle(
                     CarUiStyle.actionStyle(item.primaryAction).text,

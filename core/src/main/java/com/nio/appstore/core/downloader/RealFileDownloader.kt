@@ -51,11 +51,11 @@ class RealFileDownloader(
         onEvent(DownloadEvent.MetaReady(meta))
 
         if (request.eTag != null && meta.eTag != null && request.eTag != meta.eTag) {
-            onEvent(DownloadEvent.Failed(DownloadFailureCode.REMOTE_FILE_CHANGED, "远端文件已变化，需重新下载", false))
+            onEvent(DownloadEvent.Failed(DownloadFailureCode.REMOTE_FILE_CHANGED, DownloaderText.REMOTE_FILE_CHANGED_REDOWNLOAD, false))
             return@withContext
         }
         if (request.lastModified != null && meta.lastModified != null && request.lastModified != meta.lastModified) {
-            onEvent(DownloadEvent.Failed(DownloadFailureCode.REMOTE_FILE_CHANGED, "远端文件已变化，需重新下载", false))
+            onEvent(DownloadEvent.Failed(DownloadFailureCode.REMOTE_FILE_CHANGED, DownloaderText.REMOTE_FILE_CHANGED_REDOWNLOAD, false))
             return@withContext
         }
 
@@ -90,7 +90,6 @@ class RealFileDownloader(
                         downloadSegmentWithRetry(
                             request = request,
                             meta = meta,
-                            totalBytes = totalBytes,
                             segment = segment,
                             onProgress = { speed ->
                                 eventMutex.withLock {
@@ -119,7 +118,7 @@ class RealFileDownloader(
             onEvent(
                 DownloadEvent.Failed(
                     code = failure.code ?: DownloadFailureCode.UNKNOWN,
-                    message = failure.message ?: (failure.code?.displayText ?: "下载失败"),
+                    message = failure.message ?: (failure.code?.displayText ?: DownloaderText.UNKNOWN_DOWNLOAD_FAILURE),
                     retryable = failure.code?.retryable ?: true,
                 )
             )
@@ -151,7 +150,7 @@ class RealFileDownloader(
                 request = request,
                 segment = seg,
                 downloadedBytes = File(seg.tmpFilePath).takeIf { it.exists() }?.length() ?: seg.downloadedBytes,
-                status = "COMPLETED",
+                status = DownloaderText.STATUS_COMPLETED,
                 retryCount = segmentResults.firstOrNull { it.segmentId == seg.segmentId }?.attempts ?: request.attempt,
             )
         }
@@ -161,7 +160,6 @@ class RealFileDownloader(
     private suspend fun downloadSegmentWithRetry(
         request: DownloadRequest,
         meta: DownloadRemoteMeta,
-        totalBytes: Long,
         segment: DownloadSegmentRecord,
         onProgress: suspend (speedBytesPerSec: Long) -> Unit,
     ): SegmentResult {
@@ -170,7 +168,6 @@ class RealFileDownloader(
             val result = downloadSingleSegment(
                 request = request,
                 meta = meta,
-                totalBytes = totalBytes,
                 segment = segment,
                 attempt = attempt,
                 onProgress = onProgress,
@@ -185,7 +182,7 @@ class RealFileDownloader(
             segmentId = segment.segmentId,
             success = false,
             code = DownloadFailureCode.UNKNOWN,
-            message = "分段下载失败",
+            message = DownloaderText.SEGMENT_DOWNLOAD_FAILED,
             attempts = maxSegmentRetryCount,
         )
     }
@@ -193,7 +190,6 @@ class RealFileDownloader(
     private suspend fun downloadSingleSegment(
         request: DownloadRequest,
         meta: DownloadRemoteMeta,
-        totalBytes: Long,
         segment: DownloadSegmentRecord,
         attempt: Int,
         onProgress: suspend (speedBytesPerSec: Long) -> Unit,
@@ -209,7 +205,7 @@ class RealFileDownloader(
                 segmentId = segment.segmentId,
                 success = false,
                 code = DownloadFailureCode.RANGE_NOT_SUPPORTED,
-                message = "服务端不支持断点续传",
+                message = DownloadFailureCode.RANGE_NOT_SUPPORTED.displayText,
                 attempts = attempt,
             )
         }
@@ -218,7 +214,7 @@ class RealFileDownloader(
             request = request,
             segment = segment,
             downloadedBytes = existingBytes,
-            status = if (existingBytes > 0L) "RESUMING" else "WAITING",
+            status = if (existingBytes > 0L) DownloaderText.STATUS_RESUMING else DownloaderText.STATUS_WAITING,
             retryCount = attempt,
         )
 
@@ -231,7 +227,7 @@ class RealFileDownloader(
             val code = connection.responseCode
             when {
                 existingBytes > 0L && code != HttpURLConnection.HTTP_PARTIAL -> {
-                    return SegmentResult(segment.segmentId, false, DownloadFailureCode.RANGE_NOT_SUPPORTED, "断点续传未返回 206 Partial Content", attempt)
+                    return SegmentResult(segment.segmentId, false, DownloadFailureCode.RANGE_NOT_SUPPORTED, DownloaderText.RANGE_RESPONSE_INVALID, attempt)
                 }
                 code in 200..206 -> Unit
                 code in 400..499 -> {
@@ -256,7 +252,7 @@ class RealFileDownloader(
                             request = request,
                             segment = segment,
                             downloadedBytes = segmentDownloaded,
-                            status = "RUNNING",
+                            status = DownloaderText.STATUS_RUNNING,
                             retryCount = attempt,
                         )
                         val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
@@ -270,17 +266,17 @@ class RealFileDownloader(
             val finalDownloaded = maxOf(existingBytes, partFile.length())
             val expectedLength = if (segment.endByte >= segment.startByte) (segment.endByte - segment.startByte + 1L) else finalDownloaded
             if (expectedLength > 0L && finalDownloaded < expectedLength) {
-                saveSegmentRecord(request, segment, finalDownloaded, "FAILED_INCOMPLETE", retryCount = attempt)
-                return SegmentResult(segment.segmentId, false, DownloadFailureCode.FILE_INCOMPLETE, "分段文件未完整下载", attempt)
+                saveSegmentRecord(request, segment, finalDownloaded, DownloaderText.STATUS_FAILED_INCOMPLETE, retryCount = attempt)
+                return SegmentResult(segment.segmentId, false, DownloadFailureCode.FILE_INCOMPLETE, DownloaderText.SEGMENT_FILE_INCOMPLETE, attempt)
             }
 
-            saveSegmentRecord(request, segment, finalDownloaded, "COMPLETED", retryCount = attempt)
+            saveSegmentRecord(request, segment, finalDownloaded, DownloaderText.STATUS_COMPLETED, retryCount = attempt)
             return SegmentResult(segment.segmentId, true, attempts = attempt)
         } catch (e: SocketTimeoutException) {
-            saveSegmentRecord(request, segment, existingBytes, "FAILED_TIMEOUT", retryCount = attempt)
+            saveSegmentRecord(request, segment, existingBytes, DownloaderText.STATUS_FAILED_TIMEOUT, retryCount = attempt)
             return SegmentResult(segment.segmentId, false, DownloadFailureCode.NETWORK_TIMEOUT, e.message ?: DownloadFailureCode.NETWORK_TIMEOUT.displayText, attempt)
         } catch (e: IOException) {
-            saveSegmentRecord(request, segment, existingBytes, "FAILED_IO", retryCount = attempt)
+            saveSegmentRecord(request, segment, existingBytes, DownloaderText.STATUS_FAILED_IO, retryCount = attempt)
             return SegmentResult(segment.segmentId, false, DownloadFailureCode.NETWORK_INTERRUPTED, e.message ?: DownloadFailureCode.NETWORK_INTERRUPTED.displayText, attempt)
         } finally {
             connection.disconnect()
@@ -357,16 +353,16 @@ class RealFileDownloader(
         checksumValue: String?,
     ): VerificationResult {
         if (!file.exists()) {
-            return VerificationResult(false, DownloadFailureCode.FILE_MISSING, "下载文件不存在")
+            return VerificationResult(false, DownloadFailureCode.FILE_MISSING, DownloaderText.FILE_NOT_EXISTS)
         }
         val actual = file.length()
         if (expectedBytes > 0L && actual != expectedBytes) {
-            return VerificationResult(false, DownloadFailureCode.FILE_INCOMPLETE, "文件长度不一致，期望 $expectedBytes，实际 $actual")
+            return VerificationResult(false, DownloadFailureCode.FILE_INCOMPLETE, DownloaderText.fileLengthMismatch(expectedBytes, actual))
         }
         if (!checksumType.isNullOrBlank() && !checksumValue.isNullOrBlank()) {
             val actualHash = calculateHash(file, checksumType)
             if (!actualHash.equals(checksumValue, ignoreCase = true)) {
-                return VerificationResult(false, DownloadFailureCode.CHECKSUM_MISMATCH, "文件校验失败，${checksumType.uppercase()} 不匹配")
+                return VerificationResult(false, DownloadFailureCode.CHECKSUM_MISMATCH, DownloaderText.checksumMismatch(checksumType))
             }
         }
         return VerificationResult(true)

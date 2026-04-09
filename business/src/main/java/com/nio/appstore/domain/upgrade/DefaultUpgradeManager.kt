@@ -11,6 +11,7 @@ import com.nio.appstore.domain.state.DownloadStatus
 import com.nio.appstore.domain.state.InstallStatus
 import com.nio.appstore.domain.state.StateCenter
 import com.nio.appstore.domain.state.UpgradeStatus
+import com.nio.appstore.domain.text.BusinessText
 import kotlinx.coroutines.delay
 
 class DefaultUpgradeManager(
@@ -34,7 +35,7 @@ class DefaultUpgradeManager(
     override suspend fun startUpgrade(appId: String) {
         val policy = policyCenter.canUpgrade(appId)
         if (!policy.allow) {
-            stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = "升级受限：${policy.reason}")
+            stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.upgradeRestricted(policy.reason))
             return
         }
 
@@ -58,7 +59,7 @@ class DefaultUpgradeManager(
             when {
                 state.downloadStatus == DownloadStatus.COMPLETED -> break
                 state.downloadStatus == DownloadStatus.FAILED -> {
-                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = "升级包下载失败")
+                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_FAILED)
                     return
                 }
             }
@@ -75,7 +76,7 @@ class DefaultUpgradeManager(
                     return
                 }
                 InstallStatus.FAILED -> {
-                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = "升级安装失败")
+                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_INSTALL_FAILED)
                     return
                 }
                 else -> Unit

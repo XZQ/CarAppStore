@@ -27,11 +27,7 @@ class SearchFragment : BaseFragment() {
 
     private val adapter by lazy { HomeAdapter { app -> navigator.openDetail(app.appId) } }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?,
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentSearchBinding.inflate(inflater, container, false)
         return binding.root
     }
