@@ -143,6 +143,10 @@ class InstallCenterViewModel(
             selectedSessionFilter = selectedSessionFilter,
             batchRunnableCount = summary.runnableCount,
             clearFailedCount = summary.failedCount,
+            activeSessionCount = visible.count { it.sessionBucket == SessionBucket.ACTIVE },
+            failedSessionCount = visible.count { it.sessionBucket == SessionBucket.FAILED },
+            recoveredSessionCount = visible.count { it.sessionBucket == SessionBucket.RECOVERED },
+            showFailurePanel = summary.failedCount > 0,
             controlsUiState = InstallCenterControlsUiState(
                 runnableCount = summary.runnableCount,
                 failedCount = summary.failedCount + summary.recoveredSessionCount,
