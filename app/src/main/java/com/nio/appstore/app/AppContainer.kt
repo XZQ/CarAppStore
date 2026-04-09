@@ -127,7 +127,7 @@ class AppContainer(context: Context) : AppServices {
         InstallSessionStore(storagePaths.installSessionsFile)
     }
 
-    /** 安装执行器，当前优先走真实安装器骨架。 */
+    /** 安装执行器，当前优先走系统安装会话实现。 */
     private val packageInstaller by lazy {
         RealPackageInstaller(
             context = appContext,

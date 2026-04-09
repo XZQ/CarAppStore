@@ -17,6 +17,8 @@ import com.nio.appstore.domain.state.DownloadStatus
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 class AppLocalDataSource(
     context: Context,
@@ -33,6 +35,8 @@ class AppLocalDataSource(
     private val downloadSegments = mutableMapOf<String, List<DownloadSegmentRecord>>()
     private var downloadPreferences = DownloadPreferences()
     private var policySettings = PolicySettings()
+    /** 保护 legacy fallback 文件读写的并发锁。 */
+    private val legacyStoreLock = ReentrantLock()
 
     init {
         loadFromDisk()
@@ -202,106 +206,108 @@ class AppLocalDataSource(
     }
 
     private fun loadFromDisk() {
-        if (!storeFile.exists()) return
-        runCatching {
-            val root = JSONObject(storeFile.readText(Charsets.UTF_8))
-            installedApps.clear()
-            root.optJSONArray("installedApps")?.let { array ->
-                repeat(array.length()) { index ->
-                    val item = array.getJSONObject(index)
-                    installedApps.add(
-                        InstalledApp(
-                            appId = item.optString("appId"),
-                            packageName = item.optString("packageName"),
-                            name = item.optString("name"),
-                            versionName = item.optString("versionName"),
-                        )
-                    )
-                }
-            }
-
-            downloadedApkPaths.clear()
-            root.optJSONObject("downloadedApkPaths")?.let { obj ->
-                obj.keys().forEach { key -> downloadedApkPaths[key] = obj.optString(key) }
-            }
-
-            stagedUpgradeVersions.clear()
-            root.optJSONObject("stagedUpgradeVersions")?.let { obj ->
-                obj.keys().forEach { key -> stagedUpgradeVersions[key] = obj.optString(key) }
-            }
-
-            downloadTasks.clear()
-            root.optJSONArray("downloadTasks")?.let { array ->
-                repeat(array.length()) { index ->
-                    val item = array.getJSONObject(index)
-                    val record = DownloadTaskRecord(
-                        taskId = item.optString("taskId"),
-                        appId = item.optString("appId"),
-                        status = runCatching { DownloadStatus.valueOf(item.optString("status")) }.getOrElse { DownloadStatus.IDLE },
-                        progress = item.optInt("progress"),
-                        targetFilePath = item.optString("targetFilePath"),
-                        downloadedBytes = item.optLong("downloadedBytes"),
-                        totalBytes = item.optLong("totalBytes"),
-                        speedBytesPerSec = item.optLong("speedBytesPerSec"),
-                        failureCode = item.optString("failureCode").ifBlank { null },
-                        failureMessage = item.optString("failureMessage").ifBlank { null },
-                        retryCount = item.optInt("retryCount", 0),
-                        downloadUrl = item.optString("downloadUrl").ifBlank { null },
-                        tempDirPath = item.optString("tempDirPath").ifBlank { null },
-                        eTag = item.optString("eTag").ifBlank { null },
-                        lastModified = item.optString("lastModified").ifBlank { null },
-                        supportsRange = item.optBoolean("supportsRange", false),
-                        checksumType = item.optString("checksumType").ifBlank { null },
-                        checksumValue = item.optString("checksumValue").ifBlank { null },
-                        segmentCount = item.optInt("segmentCount", 1).coerceAtLeast(1),
-                        createdAt = item.optLong("createdAt", item.optLong("updatedAt")),
-                        updatedAt = item.optLong("updatedAt"),
-                    )
-                    downloadTasks[record.appId] = record
-                }
-            }
-
-            downloadSegments.clear()
-            root.optJSONObject("downloadSegments")?.let { obj ->
-                obj.keys().forEach { appId ->
-                    val arr = obj.optJSONArray(appId) ?: JSONArray()
-                    val list = mutableListOf<DownloadSegmentRecord>()
-                    repeat(arr.length()) { index ->
-                        val item = arr.getJSONObject(index)
-                        list += DownloadSegmentRecord(
-                            segmentId = item.optString("segmentId"),
-                            taskId = item.optString("taskId"),
-                            index = item.optInt("index"),
-                            startByte = item.optLong("startByte"),
-                            endByte = item.optLong("endByte"),
-                            downloadedBytes = item.optLong("downloadedBytes"),
-                            status = item.optString("status"),
-                            tmpFilePath = item.optString("tmpFilePath"),
-                            retryCount = item.optInt("retryCount", 0),
-                            createdAt = item.optLong("createdAt"),
-                            updatedAt = item.optLong("updatedAt"),
+        legacyStoreLock.withLock {
+            if (!storeFile.exists()) return
+            runCatching {
+                val root = JSONObject(storeFile.readText(Charsets.UTF_8))
+                installedApps.clear()
+                root.optJSONArray("installedApps")?.let { array ->
+                    repeat(array.length()) { index ->
+                        val item = array.getJSONObject(index)
+                        installedApps.add(
+                            InstalledApp(
+                                appId = item.optString("appId"),
+                                packageName = item.optString("packageName"),
+                                name = item.optString("name"),
+                                versionName = item.optString("versionName"),
+                            )
                         )
                     }
-                    downloadSegments[appId] = list
                 }
-            }
 
-            val prefObj = root.optJSONObject("downloadPreferences")
-            if (prefObj != null) {
-                downloadPreferences = DownloadPreferences(
-                    autoResumeOnLaunch = prefObj.optBoolean("autoResumeOnLaunch", false),
-                    autoRetryEnabled = prefObj.optBoolean("autoRetryEnabled", true),
-                    maxAutoRetryCount = prefObj.optInt("maxAutoRetryCount", 2).coerceAtLeast(0),
-                )
-            }
+                downloadedApkPaths.clear()
+                root.optJSONObject("downloadedApkPaths")?.let { obj ->
+                    obj.keys().forEach { key -> downloadedApkPaths[key] = obj.optString(key) }
+                }
 
-            val policyObj = root.optJSONObject("policySettings")
-            if (policyObj != null) {
-                policySettings = PolicySettings(
-                    wifiConnected = policyObj.optBoolean("wifiConnected", true),
-                    parkingMode = policyObj.optBoolean("parkingMode", true),
-                    lowStorageMode = policyObj.optBoolean("lowStorageMode", false),
-                )
+                stagedUpgradeVersions.clear()
+                root.optJSONObject("stagedUpgradeVersions")?.let { obj ->
+                    obj.keys().forEach { key -> stagedUpgradeVersions[key] = obj.optString(key) }
+                }
+
+                downloadTasks.clear()
+                root.optJSONArray("downloadTasks")?.let { array ->
+                    repeat(array.length()) { index ->
+                        val item = array.getJSONObject(index)
+                        val record = DownloadTaskRecord(
+                            taskId = item.optString("taskId"),
+                            appId = item.optString("appId"),
+                            status = runCatching { DownloadStatus.valueOf(item.optString("status")) }.getOrElse { DownloadStatus.IDLE },
+                            progress = item.optInt("progress"),
+                            targetFilePath = item.optString("targetFilePath"),
+                            downloadedBytes = item.optLong("downloadedBytes"),
+                            totalBytes = item.optLong("totalBytes"),
+                            speedBytesPerSec = item.optLong("speedBytesPerSec"),
+                            failureCode = item.optString("failureCode").ifBlank { null },
+                            failureMessage = item.optString("failureMessage").ifBlank { null },
+                            retryCount = item.optInt("retryCount", 0),
+                            downloadUrl = item.optString("downloadUrl").ifBlank { null },
+                            tempDirPath = item.optString("tempDirPath").ifBlank { null },
+                            eTag = item.optString("eTag").ifBlank { null },
+                            lastModified = item.optString("lastModified").ifBlank { null },
+                            supportsRange = item.optBoolean("supportsRange", false),
+                            checksumType = item.optString("checksumType").ifBlank { null },
+                            checksumValue = item.optString("checksumValue").ifBlank { null },
+                            segmentCount = item.optInt("segmentCount", 1).coerceAtLeast(1),
+                            createdAt = item.optLong("createdAt", item.optLong("updatedAt")),
+                            updatedAt = item.optLong("updatedAt"),
+                        )
+                        downloadTasks[record.appId] = record
+                    }
+                }
+
+                downloadSegments.clear()
+                root.optJSONObject("downloadSegments")?.let { obj ->
+                    obj.keys().forEach { appId ->
+                        val arr = obj.optJSONArray(appId) ?: JSONArray()
+                        val list = mutableListOf<DownloadSegmentRecord>()
+                        repeat(arr.length()) { index ->
+                            val item = arr.getJSONObject(index)
+                            list += DownloadSegmentRecord(
+                                segmentId = item.optString("segmentId"),
+                                taskId = item.optString("taskId"),
+                                index = item.optInt("index"),
+                                startByte = item.optLong("startByte"),
+                                endByte = item.optLong("endByte"),
+                                downloadedBytes = item.optLong("downloadedBytes"),
+                                status = item.optString("status"),
+                                tmpFilePath = item.optString("tmpFilePath"),
+                                retryCount = item.optInt("retryCount", 0),
+                                createdAt = item.optLong("createdAt"),
+                                updatedAt = item.optLong("updatedAt"),
+                            )
+                        }
+                        downloadSegments[appId] = list
+                    }
+                }
+
+                val prefObj = root.optJSONObject("downloadPreferences")
+                if (prefObj != null) {
+                    downloadPreferences = DownloadPreferences(
+                        autoResumeOnLaunch = prefObj.optBoolean("autoResumeOnLaunch", false),
+                        autoRetryEnabled = prefObj.optBoolean("autoRetryEnabled", true),
+                        maxAutoRetryCount = prefObj.optInt("maxAutoRetryCount", 2).coerceAtLeast(0),
+                    )
+                }
+
+                val policyObj = root.optJSONObject("policySettings")
+                if (policyObj != null) {
+                    policySettings = PolicySettings(
+                        wifiConnected = policyObj.optBoolean("wifiConnected", true),
+                        parkingMode = policyObj.optBoolean("parkingMode", true),
+                        lowStorageMode = policyObj.optBoolean("lowStorageMode", false),
+                    )
+                }
             }
         }
     }
@@ -342,81 +348,98 @@ class AppLocalDataSource(
     }
 
     private fun persist() {
-        val root = JSONObject()
-        root.put("installedApps", JSONArray().apply {
-            installedApps.forEach { app ->
-                put(JSONObject().apply {
-                    put("appId", app.appId)
-                    put("packageName", app.packageName)
-                    put("name", app.name)
-                    put("versionName", app.versionName)
-                })
+        legacyStoreLock.withLock {
+            val root = JSONObject()
+            root.put("schemaVersion", LEGACY_STORE_SCHEMA_VERSION)
+            root.put("installedApps", JSONArray().apply {
+                installedApps.forEach { app ->
+                    put(JSONObject().apply {
+                        put("appId", app.appId)
+                        put("packageName", app.packageName)
+                        put("name", app.name)
+                        put("versionName", app.versionName)
+                    })
+                }
+            })
+            root.put("downloadedApkPaths", JSONObject().apply {
+                downloadedApkPaths.forEach { (appId, path) -> put(appId, path) }
+            })
+            root.put("stagedUpgradeVersions", JSONObject().apply {
+                stagedUpgradeVersions.forEach { (appId, version) -> put(appId, version) }
+            })
+            root.put("downloadTasks", JSONArray().apply {
+                downloadTasks.values.forEach { task ->
+                    put(JSONObject().apply {
+                        put("taskId", task.taskId)
+                        put("appId", task.appId)
+                        put("status", task.status.name)
+                        put("progress", task.progress)
+                        put("targetFilePath", task.targetFilePath)
+                        put("downloadedBytes", task.downloadedBytes)
+                        put("totalBytes", task.totalBytes)
+                        put("speedBytesPerSec", task.speedBytesPerSec)
+                        put("failureCode", task.failureCode)
+                        put("failureMessage", task.failureMessage)
+                        put("retryCount", task.retryCount)
+                        put("downloadUrl", task.downloadUrl)
+                        put("tempDirPath", task.tempDirPath)
+                        put("eTag", task.eTag)
+                        put("lastModified", task.lastModified)
+                        put("supportsRange", task.supportsRange)
+                        put("checksumType", task.checksumType)
+                        put("checksumValue", task.checksumValue)
+                        put("segmentCount", task.segmentCount)
+                        put("createdAt", task.createdAt)
+                        put("updatedAt", task.updatedAt)
+                    })
+                }
+            })
+            root.put("downloadSegments", JSONObject().apply {
+                downloadSegments.forEach { (appId, segments) ->
+                    put(appId, JSONArray().apply {
+                        segments.forEach { seg ->
+                            put(JSONObject().apply {
+                                put("segmentId", seg.segmentId)
+                                put("taskId", seg.taskId)
+                                put("index", seg.index)
+                                put("startByte", seg.startByte)
+                                put("endByte", seg.endByte)
+                                put("downloadedBytes", seg.downloadedBytes)
+                                put("status", seg.status)
+                                put("tmpFilePath", seg.tmpFilePath)
+                                put("retryCount", seg.retryCount)
+                                put("createdAt", seg.createdAt)
+                                put("updatedAt", seg.updatedAt)
+                            })
+                        }
+                    })
+                }
+            })
+            root.put("downloadPreferences", JSONObject().apply {
+                put("autoResumeOnLaunch", downloadPreferences.autoResumeOnLaunch)
+                put("autoRetryEnabled", downloadPreferences.autoRetryEnabled)
+                put("maxAutoRetryCount", downloadPreferences.maxAutoRetryCount)
+            })
+            root.put("policySettings", JSONObject().apply {
+                put("wifiConnected", policySettings.wifiConnected)
+                put("parkingMode", policySettings.parkingMode)
+                put("lowStorageMode", policySettings.lowStorageMode)
+            })
+            storeFile.parentFile?.mkdirs()
+            val tempFile = File(storeFile.parentFile, storeFile.name + LEGACY_TEMP_FILE_SUFFIX)
+            tempFile.writeText(root.toString(), Charsets.UTF_8)
+            if (!tempFile.renameTo(storeFile)) {
+                tempFile.copyTo(storeFile, overwrite = true)
+                tempFile.delete()
             }
-        })
-        root.put("downloadedApkPaths", JSONObject().apply {
-            downloadedApkPaths.forEach { (appId, path) -> put(appId, path) }
-        })
-        root.put("stagedUpgradeVersions", JSONObject().apply {
-            stagedUpgradeVersions.forEach { (appId, version) -> put(appId, version) }
-        })
-        root.put("downloadTasks", JSONArray().apply {
-            downloadTasks.values.forEach { task ->
-                put(JSONObject().apply {
-                    put("taskId", task.taskId)
-                    put("appId", task.appId)
-                    put("status", task.status.name)
-                    put("progress", task.progress)
-                    put("targetFilePath", task.targetFilePath)
-                    put("downloadedBytes", task.downloadedBytes)
-                    put("totalBytes", task.totalBytes)
-                    put("speedBytesPerSec", task.speedBytesPerSec)
-                    put("failureCode", task.failureCode)
-                    put("failureMessage", task.failureMessage)
-                    put("retryCount", task.retryCount)
-                    put("downloadUrl", task.downloadUrl)
-                    put("tempDirPath", task.tempDirPath)
-                    put("eTag", task.eTag)
-                    put("lastModified", task.lastModified)
-                    put("supportsRange", task.supportsRange)
-                    put("checksumType", task.checksumType)
-                    put("checksumValue", task.checksumValue)
-                    put("segmentCount", task.segmentCount)
-                    put("createdAt", task.createdAt)
-                    put("updatedAt", task.updatedAt)
-                })
-            }
-        })
-        root.put("downloadSegments", JSONObject().apply {
-            downloadSegments.forEach { (appId, segments) ->
-                put(appId, JSONArray().apply {
-                    segments.forEach { seg ->
-                        put(JSONObject().apply {
-                            put("segmentId", seg.segmentId)
-                            put("taskId", seg.taskId)
-                            put("index", seg.index)
-                            put("startByte", seg.startByte)
-                            put("endByte", seg.endByte)
-                            put("downloadedBytes", seg.downloadedBytes)
-                            put("status", seg.status)
-                            put("tmpFilePath", seg.tmpFilePath)
-                            put("retryCount", seg.retryCount)
-                            put("createdAt", seg.createdAt)
-                            put("updatedAt", seg.updatedAt)
-                        })
-                    }
-                })
-            }
-        })
-        root.put("downloadPreferences", JSONObject().apply {
-            put("autoResumeOnLaunch", downloadPreferences.autoResumeOnLaunch)
-            put("autoRetryEnabled", downloadPreferences.autoRetryEnabled)
-            put("maxAutoRetryCount", downloadPreferences.maxAutoRetryCount)
-        })
-        root.put("policySettings", JSONObject().apply {
-            put("wifiConnected", policySettings.wifiConnected)
-            put("parkingMode", policySettings.parkingMode)
-            put("lowStorageMode", policySettings.lowStorageMode)
-        })
-        storeFile.writeText(root.toString(), Charsets.UTF_8)
+        }
+    }
+
+    private companion object {
+        /** legacy fallback 文件当前 schema 版本。 */
+        const val LEGACY_STORE_SCHEMA_VERSION = 1
+
+        /** legacy fallback 临时文件后缀。 */
+        const val LEGACY_TEMP_FILE_SUFFIX = ".tmp"
     }
 }
