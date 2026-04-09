@@ -34,6 +34,7 @@
     <string name="ui_my_apps_task_summary">已安装、下载中、待安装、失败任务统一查看</string>
     <string name="ui_enter_detail">进入详情</string>
     <string name="ui_search_apps">搜索应用</string>
+    <string name="ui_search_input_hint">输入应用名或描述</string>
     <string name="ui_clear">清空</string>
     <string name="ui_search_results_zero">找到 0 个应用</string>
     <string name="ui_continue">继续</string>
