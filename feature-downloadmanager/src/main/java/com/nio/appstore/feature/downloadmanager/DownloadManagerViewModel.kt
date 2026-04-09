@@ -6,6 +6,7 @@ import com.nio.appstore.data.model.DownloadCenterPreferencesUiState
 import com.nio.appstore.data.model.DownloadTaskViewData
 import com.nio.appstore.data.model.InstallTaskViewData
 import com.nio.appstore.data.model.TaskCenterFilter
+import com.nio.appstore.data.model.TaskCenterStats
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.download.DownloadManager
 import com.nio.appstore.domain.install.InstallManager
@@ -153,6 +154,8 @@ class DownloadManagerViewModel(
         val policy = policyCenter.getSettings()
         val visibleTasks = allTasks.filter { selectedFilter.matches(it.overallStatus) }
         val visibleInstallTasks = allInstallTasks.filter { selectedFilter.matches(it.overallStatus) }
+        val downloadStats = appManager.getDownloadTaskStats()
+        val installStats = appManager.getInstallTaskStats()
 
         _uiState.value = DownloadManagerUiState(
             tasks = visibleTasks,
@@ -168,8 +171,18 @@ class DownloadManagerViewModel(
                 lowStorageMode = policy.lowStorageMode,
             ),
             failedCount = allTasks.count { it.reasonText != null } + allInstallTasks.count { !it.reasonText.isNullOrBlank() },
-            downloadStats = appManager.getDownloadTaskStats(),
-            installStats = appManager.getInstallTaskStats(),
+            downloadStats = downloadStats,
+            installStats = installStats,
+            readyInstallCount = visibleTasks.count {
+                it.primaryAction == PrimaryAction.INSTALL || it.primaryAction == PrimaryAction.RETRY_INSTALL
+            },
+            visibleTaskCount = visibleTasks.size + visibleInstallTasks.size,
+            combinedStats = TaskCenterStats(
+                activeCount = downloadStats.activeCount + installStats.activeCount,
+                pendingCount = downloadStats.pendingCount + installStats.pendingCount,
+                failedCount = downloadStats.failedCount + installStats.failedCount,
+                completedCount = downloadStats.completedCount + installStats.completedCount,
+            ),
         )
     }
 }

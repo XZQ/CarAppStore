@@ -17,7 +17,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.nio.appstore.common.base.BaseTaskCenterFragment
 import com.nio.appstore.common.ui.TaskCenterUiFormatter
-import com.nio.appstore.data.model.TaskCenterStats
 import com.nio.appstore.feature.downloadmanager.databinding.FragmentDownloadManagerBinding
 import com.nio.appstore.feature.downloadmanager.databinding.ViewDownloadCenterPreferencesBinding
 import kotlinx.coroutines.launch
@@ -109,15 +108,6 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    val visibleCount = state.tasks.size + state.installTasks.size
-                    val readyInstallCount = state.tasks.count { it.primaryAction.name.contains("INSTALL") }
-                    val totalStats = TaskCenterStats(
-                        activeCount = state.downloadStats.activeCount + state.installStats.activeCount,
-                        pendingCount = state.downloadStats.pendingCount + state.installStats.pendingCount,
-                        failedCount = state.downloadStats.failedCount + state.installStats.failedCount,
-                        completedCount = state.downloadStats.completedCount + state.installStats.completedCount,
-                    )
-
                     bindHeaderBlock(
                         headerBinding = binding.headerBlock,
                         centerName = getString(R.string.screen_download_center_name),
@@ -129,12 +119,14 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
                             secondaryCount = state.installTasks.size,
                             failedCount = state.failedCount,
                         ),
-                        hint = TaskCenterUiFormatter.headerHint(getString(R.string.screen_download_overview_title)) + "\n" +
-                            TaskCenterUiFormatter.batchSummary(state.selectedFilter, visibleCount, state.failedCount),
-                        visibleCount = visibleCount,
+                        hint = listOf(
+                            TaskCenterUiFormatter.headerHint(getString(R.string.screen_download_overview_title)),
+                            TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.visibleTaskCount, state.failedCount),
+                        ).joinToString("\n"),
+                        visibleCount = state.visibleTaskCount,
                         totalCount = state.allTaskCount,
                         statsPrefix = getString(R.string.screen_download_overview_hint),
-                        stats = totalStats,
+                        stats = state.combinedStats,
                     )
                     bindActionBlock(
                         actionBinding = binding.actionBlock,
@@ -143,9 +135,9 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
                             scopeHint = getString(R.string.screen_download_controls_hint),
                             selectedFilter = state.selectedFilter,
                             secondaryText = getString(R.string.screen_download_retry_failed_format, state.failedCount),
-                            tertiaryText = getString(R.string.screen_download_install_ready_format, readyInstallCount),
+                            tertiaryText = getString(R.string.screen_download_install_ready_format, state.readyInstallCount),
                             quaternaryText = getString(R.string.screen_download_clear_completed),
-                            runnableCount = readyInstallCount,
+                            runnableCount = state.readyInstallCount,
                             failedCount = state.failedCount,
                         ),
                     )
@@ -172,19 +164,19 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
                             selectedFilter = state.selectedFilter,
                             primaryText = getString(R.string.screen_download_go_home),
                             secondaryText = getString(R.string.screen_download_go_my_apps),
-                            showEmpty = visibleCount == 0,
+                            showEmpty = state.visibleTaskCount == 0,
                             showSecondary = true,
                         ),
                     )
                     bindListBlock(
                         listBlockBinding = binding.installTaskBlock,
                         sectionName = getString(R.string.screen_install_tasks),
-                        visible = state.installTasks.isNotEmpty() && visibleCount != 0,
+                        visible = state.installTasks.isNotEmpty(),
                     )
                     bindListBlock(
                         listBlockBinding = binding.downloadTaskBlock,
                         sectionName = getString(R.string.screen_download_tasks),
-                        visible = visibleCount != 0,
+                        visible = state.tasks.isNotEmpty(),
                     )
 
                     preferencesController?.bind(state.preferencesUiState)

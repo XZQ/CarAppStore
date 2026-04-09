@@ -146,8 +146,10 @@
     <string name="screen_upgrade_start_runnable_format">批量开始可执行项（%1$d）</string>
     <string name="screen_install_manager_title">安装管理</string>
     <string name="screen_install_center_name">安装中心</string>
+    <string name="screen_install_primary_label">安装</string>
     <string name="screen_install_extension_title">安装整理与分发</string>
     <string name="screen_install_extension_hint">可在这里集中处理可安装项、失败态整理，以及跳转到下载中心继续补齐安装包。</string>
+    <string name="screen_install_controls_hint">批量安装、失败整理和会话视图切换</string>
     <string name="task_download_version_format">版本 %1$s</string>
     <string name="task_download_size_format">大小 %1$s</string>
     <string name="task_download_speed_format">速度 %1$s</string>
@@ -170,5 +172,6 @@
     <string name="task_upgrade_summary_completed">升级流程已完成，当前版本已是最新。</string>
     <string name="action_clear_failed">清理失败项</string>
     <string name="ui_clear_failed_state_format">清理失败态（%1$d）</string>
+    <string name="screen_install_retry_failed_format">批量重试失败项（%1$d）</string>
     <string name="screen_install_start_runnable_format">批量开始可执行项（%1$d）</string>
 </resources>

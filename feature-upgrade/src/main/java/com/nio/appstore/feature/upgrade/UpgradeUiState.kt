@@ -18,6 +18,8 @@ data class UpgradeUiState(
     val selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL,
     /** 当前筛选范围内可直接执行的升级任务数。 */
     val batchRunnableCount: Int = 0,
+    /** 当前是否需要展示失败面板。 */
+    val showFailurePanel: Boolean = false,
     /** 升级中心扩展控制区的界面状态。 */
     val controlsUiState: UpgradeCenterControlsUiState = UpgradeCenterControlsUiState(),
 )

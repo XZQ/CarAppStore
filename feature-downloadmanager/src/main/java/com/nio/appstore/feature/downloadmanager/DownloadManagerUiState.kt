@@ -23,4 +23,10 @@ data class DownloadManagerUiState(
     val downloadStats: TaskCenterStats = TaskCenterStats(),
     /** 安装任务的聚合统计数据。 */
     val installStats: TaskCenterStats = TaskCenterStats(),
+    /** 当前筛选范围内可直接安装的下载任务数。 */
+    val readyInstallCount: Int = 0,
+    /** 当前筛选范围内实际展示的任务总数。 */
+    val visibleTaskCount: Int = 0,
+    /** 下载中心页面头部展示用的合并统计数据。 */
+    val combinedStats: TaskCenterStats = TaskCenterStats(),
 )

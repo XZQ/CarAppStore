@@ -23,6 +23,14 @@ data class InstallCenterUiState(
     val batchRunnableCount: Int = 0,
     /** 当前可清理的失败任务数。 */
     val clearFailedCount: Int = 0,
+    /** 当前筛选范围内处于执行中的安装会话数。 */
+    val activeSessionCount: Int = 0,
+    /** 当前筛选范围内处于失败态的安装会话数。 */
+    val failedSessionCount: Int = 0,
+    /** 当前筛选范围内处于中断恢复态的安装会话数。 */
+    val recoveredSessionCount: Int = 0,
+    /** 当前是否需要展示失败面板。 */
+    val showFailurePanel: Boolean = false,
     /** 安装中心扩展控制区的界面状态。 */
     val controlsUiState: InstallCenterControlsUiState = InstallCenterControlsUiState(),
 )

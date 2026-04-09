@@ -90,6 +90,7 @@ class UpgradeViewModel(
             stats = appManager.getUpgradeTaskStats(),
             selectedFilter = selectedFilter,
             batchRunnableCount = runnableCount,
+            showFailurePanel = failedCount > 0,
             controlsUiState = UpgradeCenterControlsUiState(
                 runnableCount = runnableCount,
                 failedCount = failedCount,
