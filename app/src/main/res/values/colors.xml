@@ -1,0 +1,30 @@
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <color name="car_bg">#101623</color>
+    <color name="car_surface">#1A2335</color>
+    <color name="car_surface_light">#223049</color>
+    <color name="car_card">#182235</color>
+    <color name="car_card_alt">#202C43</color>
+    <color name="car_primary">#4DA3FF</color>
+    <color name="car_primary_dark">#2E7DE0</color>
+    <color name="car_accent">#5DE1B9</color>
+    <color name="car_text_primary">#F5F7FA</color>
+    <color name="car_text_secondary">#B6C2D9</color>
+    <color name="car_text_muted">#7E8AA3</color>
+    <color name="car_text_hint">#7E8AA3</color>
+    <color name="car_divider">#2B3852</color>
+    <color name="car_warning">#FFB84D</color>
+    <color name="car_success">#2BC48A</color>
+    <color name="car_success_dark">#1B7E59</color>
+    <color name="car_error">#FF6B6B</color>
+    <color name="car_error_dark">#8D3A3A</color>
+    <color name="car_warning_dark">#8A5A18</color>
+    <color name="car_disabled">#42506B</color>
+</resources>

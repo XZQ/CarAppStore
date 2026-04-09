@@ -1,0 +1,41 @@
+package com.nio.appstore.data.downloadenv
+
+import com.nio.appstore.core.downloader.DownloadSourcePolicy
+
+enum class DownloadEnvironment {
+    DEV,
+    TEST,
+    PROD,
+}
+
+data class DownloadEnvironmentConfig(
+    val environment: DownloadEnvironment = DownloadEnvironment.DEV,
+    val defaultSourcePolicy: DownloadSourcePolicy = DownloadSourcePolicy.FALLBACK_SIMULATED,
+    val allowMockSource: Boolean = true,
+    val allowDirectHttp: Boolean = true,
+) {
+    companion object {
+        fun forEnvironment(environment: DownloadEnvironment): DownloadEnvironmentConfig {
+            return when (environment) {
+                DownloadEnvironment.DEV -> DownloadEnvironmentConfig(
+                    environment = environment,
+                    defaultSourcePolicy = DownloadSourcePolicy.FALLBACK_SIMULATED,
+                    allowMockSource = true,
+                    allowDirectHttp = true,
+                )
+                DownloadEnvironment.TEST -> DownloadEnvironmentConfig(
+                    environment = environment,
+                    defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
+                    allowMockSource = true,
+                    allowDirectHttp = true,
+                )
+                DownloadEnvironment.PROD -> DownloadEnvironmentConfig(
+                    environment = environment,
+                    defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
+                    allowMockSource = false,
+                    allowDirectHttp = true,
+                )
+            }
+        }
+    }
+}

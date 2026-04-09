@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <include
+            android:id="@+id/headerBlock"
+            layout="@layout/view_task_center_header" />
+
+        <include
+            android:id="@+id/actionBlock"
+            layout="@layout/view_task_center_actions" />
+
+        <include
+            android:id="@+id/failurePanel"
+            layout="@layout/view_task_center_failure_panel" />
+
+        <include
+            android:id="@+id/extensionSlot"
+            layout="@layout/view_task_center_extension_slot" />
+
+        <include
+            android:id="@+id/emptyPanel"
+            layout="@layout/view_task_center_empty_panel" />
+
+        <include
+            android:id="@+id/installTaskBlock"
+            layout="@layout/view_task_center_list_block" />
+
+        <include
+            android:id="@+id/downloadTaskBlock"
+            layout="@layout/view_task_center_list_block" />
+
+    </LinearLayout>
+</ScrollView>
