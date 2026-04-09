@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">CarAppStore</string>
+    <string name="title_home">首页</string>
+    <string name="title_search">搜索</string>
+    <string name="title_detail">详情页</string>
+    <string name="title_my_apps">我的应用</string>
+    <string name="title_upgrade">升级管理</string>
+    <string name="title_download_manager">下载管理</string>
+    <string name="title_install_manager">安装管理</string>
+    <string name="title_developer_settings">开发设置</string>
+    <string name="loading">加载中...</string>
+    <string name="download">下载</string>
+    <string name="install">安装</string>
+    <string name="open">打开</string>
+    <string name="upgrade">升级</string>
+    <string name="go_my_apps">我的应用</string>
+    <string name="back_home">返回首页</string>
+</resources>
