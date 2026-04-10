@@ -7,6 +7,8 @@ object InstallSessionStatus {
     const val WRITTEN = "WRITTEN"
     /** 已请求提交安装会话，正在等待回调确认。 */
     const val COMMITTED = "COMMITTED"
+    /** 系统要求用户确认安装，当前等待壳层拉起确认页。 */
+    const val PENDING_USER_ACTION = "PENDING_USER_ACTION"
     /** 平台回调已确认安装会话成功完成。 */
     const val CALLBACK_SUCCESS = "CALLBACK_SUCCESS"
     /** 进程重启后发现可恢复安装会话，并已标记为可重试处理。 */
@@ -20,7 +22,7 @@ object InstallSessionStatus {
     const val FAILED_COMMIT = "FAILED_COMMIT"
 
     fun isRecoverable(status: String): Boolean {
-        return status == CREATED || status == WRITTEN || status == COMMITTED
+        return status == CREATED || status == WRITTEN || status == COMMITTED || status == PENDING_USER_ACTION
     }
 
     fun isFailed(status: String): Boolean {

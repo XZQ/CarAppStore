@@ -5,7 +5,11 @@ import android.widget.Button
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.nio.appstore.R
+import com.nio.appstore.common.base.AppContainerProvider
 import com.nio.appstore.databinding.ActivityMainBinding
 import com.nio.appstore.feature.detail.DetailFragment
 import com.nio.appstore.feature.debug.DeveloperSettingsFragment
@@ -15,6 +19,7 @@ import com.nio.appstore.feature.installcenter.InstallCenterFragment
 import com.nio.appstore.feature.myapp.MyAppFragment
 import com.nio.appstore.feature.search.SearchFragment
 import com.nio.appstore.feature.upgrade.UpgradeFragment
+import kotlinx.coroutines.launch
 
 /**
  * MainActivity 是当前 app 壳层的主页面。
@@ -30,6 +35,7 @@ import com.nio.appstore.feature.upgrade.UpgradeFragment
 class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.MainNavigator {
 
     private lateinit var binding: ActivityMainBinding
+    private val appServices get() = (applicationContext as AppContainerProvider).appServices
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,6 +43,7 @@ class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.Mai
         setContentView(binding.root)
 
         bindNavigationClicks()
+        observeInstallUserActions()
 
         if (savedInstanceState == null) {
             openHome()
@@ -126,6 +133,19 @@ class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.Mai
         binding.btnNavInstall.setOnClickListener { openInstallManager() }
         binding.btnNavMyApps.setOnClickListener { openMyApps() }
         binding.btnNavDebug.setOnClickListener { openDeveloperSettings() }
+    }
+
+    /**
+     * 壳层统一响应系统安装确认请求，避免业务层直接依赖 Activity。
+     */
+    private fun observeInstallUserActions() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                appServices.installUserActionDispatcher.actions.collect { intent ->
+                    startActivity(intent)
+                }
+            }
+        }
     }
 
     /**

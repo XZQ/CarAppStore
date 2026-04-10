@@ -160,6 +160,7 @@ class DefaultAppManager(
 
         return stateCenter.observeAll().value.values.mapNotNull { state ->
             val relevant = state.installStatus == InstallStatus.WAITING ||
+                state.installStatus == InstallStatus.PENDING_USER_ACTION ||
                 state.installStatus == InstallStatus.INSTALLING ||
                 state.installStatus == InstallStatus.FAILED
             if (!relevant) return@mapNotNull null
@@ -203,8 +204,11 @@ class DefaultAppManager(
             status.isNullOrBlank() -> SessionBucket.NONE
             status == InstallSessionStatus.RECOVERED_INTERRUPTED -> SessionBucket.RECOVERED
             InstallSessionStatus.isFailed(status) -> SessionBucket.FAILED
-            status == InstallSessionStatus.CALLBACK_SUCCESS || status == InstallSessionStatus.COMMITTED -> SessionBucket.COMPLETED
-            status == InstallSessionStatus.CREATED || status == InstallSessionStatus.WRITTEN -> SessionBucket.ACTIVE
+            status == InstallSessionStatus.CALLBACK_SUCCESS -> SessionBucket.COMPLETED
+            status == InstallSessionStatus.COMMITTED ||
+                status == InstallSessionStatus.CREATED ||
+                status == InstallSessionStatus.WRITTEN ||
+                status == InstallSessionStatus.PENDING_USER_ACTION -> SessionBucket.ACTIVE
             else -> SessionBucket.NONE
         }
     }
@@ -330,6 +334,7 @@ class DefaultAppManager(
         return state.installStatus == InstallStatus.INSTALLED ||
             state.downloadStatus != DownloadStatus.IDLE ||
             state.installStatus == InstallStatus.WAITING ||
+            state.installStatus == InstallStatus.PENDING_USER_ACTION ||
             state.installStatus == InstallStatus.FAILED ||
             state.upgradeStatus == UpgradeStatus.AVAILABLE ||
             state.upgradeStatus == UpgradeStatus.UPGRADING
@@ -407,6 +412,7 @@ class DefaultAppManager(
 
     private fun mapInstallOverallStatus(state: AppState): TaskOverallStatus = when (state.installStatus) {
         InstallStatus.WAITING -> TaskOverallStatus.PENDING
+        InstallStatus.PENDING_USER_ACTION -> TaskOverallStatus.PENDING
         InstallStatus.INSTALLING -> TaskOverallStatus.ACTIVE
         InstallStatus.FAILED -> TaskOverallStatus.FAILED
         InstallStatus.INSTALLED -> TaskOverallStatus.COMPLETED

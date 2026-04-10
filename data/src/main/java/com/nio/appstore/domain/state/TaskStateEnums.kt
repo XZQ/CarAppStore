@@ -13,6 +13,7 @@ enum class DownloadStatus {
 enum class InstallStatus {
     NOT_INSTALLED,
     WAITING,
+    PENDING_USER_ACTION,
     INSTALLING,
     INSTALLED,
     FAILED,

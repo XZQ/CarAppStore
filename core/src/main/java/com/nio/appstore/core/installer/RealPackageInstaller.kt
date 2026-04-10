@@ -1,18 +1,14 @@
 package com.nio.appstore.core.installer
 
-import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 class RealPackageInstaller(
-    context: Context,
     private val sessionAdapter: PackageInstallerSessionAdapter,
     private val sessionStore: InstallSessionStore,
     private val fallbackInstaller: PackageInstaller? = null,
 ) : PackageInstaller {
-
-    private val appContext = context.applicationContext
 
     override suspend fun install(
         request: InstallRequest,
@@ -103,8 +99,28 @@ class RealPackageInstaller(
         onEvent(InstallEvent.Progress(sessionId, 55))
 
         delay(120L)
+        sessionStore.updateStatus(
+            sessionId = sessionId,
+            status = InstallSessionStatus.COMMITTED,
+            progress = 80,
+        )
+        onEvent(InstallEvent.Progress(sessionId, 80))
         val commit = try {
-            sessionAdapter.commitSession(sessionId)
+            sessionAdapter.commitSession(sessionId) { message, confirmationIntent ->
+                sessionStore.updateStatus(
+                    sessionId = sessionId,
+                    status = InstallSessionStatus.PENDING_USER_ACTION,
+                    progress = 90,
+                )
+                onEvent(InstallEvent.Progress(sessionId, 90))
+                onEvent(
+                    InstallEvent.PendingUserAction(
+                        sessionId = sessionId,
+                        message = message,
+                        confirmationIntent = confirmationIntent,
+                    )
+                )
+            }
         } catch (t: Throwable) {
             InstallCommitResult(
                 success = false,

@@ -8,6 +8,7 @@ import com.nio.appstore.core.downloader.DownloadStore
 import com.nio.appstore.core.downloader.RealFileDownloader
 import com.nio.appstore.core.downloader.SimulatedFileDownloader
 import com.nio.appstore.core.installer.InstallSessionStore
+import com.nio.appstore.core.installer.InstallUserActionDispatcher
 import com.nio.appstore.core.installer.RealPackageInstaller
 import com.nio.appstore.core.installer.SimulatedPackageInstaller
 import com.nio.appstore.core.installer.SystemPackageInstallerSessionAdapter
@@ -127,11 +128,15 @@ class AppContainer(context: Context) : AppServices {
         InstallSessionStore(storagePaths.installSessionsFile)
     }
 
+    /** 安装确认动作分发器，供壳层统一拉起系统确认页。 */
+    override val installUserActionDispatcher: InstallUserActionDispatcher by lazy {
+        InstallUserActionDispatcher()
+    }
+
     /** 安装执行器，当前优先走系统安装会话实现。 */
     private val packageInstaller by lazy {
         RealPackageInstaller(
-            context = appContext,
-            sessionAdapter = SystemPackageInstallerSessionAdapter(appContext),
+            sessionAdapter = SystemPackageInstallerSessionAdapter(appContext, installUserActionDispatcher),
             sessionStore = installSessionStore,
             fallbackInstaller = SimulatedPackageInstaller(),
         )

@@ -70,6 +70,7 @@ object CarUiStyle {
             state.downloadStatus == DownloadStatus.RUNNING -> StatusTone.INFO
             state.downloadStatus == DownloadStatus.WAITING -> StatusTone.INFO
             state.installStatus == InstallStatus.WAITING -> StatusTone.INFO
+            state.installStatus == InstallStatus.PENDING_USER_ACTION -> StatusTone.INFO
             state.installStatus == InstallStatus.INSTALLING -> StatusTone.INFO
             state.upgradeStatus == UpgradeStatus.UPGRADING -> StatusTone.INFO
             state.downloadStatus == DownloadStatus.PAUSED -> StatusTone.WARNING

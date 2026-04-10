@@ -1,6 +1,7 @@
 package com.nio.appstore.common.base
 
 import com.nio.appstore.core.installer.InstallSessionStore
+import com.nio.appstore.core.installer.InstallUserActionDispatcher
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.download.DownloadManager
 import com.nio.appstore.domain.install.InstallManager
@@ -21,4 +22,5 @@ interface AppServices {
     val upgradeManager: UpgradeManager
     val policyCenter: PolicyCenter
     val installSessionStore: InstallSessionStore
+    val installUserActionDispatcher: InstallUserActionDispatcher
 }

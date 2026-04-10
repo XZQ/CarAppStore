@@ -78,6 +78,10 @@ class DefaultInstallManager(
                     logger.d("InstallManager", "session created: ${event.sessionId} for $appId")
                     stateCenter.updateInstall(appId, InstallStatus.WAITING)
                 }
+                is InstallEvent.PendingUserAction -> {
+                    logger.d("InstallManager", "session pending user action: ${event.sessionId} for $appId")
+                    stateCenter.updateInstall(appId, InstallStatus.PENDING_USER_ACTION)
+                }
                 InstallEvent.Installing -> {
                     stateCenter.updateInstall(appId, InstallStatus.INSTALLING)
                 }
