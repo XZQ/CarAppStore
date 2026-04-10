@@ -12,23 +12,29 @@ import com.nio.appstore.data.model.AppViewData
 import com.nio.appstore.feature.myapp.databinding.ItemMyAppBinding
 
 class MyAppAdapter(
+    /** 点击应用卡片时的回调。 */
     private val onItemClick: (AppViewData) -> Unit,
 ) : ListAdapter<AppViewData, MyAppAdapter.MyAppViewHolder>(DiffCallback) {
 
+    /** 创建我的应用列表项 ViewHolder。 */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MyAppViewHolder {
         val binding = ItemMyAppBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return MyAppViewHolder(binding, onItemClick)
     }
 
+    /** 绑定我的应用列表项数据。 */
     override fun onBindViewHolder(holder: MyAppViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
 
     class MyAppViewHolder(
+        /** 我的应用列表项的 ViewBinding。 */
         private val binding: ItemMyAppBinding,
+        /** 点击应用卡片时的回调。 */
         private val onItemClick: (AppViewData) -> Unit,
     ) : RecyclerView.ViewHolder(binding.root) {
 
+        /** 把我的应用数据渲染到列表项。 */
         fun bind(item: AppViewData) {
             binding.tvAppName.text = item.name
             binding.tvState.applyTagStyle(CarUiStyle.tagStyle(item.stateText, item.statusTone))
@@ -43,6 +49,7 @@ class MyAppAdapter(
         }
     }
 
+    /** 我的应用列表差异比较器。 */
     private object DiffCallback : DiffUtil.ItemCallback<AppViewData>() {
         override fun areItemsTheSame(oldItem: AppViewData, newItem: AppViewData): Boolean = oldItem.appId == newItem.appId
         override fun areContentsTheSame(oldItem: AppViewData, newItem: AppViewData): Boolean = oldItem == newItem

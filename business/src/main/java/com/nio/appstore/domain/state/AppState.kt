@@ -2,6 +2,9 @@ package com.nio.appstore.domain.state
 
 import com.nio.appstore.data.model.ModelText
 
+/**
+ * AppState 是状态中心维护的单应用运行态快照。
+ */
 data class AppState(
     /** 状态中心使用的稳定应用标识。 */
     val appId: String,

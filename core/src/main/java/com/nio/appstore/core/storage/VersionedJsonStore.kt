@@ -17,9 +17,13 @@ import kotlin.concurrent.withLock
  * 4. 通过临时文件覆盖写入，尽量降低中途写坏文件的风险。
  */
 class VersionedJsonStore(
+    /** 当前 store 对应的本地文件。 */
     private val storeFile: File,
+    /** 当前 store 期待的 schema 版本。 */
     private val schemaVersion: Int,
+    /** 创建空根节点的工厂方法。 */
     private val defaultRootFactory: () -> JSONObject,
+    /** 读取到旧格式数据时使用的迁移函数。 */
     private val migration: (Any) -> JSONObject,
 ) {
 
@@ -51,10 +55,13 @@ class VersionedJsonStore(
 
     /** 描述一次加载后的根节点与是否需要回写。 */
     private class LoadState(
+        /** 已标准化为当前 schema 的根节点。 */
         val root: JSONObject,
+        /** 是否需要在本次读取后立即回写。 */
         val shouldPersist: Boolean,
     )
 
+    /** 在锁内加载并标准化当前根节点。 */
     private fun loadStateLocked(): LoadState {
         val rawValue = readRawValueLocked() ?: return LoadState(createDefaultRoot(), false)
         val root = when (rawValue) {
@@ -62,6 +69,7 @@ class VersionedJsonStore(
             else -> migration(rawValue)
         }
         val currentVersion = root.optInt(KEY_SCHEMA_VERSION, SCHEMA_VERSION_UNKNOWN)
+        // 版本不一致时统一走迁移逻辑，再补上最新 schemaVersion。
         val normalizedRoot = if (currentVersion == schemaVersion) {
             root
         } else {
@@ -72,6 +80,7 @@ class VersionedJsonStore(
         return LoadState(normalizedRoot, currentVersion != schemaVersion)
     }
 
+    /** 在锁内读取原始 JSON 值。 */
     private fun readRawValueLocked(): Any? {
         if (!storeFile.exists()) return null
         val rawText = storeFile.readText(StandardCharsets.UTF_8)
@@ -79,10 +88,12 @@ class VersionedJsonStore(
         return runCatching { JSONTokener(rawText).nextValue() }.getOrNull()
     }
 
+    /** 创建带 schemaVersion 的默认根节点。 */
     private fun createDefaultRoot(): JSONObject = defaultRootFactory().apply {
         put(KEY_SCHEMA_VERSION, schemaVersion)
     }
 
+    /** 通过临时文件覆盖写入方式持久化根节点。 */
     private fun persistLocked(root: JSONObject) {
         storeFile.parentFile?.mkdirs()
         val normalizedRoot = JSONObject(root.toString()).apply {
@@ -91,6 +102,7 @@ class VersionedJsonStore(
         val tempFile = File(storeFile.parentFile, storeFile.name + TEMP_FILE_SUFFIX)
         tempFile.writeText(normalizedRoot.toString(), StandardCharsets.UTF_8)
         if (!tempFile.renameTo(storeFile)) {
+            // 某些文件系统不支持原子 rename 时，退化为覆盖复制。
             tempFile.copyTo(storeFile, overwrite = true)
             tempFile.delete()
         }

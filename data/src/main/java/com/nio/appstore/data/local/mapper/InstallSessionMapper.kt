@@ -4,6 +4,7 @@ import com.nio.appstore.core.installer.InstallSessionRecord
 import com.nio.appstore.data.local.entity.InstallSessionEntity
 
 object InstallSessionMapper {
+    /** 把安装会话业务模型转换为本地实体。 */
     fun toEntity(record: InstallSessionRecord): InstallSessionEntity = InstallSessionEntity(
         sessionId = record.sessionId,
         appId = record.appId,
@@ -18,6 +19,7 @@ object InstallSessionMapper {
         updatedAt = record.updatedAt,
     )
 
+    /** 把本地安装会话实体转换为业务模型。 */
     fun fromEntity(entity: InstallSessionEntity): InstallSessionRecord = InstallSessionRecord(
         sessionId = entity.sessionId,
         appId = entity.appId,

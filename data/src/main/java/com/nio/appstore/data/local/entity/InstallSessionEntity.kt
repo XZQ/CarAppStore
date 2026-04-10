@@ -1,5 +1,8 @@
 package com.nio.appstore.data.local.entity
 
+/**
+ * InstallSessionEntity 描述本地持久化的安装会话实体。
+ */
 data class InstallSessionEntity(
     /** 平台分配的安装会话标识。 */
     val sessionId: Int,

@@ -17,19 +17,28 @@ import com.nio.appstore.data.model.DownloadTaskViewData
 import com.nio.appstore.feature.downloadmanager.databinding.ItemDownloadTaskBinding
 
 class DownloadTaskAdapter(
+    /** 主动作按钮点击回调。 */
     private val onPrimaryClick: (DownloadTaskViewData) -> Unit,
+    /** 次动作按钮点击回调。 */
     private val onSecondaryClick: (DownloadTaskViewData) -> Unit,
+    /** 详情按钮点击回调。 */
     private val onDetailClick: (DownloadTaskViewData) -> Unit,
 ) : ListAdapter<DownloadTaskViewData, DownloadTaskAdapter.TaskViewHolder>(DiffCallback) {
 
+    /** 创建下载任务卡片 ViewHolder。 */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TaskViewHolder {
         val binding = ItemDownloadTaskBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return TaskViewHolder(binding)
     }
 
+    /** 绑定下载任务卡片数据。 */
     override fun onBindViewHolder(holder: TaskViewHolder, position: Int) = holder.bind(getItem(position))
 
-    inner class TaskViewHolder(private val binding: ItemDownloadTaskBinding) : RecyclerView.ViewHolder(binding.root) {
+    inner class TaskViewHolder(
+        /** 下载任务卡片的 ViewBinding。 */
+        private val binding: ItemDownloadTaskBinding,
+    ) : RecyclerView.ViewHolder(binding.root) {
+        /** 把下载任务数据渲染到卡片。 */
         fun bind(item: DownloadTaskViewData) {
             binding.layoutTaskCard.applyTaskCardBackground(item.overallStatus)
             binding.tvTaskName.text = item.name
@@ -48,6 +57,7 @@ class DownloadTaskAdapter(
             binding.tvTaskPath.text = item.pathText
             binding.tvTaskProgress.text = binding.root.context.getString(R.string.task_download_progress_format, item.progress)
             binding.progressTask.progress = item.progress
+            // 进度条只在下载进行中展示，避免完成态仍显示进度组件。
             binding.progressTask.visibility = if (item.progress > 0 && item.progress < 100) View.VISIBLE else View.GONE
             binding.tvTaskProgress.visibility = if (item.progress > 0 || item.overallStatus.name == "ACTIVE") View.VISIBLE else View.GONE
             binding.tvTaskReason.visibility = if (item.reasonText.isNullOrBlank()) View.GONE else View.VISIBLE
@@ -61,6 +71,7 @@ class DownloadTaskAdapter(
             binding.btnTaskDetail.setOnClickListener { onDetailClick(item) }
         }
 
+        /** 根据任务分组生成下载任务摘要。 */
         private fun buildSummary(item: DownloadTaskViewData): String {
             val stage = when (item.overallStatus) {
                 com.nio.appstore.data.model.TaskOverallStatus.ACTIVE -> binding.root.context.getString(R.string.task_download_summary_active)
@@ -73,6 +84,7 @@ class DownloadTaskAdapter(
     }
 
     companion object {
+        /** 下载任务列表差异比较器。 */
         private val DiffCallback = object : DiffUtil.ItemCallback<DownloadTaskViewData>() {
             override fun areItemsTheSame(oldItem: DownloadTaskViewData, newItem: DownloadTaskViewData): Boolean = oldItem.appId == newItem.appId
             override fun areContentsTheSame(oldItem: DownloadTaskViewData, newItem: DownloadTaskViewData): Boolean = oldItem == newItem

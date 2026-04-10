@@ -1,8 +1,11 @@
 package com.nio.appstore.core.downloader
 
 enum class DownloadSourcePolicy {
+    /** 强制使用 mock 下载源。 */
     MOCK,
+    /** 强制使用真实 HTTP 下载源。 */
     DIRECT_HTTP,
+    /** 无法满足真实下载条件时回退模拟下载。 */
     FALLBACK_SIMULATED,
 }
 

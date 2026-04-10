@@ -2,6 +2,9 @@ package com.nio.appstore.feature.search
 
 import com.nio.appstore.data.model.AppViewData
 
+/**
+ * SearchUiState 描述搜索页需要渲染的界面状态。
+ */
 data class SearchUiState(
     /** 当前搜索关键词。 */
     val keyword: String = "",

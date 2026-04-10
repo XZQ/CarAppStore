@@ -1,19 +1,27 @@
 package com.nio.appstore.data.model
 
 enum class TaskOverallStatus {
+    /** 待处理任务。 */
     PENDING,
+    /** 执行中任务。 */
     ACTIVE,
+    /** 失败任务。 */
     FAILED,
+    /** 已完成任务。 */
     COMPLETED,
 }
 
-enum class TaskCenterFilter(val label: String) {
+enum class TaskCenterFilter(
+    /** 展示给用户的任务筛选标签。 */
+    val label: String,
+) {
     ALL(ModelText.FILTER_ALL_TASKS),
     PENDING(ModelText.FILTER_PENDING),
     ACTIVE(ModelText.FILTER_ACTIVE),
     FAILED(ModelText.FILTER_FAILED),
     COMPLETED(ModelText.FILTER_COMPLETED);
 
+    /** 获取下一个任务筛选项。 */
     fun next(): TaskCenterFilter = when (this) {
         ALL -> PENDING
         PENDING -> ACTIVE
@@ -22,6 +30,7 @@ enum class TaskCenterFilter(val label: String) {
         COMPLETED -> ALL
     }
 
+    /** 判断当前筛选项是否匹配目标任务分组。 */
     fun matches(status: TaskOverallStatus): Boolean = when (this) {
         ALL -> true
         PENDING -> status == TaskOverallStatus.PENDING
@@ -41,6 +50,7 @@ data class TaskCenterStats(
     /** 已完成任务数量。 */
     val completedCount: Int = 0,
 ) {
+    /** 当前统计项的总任务数。 */
     val totalCount: Int get() = activeCount + pendingCount + failedCount + completedCount
 }
 

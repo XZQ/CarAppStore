@@ -2,6 +2,9 @@ package com.nio.appstore.feature.home
 
 import com.nio.appstore.data.model.AppViewData
 
+/**
+ * HomeUiState 描述首页需要渲染的界面状态。
+ */
 data class HomeUiState(
     /** 页面是否仍在加载初始内容。 */
     val loading: Boolean = true,

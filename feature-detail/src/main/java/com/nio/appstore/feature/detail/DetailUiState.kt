@@ -5,6 +5,9 @@ import com.nio.appstore.data.model.AppDetail
 import com.nio.appstore.data.model.ModelText
 import com.nio.appstore.domain.state.PrimaryAction
 
+/**
+ * DetailUiState 描述详情页需要渲染的全部界面状态。
+ */
 data class DetailUiState(
     /** 当前应用已加载的详情数据。 */
     val appDetail: AppDetail? = null,

@@ -35,9 +35,14 @@ data class InstallTaskViewData(
 )
 
 enum class SessionBucket {
+    /** 不参与会话筛选。 */
     NONE,
+    /** 进行中的会话。 */
     ACTIVE,
+    /** 失败会话。 */
     FAILED,
+    /** 恢复后中断的会话。 */
     RECOVERED,
+    /** 已完成会话。 */
     COMPLETED,
 }

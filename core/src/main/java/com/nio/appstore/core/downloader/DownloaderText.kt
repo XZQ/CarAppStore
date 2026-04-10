@@ -1,6 +1,10 @@
 package com.nio.appstore.core.downloader
 
+/**
+ * DownloaderText 收敛下载器内部使用的失败文案、状态码和提示文案。
+ */
 object DownloaderText {
+    /** 网络超时失败文案。 */
     const val FAILURE_NETWORK_TIMEOUT = "下载超时"
     const val FAILURE_NETWORK_INTERRUPTED = "网络中断"
     const val FAILURE_HTTP_4XX = "下载地址无效"
@@ -40,7 +44,9 @@ object DownloaderText {
     private const val FILE_LENGTH_MISMATCH_FORMAT = "文件长度不一致，期望 %d，实际 %d"
     private const val CHECKSUM_MISMATCH_FORMAT = "文件校验失败，%s 不匹配"
 
+    /** 生成文件长度不匹配文案。 */
     fun fileLengthMismatch(expectedBytes: Long, actualBytes: Long): String = FILE_LENGTH_MISMATCH_FORMAT.format(expectedBytes, actualBytes)
 
+    /** 生成校验值不匹配文案。 */
     fun checksumMismatch(checksumType: String): String = CHECKSUM_MISMATCH_FORMAT.format(checksumType.uppercase())
 }

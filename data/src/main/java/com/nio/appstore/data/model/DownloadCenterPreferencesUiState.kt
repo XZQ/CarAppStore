@@ -14,21 +14,27 @@ data class DownloadCenterPreferencesUiState(
     /** 当前设备是否处于低存储状态。 */
     val lowStorageMode: Boolean = false,
 ) {
+    /** 自动续传开关对应的按钮文案。 */
     val autoResumeText: String
         get() = ModelText.autoResumeText(autoResumeEnabled)
 
+    /** 自动重试开关对应的按钮文案。 */
     val autoRetryText: String
         get() = ModelText.autoRetryText(autoRetryEnabled)
 
+    /** 当前网络状态对应的按钮文案。 */
     val wifiText: String
         get() = ModelText.networkText(wifiConnected)
 
+    /** 当前驻车状态对应的按钮文案。 */
     val parkingText: String
         get() = ModelText.parkingText(parkingMode)
 
+    /** 当前存储状态对应的按钮文案。 */
     val storageText: String
         get() = ModelText.storageText(lowStorageMode)
 
+    /** 下载偏好扩展区的摘要文案。 */
     val summaryText: String
         get() = ModelText.downloadSummaryText(autoResumeEnabled, autoRetryEnabled, maxAutoRetryCount)
 }

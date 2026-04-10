@@ -10,15 +10,19 @@ data class InstallCenterControlsUiState(
     /** 中断恢复得到的安装会话数量。 */
     val recoveredSessionCount: Int = 0,
 ) {
+    /** 安装中心扩展区摘要文案。 */
     val summaryText: String
         get() = ModelText.installCenterSummary(runnableCount, failedCount, retryableSessionCount, recoveredSessionCount)
 
+    /** 安装中心主按钮文案。 */
     val primaryText: String
         get() = ModelText.installCenterPrimaryText(runnableCount)
 
+    /** 安装中心第二按钮文案。 */
     val secondaryText: String
         get() = ModelText.installCenterSecondaryText(failedCount)
 
+    /** 安装中心第三按钮文案。 */
     val tertiaryText: String
         get() = ModelText.installCenterTertiaryText(retryableSessionCount)
 }

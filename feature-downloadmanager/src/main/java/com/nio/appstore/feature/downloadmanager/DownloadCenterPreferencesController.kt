@@ -6,6 +6,7 @@ import com.nio.appstore.data.model.DownloadCenterPreferencesUiState
 import com.nio.appstore.feature.downloadmanager.databinding.ViewDownloadCenterPreferencesBinding
 
 class DownloadCenterPreferencesController(
+    /** 下载中心偏好扩展区的 ViewBinding。 */
     private val binding: ViewDownloadCenterPreferencesBinding,
 ) : BaseFiveActionExtensionController<DownloadCenterPreferencesUiState>(
     setSummary = { binding.tvPreferenceSummary.apply { visibility = View.VISIBLE; text = it } },
@@ -21,6 +22,7 @@ class DownloadCenterPreferencesController(
     bindFifthClick = { binding.btnPolicyStorage.setOnClickListener { _ -> it() } },
 ) {
 
+    /** 把下载偏好状态绑定到扩展区控件。 */
     override fun bind(uiState: DownloadCenterPreferencesUiState) {
         bindCommon(
             summary = uiState.summaryText,

@@ -26,22 +26,29 @@ import java.util.Date
 import java.util.Locale
 
 class DefaultAppManager(
+    /** 统一数据入口，负责读取应用列表、详情和任务记录。 */
     private val repository: AppRepository,
+    /** 全局运行态状态中心，负责提供每个应用的实时状态快照。 */
     private val stateCenter: StateCenter,
+    /** 安装会话存储，供安装中心读取最新会话状态。 */
     private val installSessionStore: InstallSessionStore,
 ) : AppManager {
 
+    /** 获取首页应用卡片列表，并补齐已安装版本与升级状态。 */
     override suspend fun getHomeApps(): List<AppViewData> {
         val apps = repository.getHomeApps()
         val installed = repository.getInstalledApps().associateBy { it.appId }
+        // 先把已安装版本同步进状态中心，后续构建卡片时才能得到正确主按钮。
         installed.forEach { (appId, app) -> stateCenter.syncInstalled(appId, app.versionName) }
 
         return apps.mapNotNull { app ->
+            // 首页卡片构建前先同步升级可用性，保证展示的主动作和状态文案一致。
             syncUpgradeAvailability(app.appId, installed[app.appId]?.versionName)
             buildViewData(app.appId, app.name, app.description, app.versionName, app.packageName)
         }
     }
 
+    /** 获取指定应用详情，并在已安装情况下补齐版本和升级状态。 */
     override suspend fun getAppDetail(appId: String): AppDetail {
         val detail = repository.getAppDetail(appId)
         if (repository.isInstalled(appId)) {
@@ -52,9 +59,11 @@ class DefaultAppManager(
         return detail
     }
 
+    /** 获取“我的应用”页面需要展示的应用列表。 */
     override suspend fun getMyApps(): List<AppViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
         val installedApps = repository.getInstalledApps()
+        // “我的应用”以已安装应用为主，同时补充有进行中任务的应用。
         installedApps.forEach { installed ->
             stateCenter.syncInstalled(installed.appId, installed.versionName)
             syncUpgradeAvailability(installed.appId, installed.versionName)
@@ -76,6 +85,7 @@ class DefaultAppManager(
         }.sortedWith(compareByDescending<AppViewData> { shouldSortFirst(it.primaryAction) }.thenBy { it.name })
     }
 
+    /** 获取首页中单个应用的聚合视图数据。 */
     override suspend fun getHomeAppViewData(appId: String): AppViewData? {
         val app = repository.getHomeApps().firstOrNull { it.appId == appId } ?: return null
         val installedVersion = repository.getInstalledApps().firstOrNull { it.appId == appId }?.versionName
@@ -84,6 +94,7 @@ class DefaultAppManager(
         return buildViewData(app.appId, app.name, app.description, app.versionName, app.packageName)
     }
 
+    /** 根据关键字搜索应用卡片。 */
     override suspend fun searchApps(keyword: String): List<AppViewData> {
         val normalized = keyword.trim()
         val source = getHomeApps()
@@ -93,6 +104,7 @@ class DefaultAppManager(
         }
     }
 
+    /** 获取下载管理页顶部应用卡片集合。 */
     override suspend fun getDownloadManageApps(): List<AppViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
         val installedApps = repository.getInstalledApps().associateBy { it.appId }
@@ -116,6 +128,7 @@ class DefaultAppManager(
         }.sortedByDescending { it.progress }
     }
 
+    /** 获取下载任务中心需要展示的下载任务列表。 */
     override suspend fun getDownloadTasks(): List<DownloadTaskViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
         val tasks = repository.getAllDownloadTasks()
@@ -124,6 +137,7 @@ class DefaultAppManager(
             val state = stateCenter.snapshot(task.appId)
             val file = File(task.targetFilePath)
             val actualSize = if (file.exists()) file.length() else task.downloadedBytes
+            // 二级操作文案由任务状态决定，避免页面自己判断删除/取消/清理 APK。
             val secondaryActionText = when {
                 task.status == DownloadStatus.COMPLETED -> BusinessText.ACTION_CLEAR_APK
                 task.status == DownloadStatus.FAILED || task.status == DownloadStatus.CANCELED -> BusinessText.ACTION_DELETE_TASK
@@ -151,7 +165,7 @@ class DefaultAppManager(
         }.sortedWith(compareBy<DownloadTaskViewData> { downloadTaskBucket(it) }.thenByDescending { it.updatedAt })
     }
 
-
+    /** 获取安装中心需要展示的安装任务列表。 */
     override suspend fun getInstallTasks(): List<InstallTaskViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
         val installedApps = repository.getInstalledApps().associateBy { it.appId }
@@ -159,6 +173,7 @@ class DefaultAppManager(
             .associateWith { appId -> installSessionStore.getLatestByAppId(appId) }
 
         return stateCenter.observeAll().value.values.mapNotNull { state ->
+            // 只有等待安装、待确认、安装中和安装失败态才需要进入安装中心。
             val relevant = state.installStatus == InstallStatus.WAITING ||
                 state.installStatus == InstallStatus.PENDING_USER_ACTION ||
                 state.installStatus == InstallStatus.INSTALLING ||
@@ -197,8 +212,7 @@ class DefaultAppManager(
         }.thenBy { it.name })
     }
 
-
-
+    /** 将安装会话状态映射为安装中心使用的会话分桶。 */
     private fun mapSessionBucket(status: String?): SessionBucket {
         return when {
             status.isNullOrBlank() -> SessionBucket.NONE
@@ -213,6 +227,7 @@ class DefaultAppManager(
         }
     }
 
+    /** 合并应用级失败信息和安装会话失败信息。 */
     private fun mergeInstallFailureText(
         appErrorCode: String?,
         appErrorMessage: String?,
@@ -232,6 +247,7 @@ class DefaultAppManager(
             .ifBlank { null }
     }
 
+    /** 获取升级管理页顶部应用卡片集合。 */
     override suspend fun getUpgradeManageApps(): List<AppViewData> {
         return getUpgradeTasks().map {
             AppViewData(
@@ -249,6 +265,7 @@ class DefaultAppManager(
         }
     }
 
+    /** 获取升级中心需要展示的升级任务列表。 */
     override suspend fun getUpgradeTasks(): List<UpgradeTaskViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
         val installedApps = repository.getInstalledApps().associateBy { it.appId }
@@ -259,6 +276,7 @@ class DefaultAppManager(
         return installedApps.values.mapNotNull { installed ->
             val upgradeInfo = repository.getUpgradeInfo(installed.appId)
             val state = stateCenter.snapshot(installed.appId)
+            // 只有可升级、升级中和升级失败态才进入升级中心。
             val relevant = state.upgradeStatus == UpgradeStatus.AVAILABLE ||
                 state.upgradeStatus == UpgradeStatus.UPGRADING ||
                 state.installStatus == InstallStatus.INSTALLING ||
@@ -284,12 +302,16 @@ class DefaultAppManager(
         }.sortedWith(compareBy<UpgradeTaskViewData> { upgradeTaskBucket(it) }.thenBy { it.name })
     }
 
+    /** 计算下载中心统计信息。 */
     override suspend fun getDownloadTaskStats(): TaskCenterStats = buildTaskStats(getDownloadTasks().map { it.overallStatus })
 
+    /** 计算安装中心统计信息。 */
     override suspend fun getInstallTaskStats(): TaskCenterStats = buildTaskStats(getInstallTasks().map { it.overallStatus })
 
+    /** 计算升级中心统计信息。 */
     override suspend fun getUpgradeTaskStats(): TaskCenterStats = buildTaskStats(getUpgradeTasks().map { it.overallStatus })
 
+    /** 聚合当前策略提示文案。 */
     override fun getPolicyPrompt(): String {
         val settings = repository.getPolicySettings()
         val prompts = mutableListOf<String>()
@@ -299,8 +321,10 @@ class DefaultAppManager(
         return if (prompts.isEmpty()) BusinessText.POLICY_ALL_CLEAR else prompts.joinToString("；")
     }
 
+    /** 尝试打开指定包名的应用。 */
     override fun openApp(packageName: String): Boolean = repository.openApp(packageName)
 
+    /** 根据当前安装版本同步升级可用性。 */
     private suspend fun syncUpgradeAvailability(appId: String, installedVersion: String?) {
         if (installedVersion.isNullOrBlank()) {
             stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
@@ -314,6 +338,7 @@ class DefaultAppManager(
         }
     }
 
+    /** 将应用基础数据和运行态合成为页面卡片模型。 */
     private fun buildViewData(appId: String, name: String?, description: String?, versionName: String?, packageName: String?): AppViewData? {
         if (name.isNullOrBlank() || versionName.isNullOrBlank()) return null
         val state = stateCenter.snapshot(appId)
@@ -330,6 +355,7 @@ class DefaultAppManager(
         )
     }
 
+    /** 判断一个应用是否应该出现在“我的应用”列表中。 */
     private fun shouldShowInMyApps(state: AppState): Boolean {
         return state.installStatus == InstallStatus.INSTALLED ||
             state.downloadStatus != DownloadStatus.IDLE ||
@@ -340,10 +366,12 @@ class DefaultAppManager(
             state.upgradeStatus == UpgradeStatus.UPGRADING
     }
 
+    /** 判断某个主操作是否应该在列表排序时前置。 */
     private fun shouldSortFirst(action: PrimaryAction): Boolean {
         return action == PrimaryAction.UPGRADE || action == PrimaryAction.INSTALL || action == PrimaryAction.PAUSE
     }
 
+    /** 对下载任务做桶排序，让更需要用户处理的任务排前面。 */
     private fun downloadTaskBucket(item: DownloadTaskViewData): Int {
         return when (item.primaryAction) {
             PrimaryAction.PAUSE -> 0
@@ -355,6 +383,7 @@ class DefaultAppManager(
         }
     }
 
+    /** 对升级任务做桶排序，让可升级和进行中任务优先展示。 */
     private fun upgradeTaskBucket(item: UpgradeTaskViewData): Int {
         return when (item.primaryAction) {
             PrimaryAction.UPGRADE -> 0
@@ -365,6 +394,7 @@ class DefaultAppManager(
         }
     }
 
+    /** 将字节数格式化为人类可读文本。 */
     private fun formatBytes(bytes: Long): String {
         val kb = 1024.0
         val mb = kb * 1024.0
@@ -375,6 +405,7 @@ class DefaultAppManager(
         }
     }
 
+    /** 将下载速度格式化为人类可读文本。 */
     private fun formatSpeed(bytesPerSec: Long): String {
         val kb = 1024.0
         val mb = kb * 1024.0
@@ -385,11 +416,13 @@ class DefaultAppManager(
         }
     }
 
+    /** 生成任务更新时间和重试次数描述。 */
     private fun buildTaskTimeText(updatedAt: Long, retryCount: Int): String {
         val retryPart = if (retryCount > 0) BusinessText.retryPart(retryCount) else ""
         return BusinessText.updatedAt(formatTime(updatedAt)) + retryPart
     }
 
+    /** 组合失败码和失败文案。 */
     private fun buildReasonText(failureCode: String?, failureMessage: String?): String? {
         if (failureMessage.isNullOrBlank() && failureCode.isNullOrBlank()) return null
         return listOfNotNull(
@@ -398,10 +431,12 @@ class DefaultAppManager(
         ).joinToString(" · ")
     }
 
+    /** 将时间戳格式化为列表展示文本。 */
     private fun formatTime(timestamp: Long): String {
         return SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
     }
 
+    /** 将下载状态映射为任务中心总状态。 */
     private fun mapDownloadOverallStatus(status: DownloadStatus): TaskOverallStatus = when (status) {
         DownloadStatus.WAITING, DownloadStatus.PAUSED -> TaskOverallStatus.PENDING
         DownloadStatus.RUNNING -> TaskOverallStatus.ACTIVE
@@ -410,6 +445,7 @@ class DefaultAppManager(
         DownloadStatus.IDLE -> TaskOverallStatus.PENDING
     }
 
+    /** 将安装状态映射为任务中心总状态。 */
     private fun mapInstallOverallStatus(state: AppState): TaskOverallStatus = when (state.installStatus) {
         InstallStatus.WAITING -> TaskOverallStatus.PENDING
         InstallStatus.PENDING_USER_ACTION -> TaskOverallStatus.PENDING
@@ -419,6 +455,7 @@ class DefaultAppManager(
         InstallStatus.NOT_INSTALLED -> TaskOverallStatus.PENDING
     }
 
+    /** 将升级状态映射为任务中心总状态。 */
     private fun mapUpgradeOverallStatus(state: AppState): TaskOverallStatus = when (state.upgradeStatus) {
         UpgradeStatus.AVAILABLE -> TaskOverallStatus.PENDING
         UpgradeStatus.UPGRADING -> TaskOverallStatus.ACTIVE
@@ -427,6 +464,7 @@ class DefaultAppManager(
         UpgradeStatus.NONE -> TaskOverallStatus.PENDING
     }
 
+    /** 根据总状态集合构建任务中心统计信息。 */
     private fun buildTaskStats(statuses: List<TaskOverallStatus>): TaskCenterStats = TaskCenterStats(
         activeCount = statuses.count { it == TaskOverallStatus.ACTIVE },
         pendingCount = statuses.count { it == TaskOverallStatus.PENDING },

@@ -10,11 +10,13 @@ import kotlinx.coroutines.flow.asSharedFlow
  */
 class InstallUserActionDispatcher {
 
+    /** 向壳层广播系统安装确认动作的共享流。 */
     private val _actions = MutableSharedFlow<Intent>(extraBufferCapacity = 1)
 
     /** 壳层监听的系统安装确认动作流。 */
     val actions: SharedFlow<Intent> = _actions.asSharedFlow()
 
+    /** 分发一次系统安装确认动作。 */
     fun dispatch(intent: Intent) {
         _actions.tryEmit(intent)
     }
