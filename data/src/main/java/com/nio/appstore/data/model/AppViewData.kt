@@ -3,6 +3,9 @@ package com.nio.appstore.data.model
 import com.nio.appstore.common.ui.StatusTone
 import com.nio.appstore.domain.state.PrimaryAction
 
+/**
+ * AppViewData 是页面直接消费的应用卡片展示模型。
+ */
 data class AppViewData(
     /** 稳定的应用标识。 */
     val appId: String,

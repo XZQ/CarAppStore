@@ -22,18 +22,29 @@ import kotlin.concurrent.withLock
 
 class AppLocalDataSource(
     context: Context,
+    /** 统一结构化本地存储入口。 */
     private val localStoreFacade: LocalStoreFacade = InMemoryLocalStoreFacade(),
 ) {
+    /** 当前模块统一使用的应用级 Context。 */
     private val appContext = context.applicationContext
+    /** 兼容旧版本格式的 legacy 本地存储文件。 */
     private val storeFile = File(appContext.filesDir, "local_store.json")
+    /** 下载产物默认目录。 */
     private val downloadDir = File(appContext.filesDir, "downloads").apply { mkdirs() }
 
+    /** 已安装应用的 legacy 内存镜像。 */
     private val installedApps = mutableListOf<InstalledApp>()
+    /** 已下载 APK 路径的 legacy 内存镜像。 */
     private val downloadedApkPaths = mutableMapOf<String, String>()
+    /** staged upgrade 版本号的 legacy 内存镜像。 */
     private val stagedUpgradeVersions = mutableMapOf<String, String>()
+    /** 下载任务的 legacy 内存镜像。 */
     private val downloadTasks = mutableMapOf<String, DownloadTaskRecord>()
+    /** 下载分片的 legacy 内存镜像。 */
     private val downloadSegments = mutableMapOf<String, List<DownloadSegmentRecord>>()
+    /** 下载偏好的 legacy 内存镜像。 */
     private var downloadPreferences = DownloadPreferences()
+    /** 策略设置的 legacy 内存镜像。 */
     private var policySettings = PolicySettings()
     /** 保护 legacy fallback 文件读写的并发锁。 */
     private val legacyStoreLock = ReentrantLock()
@@ -42,8 +53,10 @@ class AppLocalDataSource(
         loadFromDisk()
     }
 
+    /** 获取已安装应用列表。 */
     fun getInstalledApps(): List<InstalledApp> = installedApps.toList()
 
+    /** 保存已安装应用，并同步到结构化存储和 legacy fallback。 */
     fun saveInstalledApp(app: InstalledApp) {
         installedApps.removeAll { it.appId == app.appId }
         installedApps.add(app)
@@ -58,8 +71,10 @@ class AppLocalDataSource(
         persist()
     }
 
+    /** 判断指定应用是否已经安装。 */
     fun isInstalled(appId: String): Boolean = installedApps.any { it.appId == appId }
 
+    /** 保存已下载 APK 的路径引用。 */
     fun saveDownloadedApk(appId: String, apkPath: String) {
         downloadedApkPaths[appId] = apkPath
         val file = File(apkPath)
@@ -75,19 +90,23 @@ class AppLocalDataSource(
         persist()
     }
 
+    /** 获取仍然有效的 APK 路径。 */
     fun getDownloadedApk(appId: String): String? {
         val facadePath = localStoreFacade.getDownloadArtifactRef(appId)?.apkPath?.takeIf { File(it).exists() }
         val legacyPath = downloadedApkPaths[appId]?.takeIf { File(it).exists() }
         return LocalStoreFallbackPolicy.preferFacade(facadePath, legacyPath)
     }
 
+    /** 获取指定应用默认的下载目标文件。 */
     fun getOrCreateDownloadFile(appId: String): File = File(downloadDir, "$appId.apk")
 
+    /** 获取当前策略设置。 */
     fun getPolicySettings(): PolicySettings {
         val facadeValue = localStoreFacade.getSetting(LocalStoreKeys.POLICY_SETTINGS)?.value?.let { decodePolicySettings(it) }
         return LocalStoreFallbackPolicy.preferFacade(facadeValue, policySettings) ?: PolicySettings()
     }
 
+    /** 保存策略设置。 */
     fun savePolicySettings(settings: PolicySettings) {
         policySettings = settings
         localStoreFacade.saveSetting(
@@ -100,6 +119,7 @@ class AppLocalDataSource(
         persist()
     }
 
+    /** 保存 staged upgrade 的目标版本。 */
     fun stageUpgradeVersion(appId: String, versionName: String) {
         stagedUpgradeVersions[appId] = versionName
         localStoreFacade.saveSetting(
@@ -112,6 +132,7 @@ class AppLocalDataSource(
         persist()
     }
 
+    /** 读取并消费 staged upgrade 版本号。 */
     fun consumeStagedUpgradeVersion(appId: String): String? {
         val facadeKey = LocalStoreKeys.stagedUpgrade(appId)
         val value = localStoreFacade.getSetting(facadeKey)?.value ?: stagedUpgradeVersions.remove(appId)
@@ -120,6 +141,7 @@ class AppLocalDataSource(
         return value
     }
 
+    /** 只读取 staged upgrade 版本号，不执行消费。 */
     fun peekStagedUpgradeVersion(appId: String): String? {
         return LocalStoreFallbackPolicy.preferFacade(
             localStoreFacade.getSetting(LocalStoreKeys.stagedUpgrade(appId))?.value,
@@ -127,23 +149,27 @@ class AppLocalDataSource(
         )
     }
 
+    /** 保存下载任务记录。 */
     fun saveDownloadTask(record: DownloadTaskRecord) {
         downloadTasks[record.appId] = record
         localStoreFacade.saveDownloadTask(DownloadTaskMapper.toEntity(record))
         persist()
     }
 
+    /** 获取指定应用的下载任务记录。 */
     fun getDownloadTask(appId: String): DownloadTaskRecord? {
         val facadeRecord = localStoreFacade.getDownloadTask(appId)?.let { DownloadTaskMapper.fromEntity(it) }
         return LocalStoreFallbackPolicy.preferFacade(facadeRecord, downloadTasks[appId])
     }
 
+    /** 获取所有下载任务记录。 */
     fun getAllDownloadTasks(): List<DownloadTaskRecord> {
         val facadeTasks = localStoreFacade.getAllDownloadTasks().map { DownloadTaskMapper.fromEntity(it) }
         val legacyTasks = downloadTasks.values.sortedByDescending { it.updatedAt }
         return LocalStoreFallbackPolicy.preferFacadeList(facadeTasks, legacyTasks)
     }
 
+    /** 删除指定应用的下载任务。 */
     fun removeDownloadTask(appId: String) {
         downloadTasks.remove(appId)
         downloadSegments.remove(appId)
@@ -151,23 +177,27 @@ class AppLocalDataSource(
         persist()
     }
 
+    /** 保存指定应用的下载分片记录。 */
     fun saveDownloadSegments(appId: String, segments: List<DownloadSegmentRecord>) {
         downloadSegments[appId] = segments
         localStoreFacade.saveDownloadSegments(appId, segments.map { DownloadTaskMapper.toSegmentEntity(it) })
         persist()
     }
 
+    /** 获取指定应用的下载分片记录。 */
     fun getDownloadSegments(appId: String): List<DownloadSegmentRecord> {
         val facadeSegments = localStoreFacade.getDownloadSegments(appId).map { DownloadTaskMapper.fromSegmentEntity(it) }
         val legacySegments = downloadSegments[appId].orEmpty()
         return LocalStoreFallbackPolicy.preferFacadeList(facadeSegments, legacySegments)
     }
 
+    /** 清理所有已完成或已取消的下载任务。 */
     fun clearCompletedDownloadTasks(): Int {
         val targets = downloadTasks.values.filter {
             it.status == DownloadStatus.COMPLETED || it.status == DownloadStatus.CANCELED
         }
         targets.forEach { task ->
+            // 已取消任务的 APK 不能再复用，需要顺带清理本地文件引用。
             if (task.status == DownloadStatus.CANCELED) {
                 downloadedApkPaths.remove(task.appId)
                 localStoreFacade.removeDownloadArtifactRef(task.appId)
@@ -181,6 +211,7 @@ class AppLocalDataSource(
         return targets.size
     }
 
+    /** 删除指定应用的本地 APK 产物和路径引用。 */
     fun clearDownloadedApk(appId: String) {
         downloadedApkPaths.remove(appId)
         localStoreFacade.removeDownloadArtifactRef(appId)
@@ -188,11 +219,13 @@ class AppLocalDataSource(
         persist()
     }
 
+    /** 获取下载偏好设置。 */
     fun getDownloadPreferences(): DownloadPreferences {
         val facadeValue = localStoreFacade.getSetting(LocalStoreKeys.DOWNLOAD_PREFERENCES)?.value?.let { decodeDownloadPreferences(it) }
         return LocalStoreFallbackPolicy.preferFacade(facadeValue, downloadPreferences) ?: DownloadPreferences()
     }
 
+    /** 保存下载偏好设置。 */
     fun saveDownloadPreferences(preferences: DownloadPreferences) {
         downloadPreferences = preferences
         localStoreFacade.saveSetting(
@@ -205,11 +238,13 @@ class AppLocalDataSource(
         persist()
     }
 
+    /** 从 legacy fallback 文件恢复当前内存镜像。 */
     private fun loadFromDisk() {
         legacyStoreLock.withLock {
             if (!storeFile.exists()) return
             runCatching {
                 val root = JSONObject(storeFile.readText(Charsets.UTF_8))
+                // 依次恢复已安装应用、下载产物、下载任务、分片和设置项，保持旧数据可读。
                 installedApps.clear()
                 root.optJSONArray("installedApps")?.let { array ->
                     repeat(array.length()) { index ->
@@ -313,6 +348,7 @@ class AppLocalDataSource(
     }
 
 
+    /** 将下载偏好编码为 JSON 字符串。 */
     private fun encodeDownloadPreferences(value: DownloadPreferences): String {
         return JSONObject().apply {
             put("autoResumeOnLaunch", value.autoResumeOnLaunch)
@@ -321,6 +357,7 @@ class AppLocalDataSource(
         }.toString()
     }
 
+    /** 从 JSON 字符串解码下载偏好。 */
     private fun decodeDownloadPreferences(raw: String): DownloadPreferences {
         val json = JSONObject(raw)
         return DownloadPreferences(
@@ -330,6 +367,7 @@ class AppLocalDataSource(
         )
     }
 
+    /** 将策略设置编码为 JSON 字符串。 */
     private fun encodePolicySettings(value: PolicySettings): String {
         return JSONObject().apply {
             put("wifiConnected", value.wifiConnected)
@@ -338,6 +376,7 @@ class AppLocalDataSource(
         }.toString()
     }
 
+    /** 从 JSON 字符串解码策略设置。 */
     private fun decodePolicySettings(raw: String): PolicySettings {
         val json = JSONObject(raw)
         return PolicySettings(
@@ -347,6 +386,7 @@ class AppLocalDataSource(
         )
     }
 
+    /** 将当前 legacy 内存镜像持久化回兼容文件。 */
     private fun persist() {
         legacyStoreLock.withLock {
             val root = JSONObject()
@@ -426,6 +466,7 @@ class AppLocalDataSource(
                 put("lowStorageMode", policySettings.lowStorageMode)
             })
             storeFile.parentFile?.mkdirs()
+            // 先写临时文件再替换正式文件，尽量降低写入中断造成的损坏风险。
             val tempFile = File(storeFile.parentFile, storeFile.name + LEGACY_TEMP_FILE_SUFFIX)
             tempFile.writeText(root.toString(), Charsets.UTF_8)
             if (!tempFile.renameTo(storeFile)) {

@@ -20,18 +20,26 @@ import java.util.Date
 import java.util.Locale
 
 class UpgradeTaskAdapter(
+    /** 主动作按钮点击回调。 */
     private val onPrimaryClick: (UpgradeTaskViewData) -> Unit,
+    /** 详情按钮点击回调。 */
     private val onDetailClick: (UpgradeTaskViewData) -> Unit,
 ) : ListAdapter<UpgradeTaskViewData, UpgradeTaskAdapter.TaskViewHolder>(DiffCallback) {
 
+    /** 创建升级任务卡片 ViewHolder。 */
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TaskViewHolder {
         val binding = ItemUpgradeTaskBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return TaskViewHolder(binding)
     }
 
+    /** 绑定升级任务卡片数据。 */
     override fun onBindViewHolder(holder: TaskViewHolder, position: Int) = holder.bind(getItem(position))
 
-    inner class TaskViewHolder(private val binding: ItemUpgradeTaskBinding) : RecyclerView.ViewHolder(binding.root) {
+    inner class TaskViewHolder(
+        /** 升级任务卡片的 ViewBinding。 */
+        private val binding: ItemUpgradeTaskBinding,
+    ) : RecyclerView.ViewHolder(binding.root) {
+        /** 把升级任务数据渲染到卡片。 */
         fun bind(item: UpgradeTaskViewData) {
             binding.layoutUpgradeTaskCard.applyTaskCardBackground(item.overallStatus)
             binding.tvUpgradeTaskName.text = item.name
@@ -43,6 +51,7 @@ class UpgradeTaskAdapter(
                     CarUiStyle.taskBucketTone(item.overallStatus),
                 ),
             )
+            // 不同任务分组对应不同的摘要文案，帮助用户快速判断当前阶段。
             binding.tvUpgradeTaskSummary.text = when (item.overallStatus) {
                 com.nio.appstore.data.model.TaskOverallStatus.ACTIVE -> binding.root.context.getString(R.string.task_upgrade_summary_active)
                 com.nio.appstore.data.model.TaskOverallStatus.PENDING -> binding.root.context.getString(R.string.task_upgrade_summary_pending)
@@ -59,6 +68,7 @@ class UpgradeTaskAdapter(
     }
 
     companion object {
+        /** 升级任务列表差异比较器。 */
         private val DiffCallback = object : DiffUtil.ItemCallback<UpgradeTaskViewData>() {
             override fun areItemsTheSame(oldItem: UpgradeTaskViewData, newItem: UpgradeTaskViewData): Boolean = oldItem.appId == newItem.appId
             override fun areContentsTheSame(oldItem: UpgradeTaskViewData, newItem: UpgradeTaskViewData): Boolean = oldItem == newItem

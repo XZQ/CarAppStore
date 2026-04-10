@@ -5,6 +5,9 @@ import com.nio.appstore.data.model.TaskCenterStats
 import com.nio.appstore.data.model.UpgradeCenterControlsUiState
 import com.nio.appstore.data.model.UpgradeTaskViewData
 
+/**
+ * UpgradeUiState 描述升级中心页面的完整界面状态。
+ */
 data class UpgradeUiState(
     /** 当前筛选条件下展示的升级任务列表。 */
     val tasks: List<UpgradeTaskViewData> = emptyList(),

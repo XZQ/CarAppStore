@@ -2,6 +2,9 @@ package com.nio.appstore.data.model
 
 import com.nio.appstore.core.downloader.DownloadSourcePolicy
 
+/**
+ * AppDetail 描述详情页和下载链路需要的完整应用信息。
+ */
 data class AppDetail(
     /** 稳定的应用标识。 */
     val appId: String,

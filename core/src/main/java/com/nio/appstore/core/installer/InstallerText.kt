@@ -1,6 +1,10 @@
 package com.nio.appstore.core.installer
 
+/**
+ * InstallerText 收敛安装器内部使用的失败文案和状态前缀。
+ */
 object InstallerText {
+    /** 安装包不存在失败文案。 */
     const val FAILURE_APK_MISSING = "安装包不存在"
     const val FAILURE_APK_INVALID = "安装包无效"
     const val FAILURE_POLICY_BLOCKED = "安装受限"
@@ -18,5 +22,6 @@ object InstallerText {
     const val SESSION_NOT_SUPPORTED = "当前环境不支持系统安装会话"
     const val NO_AVAILABLE_INSTALLER = "无可用安装器"
 
+    /** 失败状态统一前缀。 */
     const val STATUS_FAILED_PREFIX = "FAILED_"
 }

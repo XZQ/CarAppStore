@@ -7,6 +7,7 @@ import com.nio.appstore.data.model.DownloadTaskRecord
 import com.nio.appstore.domain.state.DownloadStatus
 
 object DownloadTaskMapper {
+    /** 把下载任务业务模型转换为本地实体。 */
     fun toEntity(record: DownloadTaskRecord): DownloadTaskEntity = DownloadTaskEntity(
         taskId = record.taskId,
         appId = record.appId,
@@ -31,6 +32,7 @@ object DownloadTaskMapper {
         updatedAt = record.updatedAt,
     )
 
+    /** 把本地下载任务实体转换为业务模型。 */
     fun fromEntity(entity: DownloadTaskEntity): DownloadTaskRecord = DownloadTaskRecord(
         taskId = entity.taskId,
         appId = entity.appId,
@@ -55,6 +57,7 @@ object DownloadTaskMapper {
         updatedAt = entity.updatedAt,
     )
 
+    /** 把下载分片业务模型转换为本地实体。 */
     fun toSegmentEntity(record: DownloadSegmentRecord): DownloadSegmentEntity = DownloadSegmentEntity(
         segmentId = record.segmentId,
         taskId = record.taskId,
@@ -69,6 +72,7 @@ object DownloadTaskMapper {
         updatedAt = record.updatedAt,
     )
 
+    /** 把本地下载分片实体转换为业务模型。 */
     fun fromSegmentEntity(entity: DownloadSegmentEntity): DownloadSegmentRecord = DownloadSegmentRecord(
         segmentId = entity.segmentId,
         taskId = entity.taskId,

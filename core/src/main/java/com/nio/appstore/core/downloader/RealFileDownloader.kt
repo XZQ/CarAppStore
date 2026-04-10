@@ -1,4 +1,5 @@
 package com.nio.appstore.core.downloader
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -15,29 +16,44 @@ import java.net.SocketTimeoutException
 import java.net.URL
 
 class RealFileDownloader(
+    /** 下载元数据与分片状态存储。 */
     private val store: DownloadStore,
+    /** 下载源决策器，负责决定是否走真实 HTTP 或兜底实现。 */
     private val sourceResolver: DownloadSourceResolver,
+    /** 分片规划器，负责根据文件大小生成分片方案。 */
     private val segmentPlanner: SegmentPlanner = SegmentPlanner(),
+    /** 当下载源不允许真实 HTTP 时使用的兜底下载器。 */
     private val fallbackDownloader: FileDownloader? = null,
+    /** 建立连接的超时时间。 */
     private val connectTimeoutMs: Int = 10_000,
+    /** 读取响应体的超时时间。 */
     private val readTimeoutMs: Int = 15_000,
+    /** 单次从输入流读取的缓冲区大小。 */
     private val chunkBytes: Int = 32 * 1024,
+    /** 单个下载任务允许同时执行的最大分片数。 */
     private val maxParallelSegments: Int = 2,
+    /** 单个分片的最大重试次数。 */
     private val maxSegmentRetryCount: Int = 2,
 ) : FileDownloader {
 
+    /**
+     * 执行真实文件下载。
+     *
+     * 流程包括下载源决策、远端元数据探测、分片规划、分片下载、合并和文件校验。
+     */
     override suspend fun download(
         request: DownloadRequest,
         onEvent: suspend (DownloadEvent) -> Unit,
     ) = withContext(Dispatchers.IO) {
+        // 先决定当前请求是否允许走真实 HTTP；不允许时直接回退到兜底实现。
         val sourceDecision = sourceResolver.resolve(request.sourcePolicy, request.url)
         if (sourceDecision.policy != DownloadSourcePolicy.DIRECT_HTTP) {
-            fallbackDownloader?.download(request, onEvent)
-                ?: onEvent(DownloadEvent.Failed(DownloadFailureCode.UNKNOWN, sourceDecision.reason))
+            fallbackDownloader?.download(request, onEvent) ?: onEvent(DownloadEvent.Failed(DownloadFailureCode.UNKNOWN, sourceDecision.reason))
             return@withContext
         }
 
         onEvent(DownloadEvent.Waiting)
+        // 在正式下载前先探测远端元数据，获取长度、ETag 和 Range 能力。
         val meta = try {
             probeRemoteMeta(request.url)
         } catch (e: SocketTimeoutException) {
@@ -50,6 +66,7 @@ class RealFileDownloader(
         store.saveMeta(request.taskId, meta)
         onEvent(DownloadEvent.MetaReady(meta))
 
+        // 如果远端文件已经变化，就终止当前续传，避免把不同版本文件拼到一起。
         if (request.eTag != null && meta.eTag != null && request.eTag != meta.eTag) {
             onEvent(DownloadEvent.Failed(DownloadFailureCode.REMOTE_FILE_CHANGED, DownloaderText.REMOTE_FILE_CHANGED_REDOWNLOAD, false))
             return@withContext
@@ -69,6 +86,7 @@ class RealFileDownloader(
         val taskTempDir = store.getTaskTempDir(request.taskId)
         if (!request.targetFile.exists()) request.targetFile.createNewFile()
 
+        // 基于元数据和历史分片记录生成本次下载的分片方案。
         val existingSegments = store.readSegments(request.taskId)
         val plannedSegments = segmentPlanner.plan(
             taskId = request.taskId,
@@ -84,25 +102,22 @@ class RealFileDownloader(
         var failedResult: SegmentResult? = null
 
         coroutineScope {
+            // 分批执行分片下载，单批并发数受 maxParallelSegments 控制。
             for (batch in plannedSegments.chunked(maxParallelSegments.coerceAtLeast(1))) {
                 val results = batch.map { segment ->
                     async(Dispatchers.IO) {
-                        downloadSegmentWithRetry(
-                            request = request,
-                            meta = meta,
-                            segment = segment,
-                            onProgress = { speed ->
-                                eventMutex.withLock {
-                                    onEvent(
-                                        DownloadEvent.Running(
-                                            downloadedBytes = calculateAggregateDownloaded(request.taskId),
-                                            totalBytes = totalBytes,
-                                            speedBytesPerSec = speed,
-                                        )
+                        downloadSegmentWithRetry(request = request, meta = meta, segment = segment, onProgress = { speed ->
+                            // 用互斥锁串行上报进度，避免多个分片同时写事件导致 UI 抖动。
+                            eventMutex.withLock {
+                                onEvent(
+                                    DownloadEvent.Running(
+                                        downloadedBytes = calculateAggregateDownloaded(request.taskId),
+                                        totalBytes = totalBytes,
+                                        speedBytesPerSec = speed,
                                     )
-                                }
+                                )
                             }
-                        )
+                        })
                     }
                 }.awaitAll()
 
@@ -127,12 +142,14 @@ class RealFileDownloader(
 
         val finalFile = request.targetFile
         if (finalFile.exists()) finalFile.delete()
+        // 所有分片成功后再顺序合并成最终 APK 文件。
         val mergeOk = mergeSegments(plannedSegments, finalFile)
         if (!mergeOk) {
             onEvent(DownloadEvent.Failed(DownloadFailureCode.MERGE_FAILED, DownloadFailureCode.MERGE_FAILED.displayText, false))
             return@withContext
         }
 
+        // 合并完成后做长度和校验值验证，确保最终产物可信。
         val finalSize = finalFile.length()
         val verification = verifyDownloadedFile(
             file = finalFile,
@@ -145,6 +162,7 @@ class RealFileDownloader(
             return@withContext
         }
 
+        // 最终成功后把所有分片状态统一收口为已完成。
         plannedSegments.forEach { seg ->
             saveSegmentRecord(
                 request = request,
@@ -157,6 +175,7 @@ class RealFileDownloader(
         onEvent(DownloadEvent.Completed(finalFile, if (totalBytes > 0L) totalBytes else finalSize))
     }
 
+    /** 带重试策略地下载单个分片。 */
     private suspend fun downloadSegmentWithRetry(
         request: DownloadRequest,
         meta: DownloadRemoteMeta,
@@ -187,6 +206,7 @@ class RealFileDownloader(
         )
     }
 
+    /** 下载单个分片，并在下载过程中持续写入分片状态。 */
     private suspend fun downloadSingleSegment(
         request: DownloadRequest,
         meta: DownloadRemoteMeta,
@@ -197,6 +217,7 @@ class RealFileDownloader(
         val partFile = File(segment.tmpFilePath)
         if (!partFile.exists()) partFile.createNewFile()
 
+        // 通过已有文件大小和历史记录计算续传起点。
         val existingBytes = maxOf(segment.downloadedBytes, partFile.length())
         val resumeOffset = if (existingBytes > 0L) segment.startByte + existingBytes else segment.startByte
 
@@ -218,6 +239,7 @@ class RealFileDownloader(
             retryCount = attempt,
         )
 
+        // 根据分片起止字节发起 Range 请求，并按响应码归一化失败原因。
         val connection = openConnection(
             request.url,
             rangeStart = if (resumeOffset > 0L) resumeOffset else null,
@@ -229,10 +251,12 @@ class RealFileDownloader(
                 existingBytes > 0L && code != HttpURLConnection.HTTP_PARTIAL -> {
                     return SegmentResult(segment.segmentId, false, DownloadFailureCode.RANGE_NOT_SUPPORTED, DownloaderText.RANGE_RESPONSE_INVALID, attempt)
                 }
+
                 code in 200..206 -> Unit
                 code in 400..499 -> {
                     return SegmentResult(segment.segmentId, false, DownloadFailureCode.HTTP_4XX, "HTTP $code", attempt)
                 }
+
                 code >= 500 -> {
                     return SegmentResult(segment.segmentId, false, DownloadFailureCode.HTTP_5XX, "HTTP $code", attempt)
                 }
@@ -241,6 +265,7 @@ class RealFileDownloader(
             RandomAccessFile(partFile, "rw").use { out ->
                 if (existingBytes > 0L) out.seek(existingBytes) else out.setLength(0L)
                 connection.inputStream.use { input ->
+                    // 按缓冲区持续写入分片文件，并实时刷新进度和速度。
                     val buffer = ByteArray(chunkBytes)
                     var segmentDownloaded = existingBytes
                     val startedAt = System.currentTimeMillis()
@@ -274,21 +299,27 @@ class RealFileDownloader(
             return SegmentResult(segment.segmentId, true, attempts = attempt)
         } catch (e: SocketTimeoutException) {
             saveSegmentRecord(request, segment, existingBytes, DownloaderText.STATUS_FAILED_TIMEOUT, retryCount = attempt)
-            return SegmentResult(segment.segmentId, false, DownloadFailureCode.NETWORK_TIMEOUT, e.message ?: DownloadFailureCode.NETWORK_TIMEOUT.displayText, attempt)
+            return SegmentResult(
+                segment.segmentId, false, DownloadFailureCode.NETWORK_TIMEOUT, e.message ?: DownloadFailureCode.NETWORK_TIMEOUT.displayText, attempt
+            )
         } catch (e: IOException) {
             saveSegmentRecord(request, segment, existingBytes, DownloaderText.STATUS_FAILED_IO, retryCount = attempt)
-            return SegmentResult(segment.segmentId, false, DownloadFailureCode.NETWORK_INTERRUPTED, e.message ?: DownloadFailureCode.NETWORK_INTERRUPTED.displayText, attempt)
+            return SegmentResult(
+                segment.segmentId, false, DownloadFailureCode.NETWORK_INTERRUPTED, e.message ?: DownloadFailureCode.NETWORK_INTERRUPTED.displayText, attempt
+            )
         } finally {
             connection.disconnect()
         }
     }
 
+    /** 聚合所有分片的已下载字节数，用于计算任务级进度。 */
     private fun calculateAggregateDownloaded(taskId: String): Long {
         return store.readSegments(taskId).sumOf { seg ->
             maxOf(seg.downloadedBytes, File(seg.tmpFilePath).takeIf { it.exists() }?.length() ?: 0L)
         }
     }
 
+    /** 保存单个分片的最新状态。 */
     private fun saveSegmentRecord(
         request: DownloadRequest,
         segment: DownloadSegmentRecord,
@@ -307,6 +338,7 @@ class RealFileDownloader(
         store.saveSegments(request.taskId, current.values.sortedBy { it.index })
     }
 
+    /** 将所有分片文件按顺序合并成最终文件。 */
     private fun mergeSegments(
         segments: List<DownloadSegmentRecord>,
         finalFile: File,
@@ -332,20 +364,31 @@ class RealFileDownloader(
         }.isSuccess
     }
 
+    /** 最终文件校验结果。 */
     private data class VerificationResult(
+        /** 校验是否通过。 */
         val ok: Boolean,
+        /** 校验失败时对应的失败码。 */
         val code: DownloadFailureCode = DownloadFailureCode.UNKNOWN,
+        /** 校验失败时返回的详细文案。 */
         val message: String = "",
     )
 
+    /** 单个分片下载完成后的归一化结果。 */
     private data class SegmentResult(
+        /** 分片唯一标识。 */
         val segmentId: String,
+        /** 当前分片是否下载成功。 */
         val success: Boolean,
+        /** 分片失败时对应的失败码。 */
         val code: DownloadFailureCode? = null,
+        /** 分片失败时的错误文案。 */
         val message: String? = null,
+        /** 当前分片已经消耗的尝试次数。 */
         val attempts: Int = 0,
     )
 
+    /** 校验最终下载文件的长度和可选摘要值。 */
     private fun verifyDownloadedFile(
         file: File,
         expectedBytes: Long,
@@ -368,6 +411,7 @@ class RealFileDownloader(
         return VerificationResult(true)
     }
 
+    /** 根据配置的摘要算法计算文件哈希值。 */
     private fun calculateHash(file: File, checksumType: String): String {
         val algo = when (checksumType.uppercase()) {
             "SHA-256", "SHA256" -> "SHA-256"
@@ -386,6 +430,7 @@ class RealFileDownloader(
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
+    /** 通过 HEAD 请求探测远端文件元数据。 */
     private fun probeRemoteMeta(url: String): DownloadRemoteMeta {
         val headConnection = openConnection(url, head = true)
         return try {
@@ -407,6 +452,7 @@ class RealFileDownloader(
         }
     }
 
+    /** 按需构建 HTTP 连接，并在存在续传需求时补齐 Range 请求头。 */
     private fun openConnection(
         url: String,
         head: Boolean = false,

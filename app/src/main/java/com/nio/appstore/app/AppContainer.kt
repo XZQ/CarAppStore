@@ -49,6 +49,7 @@ import com.nio.appstore.domain.upgrade.UpgradeManager
  * 但已经把文件路径等细节收敛到 AppStoragePaths，减少壳层中的散乱引用。
  */
 class AppContainer(context: Context) : AppServices {
+    /** 应用级上下文，避免持有页面级 context 导致泄漏。 */
     private val appContext = context.applicationContext
 
     /** 统一管理应用壳层会用到的本地文件路径。 */
@@ -70,10 +71,12 @@ class AppContainer(context: Context) : AppServices {
         LocalDownloadEnvironmentProvider(appContext, localStoreFacade)
     }
 
+    /** 下载环境入口对象，用来统一读取当前下载环境配置。 */
     private val downloadEnvironmentEntry by lazy {
         DownloadEnvironmentEntry(downloadEnvironmentProvider)
     }
 
+    /** 当前生效的下载环境配置快照。 */
     private val downloadEnvConfig by lazy {
         downloadEnvironmentEntry.currentConfig()
     }
@@ -109,6 +112,7 @@ class AppContainer(context: Context) : AppServices {
     }
 
     /** 下载执行器，当前优先走真实下载器，必要时回退模拟实现。 */
+    /** 下载执行器实例，供下载业务编排层复用。 */
     private val fileDownloader by lazy {
         RealFileDownloader(
             store = DownloadStore(storagePaths.downloadsDir),
@@ -134,6 +138,7 @@ class AppContainer(context: Context) : AppServices {
     }
 
     /** 安装执行器，当前优先走系统安装会话实现。 */
+    /** 安装执行器实例，供安装业务编排层复用。 */
     private val packageInstaller by lazy {
         RealPackageInstaller(
             sessionAdapter = SystemPackageInstallerSessionAdapter(appContext, installUserActionDispatcher),
@@ -187,6 +192,7 @@ class AppContainer(context: Context) : AppServices {
     init {
         // 冷启动时先修正上次可能中断的安装会话，再启动下载链的恢复。
         installSessionStore.markRecoveredSessionsAsInterrupted()
+        // 访问下载管理器时会触发其初始化逻辑，顺带执行下载任务恢复。
         downloadManager
     }
 }

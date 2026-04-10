@@ -22,24 +22,31 @@ data class InstallCommitResult(
 )
 
 interface PackageInstallerSessionAdapter {
+    /** 创建一个平台安装会话，并返回 sessionId。 */
     fun createSession(request: InstallRequest): Int
+    /** 将 APK 文件写入指定安装会话。 */
     fun writeApkToSession(sessionId: Int, apkFile: File): Boolean
+    /** 提交安装会话，并等待平台返回最终结果。 */
     suspend fun commitSession(
         sessionId: Int,
         onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
     ): InstallCommitResult
+    /** 当前运行环境是否支持真实系统安装会话。 */
     fun supportsRealSession(): Boolean
 }
 
 class SystemPackageInstallerSessionAdapter(
     context: Context,
+    /** 系统要求用户确认时，用于把 intent 派发给壳层。 */
     private val installUserActionDispatcher: InstallUserActionDispatcher,
 ) : PackageInstallerSessionAdapter {
 
+    /** 应用级上下文，避免广播注册和安装调用依赖页面生命周期。 */
     private val appContext = context.applicationContext
     /** 系统提供的安装会话入口。 */
     private val systemPackageInstaller = appContext.packageManager.packageInstaller
 
+    /** 创建平台安装会话，并预置包名与 APK 大小信息。 */
     override fun createSession(request: InstallRequest): Int {
         if (!supportsRealSession()) return -1
         return runCatching {
@@ -54,6 +61,7 @@ class SystemPackageInstallerSessionAdapter(
         }.getOrDefault(-1)
     }
 
+    /** 将本地 APK 内容写入到指定平台安装会话。 */
     override fun writeApkToSession(sessionId: Int, apkFile: File): Boolean {
         if (!supportsRealSession()) return false
         return runCatching {
@@ -72,6 +80,7 @@ class SystemPackageInstallerSessionAdapter(
         }.getOrDefault(false)
     }
 
+    /** 提交平台安装会话，并按阶段等待系统回调。 */
     override suspend fun commitSession(
         sessionId: Int,
         onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
@@ -110,6 +119,7 @@ class SystemPackageInstallerSessionAdapter(
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         return try {
+            // 先提交安装会话，再阻塞等待系统通过广播返回结果。
             val callbackIntent = Intent(resultAction).setPackage(appContext.packageName)
             val pendingIntent = PendingIntent.getBroadcast(
                 appContext,
@@ -135,10 +145,12 @@ class SystemPackageInstallerSessionAdapter(
         }
     }
 
+    /** 判断当前设备是否满足真实安装会话能力要求。 */
     override fun supportsRealSession(): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && appContext.packageManager.canRequestPackageInstalls()
     }
 
+    /** 为平台状态码补齐默认展示文案。 */
     private fun defaultStatusMessage(status: Int): String {
         return when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> InstallerText.SESSION_PENDING_USER_ACTION
@@ -146,6 +158,7 @@ class SystemPackageInstallerSessionAdapter(
         }
     }
 
+    /** 从平台广播中解析出系统确认 intent。 */
     private fun readConfirmationIntent(intent: Intent?): Intent? {
         if (intent == null) return null
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -156,6 +169,7 @@ class SystemPackageInstallerSessionAdapter(
         }
     }
 
+    /** 串行消费平台回调，直到拿到最终提交结果。 */
     private suspend fun waitForCommitResult(
         resultQueue: LinkedBlockingQueue<CommitCallbackPayload>,
         onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
@@ -185,6 +199,7 @@ class SystemPackageInstallerSessionAdapter(
                         )
                     }
                     if (!pendingUserActionObserved) {
+                        // 首次进入系统确认阶段时，同时通知壳层拉起确认页和业务层更新状态。
                         pendingUserActionObserved = true
                         installUserActionDispatcher.dispatch(confirmationIntent)
                         onPendingUserAction(InstallerText.SESSION_PENDING_USER_ACTION, confirmationIntent)

@@ -1,4 +1,3 @@
-
 package com.nio.appstore.feature.downloadmanager
 
 import com.nio.appstore.common.R
@@ -49,7 +48,10 @@ class InstallTaskAdapter(
                 com.nio.appstore.data.model.TaskOverallStatus.FAILED -> binding.root.context.getString(R.string.task_install_summary_failed)
                 com.nio.appstore.data.model.TaskOverallStatus.COMPLETED -> binding.root.context.getString(R.string.task_install_summary_completed)
             }
-            binding.tvInstallTaskTime.text = binding.root.context.getString(R.string.task_updated_time_format, SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(item.updatedAt)))
+            binding.tvInstallTaskTime.text = binding.root.context.getString(
+                R.string.task_updated_time_format,
+                SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(item.updatedAt))
+            )
             val hasSessionMeta = !item.sessionIdText.isNullOrBlank() || !item.sessionPhaseText.isNullOrBlank() || !item.sessionProgressText.isNullOrBlank()
             binding.layoutInstallSessionMeta.visibility = if (hasSessionMeta) View.VISIBLE else View.GONE
             binding.tvInstallTaskSessionId.text = item.sessionIdText ?: "-"

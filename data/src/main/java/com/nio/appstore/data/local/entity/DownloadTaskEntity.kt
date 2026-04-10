@@ -1,5 +1,8 @@
 package com.nio.appstore.data.local.entity
 
+/**
+ * DownloadTaskEntity 描述本地持久化的下载任务实体。
+ */
 data class DownloadTaskEntity(
     /** 稳定的任务标识。 */
     val taskId: String,
