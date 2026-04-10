@@ -9,7 +9,7 @@ import android.content.pm.PackageInstaller
 import android.os.Build
 import androidx.core.content.ContextCompat
 import java.io.File
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
 data class InstallCommitResult(
@@ -24,11 +24,17 @@ data class InstallCommitResult(
 interface PackageInstallerSessionAdapter {
     fun createSession(request: InstallRequest): Int
     fun writeApkToSession(sessionId: Int, apkFile: File): Boolean
-    fun commitSession(sessionId: Int): InstallCommitResult
+    suspend fun commitSession(
+        sessionId: Int,
+        onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
+    ): InstallCommitResult
     fun supportsRealSession(): Boolean
 }
 
-class SystemPackageInstallerSessionAdapter(context: Context) : PackageInstallerSessionAdapter {
+class SystemPackageInstallerSessionAdapter(
+    context: Context,
+    private val installUserActionDispatcher: InstallUserActionDispatcher,
+) : PackageInstallerSessionAdapter {
 
     private val appContext = context.applicationContext
     /** 系统提供的安装会话入口。 */
@@ -66,7 +72,10 @@ class SystemPackageInstallerSessionAdapter(context: Context) : PackageInstallerS
         }.getOrDefault(false)
     }
 
-    override fun commitSession(sessionId: Int): InstallCommitResult {
+    override suspend fun commitSession(
+        sessionId: Int,
+        onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
+    ): InstallCommitResult {
         if (!supportsRealSession()) {
             return InstallCommitResult(
                 success = false,
@@ -75,19 +84,23 @@ class SystemPackageInstallerSessionAdapter(context: Context) : PackageInstallerS
             )
         }
         val resultAction = ACTION_INSTALL_COMMIT_PREFIX + sessionId + "." + System.currentTimeMillis()
-        val awaitLatch = CountDownLatch(1)
-        var resultStatus = PackageInstaller.STATUS_FAILURE
-        var resultMessage = InstallerText.FAILURE_SESSION_COMMIT_FAILED
-        var installedPackageName: String? = null
+        /** 安装提交广播结果队列，用于串行消费系统返回的多阶段结果。 */
+        val resultQueue = LinkedBlockingQueue<CommitCallbackPayload>()
         val resultReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                resultStatus = intent?.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
+                val status = intent?.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
                     ?: PackageInstaller.STATUS_FAILURE
-                resultMessage = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
+                val message = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                     ?.ifBlank { null }
-                    ?: defaultStatusMessage(resultStatus)
-                installedPackageName = intent?.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME)
-                awaitLatch.countDown()
+                    ?: defaultStatusMessage(status)
+                resultQueue.offer(
+                    CommitCallbackPayload(
+                        status = status,
+                        message = message,
+                        confirmationIntent = readConfirmationIntent(intent),
+                        installedPackageName = intent?.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME),
+                    )
+                )
             }
         }
         ContextCompat.registerReceiver(
@@ -110,22 +123,7 @@ class SystemPackageInstallerSessionAdapter(context: Context) : PackageInstallerS
             } finally {
                 session.close()
             }
-            if (!awaitLatch.await(COMMIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                return InstallCommitResult(
-                    success = false,
-                    message = InstallerText.SESSION_COMMIT_TIMEOUT,
-                    installedPackageName = installedPackageName,
-                )
-            }
-            InstallCommitResult(
-                success = resultStatus == PackageInstaller.STATUS_SUCCESS,
-                message = when (resultStatus) {
-                    PackageInstaller.STATUS_SUCCESS -> InstallerText.SESSION_COMMIT_SUCCESS
-                    PackageInstaller.STATUS_PENDING_USER_ACTION -> InstallerText.SESSION_PENDING_USER_ACTION
-                    else -> resultMessage
-                },
-                installedPackageName = installedPackageName,
-            )
+            waitForCommitResult(resultQueue, onPendingUserAction)
         } catch (_: Throwable) {
             InstallCommitResult(
                 success = false,
@@ -148,6 +146,81 @@ class SystemPackageInstallerSessionAdapter(context: Context) : PackageInstallerS
         }
     }
 
+    private fun readConfirmationIntent(intent: Intent?): Intent? {
+        if (intent == null) return null
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(Intent.EXTRA_INTENT)
+        }
+    }
+
+    private suspend fun waitForCommitResult(
+        resultQueue: LinkedBlockingQueue<CommitCallbackPayload>,
+        onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
+    ): InstallCommitResult {
+        /** 是否已经进入系统确认阶段，进入后需要延长最终结果等待时间。 */
+        var pendingUserActionObserved = false
+        while (true) {
+            val timeoutSeconds = if (pendingUserActionObserved) {
+                FINAL_RESULT_TIMEOUT_SECONDS
+            } else {
+                INITIAL_RESULT_TIMEOUT_SECONDS
+            }
+            val callback = resultQueue.poll(timeoutSeconds, TimeUnit.SECONDS)
+                ?: return InstallCommitResult(
+                    success = false,
+                    message = InstallerText.SESSION_COMMIT_TIMEOUT,
+                    installedPackageName = null,
+                )
+            when (callback.status) {
+                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                    val confirmationIntent = callback.confirmationIntent
+                    if (confirmationIntent == null) {
+                        return InstallCommitResult(
+                            success = false,
+                            message = InstallerText.SESSION_PENDING_USER_ACTION_MISSING_INTENT,
+                            installedPackageName = callback.installedPackageName,
+                        )
+                    }
+                    if (!pendingUserActionObserved) {
+                        pendingUserActionObserved = true
+                        installUserActionDispatcher.dispatch(confirmationIntent)
+                        onPendingUserAction(InstallerText.SESSION_PENDING_USER_ACTION, confirmationIntent)
+                    }
+                }
+
+                PackageInstaller.STATUS_SUCCESS -> {
+                    return InstallCommitResult(
+                        success = true,
+                        message = InstallerText.SESSION_COMMIT_SUCCESS,
+                        installedPackageName = callback.installedPackageName,
+                    )
+                }
+
+                else -> {
+                    return InstallCommitResult(
+                        success = false,
+                        message = callback.message,
+                        installedPackageName = callback.installedPackageName,
+                    )
+                }
+            }
+        }
+    }
+
+    private data class CommitCallbackPayload(
+        /** 系统安装会话回调状态码。 */
+        val status: Int,
+        /** 系统返回的原始状态信息。 */
+        val message: String,
+        /** 系统安装确认页入口。 */
+        val confirmationIntent: Intent?,
+        /** 平台可返回时给出的已安装包名。 */
+        val installedPackageName: String?,
+    )
+
     private companion object {
         /** 安装会话写入时使用的基础安装包条目名。 */
         const val APK_ENTRY_NAME = "base.apk"
@@ -155,7 +228,10 @@ class SystemPackageInstallerSessionAdapter(context: Context) : PackageInstallerS
         /** 安装提交结果广播 action 前缀。 */
         const val ACTION_INSTALL_COMMIT_PREFIX = "com.nio.appstore.INSTALL_COMMIT."
 
-        /** 等待系统安装结果回调的最长秒数。 */
-        const val COMMIT_TIMEOUT_SECONDS = 30L
+        /** 首次等待系统提交结果回调的最长秒数。 */
+        const val INITIAL_RESULT_TIMEOUT_SECONDS = 30L
+
+        /** 用户确认后等待最终安装结果回调的最长秒数。 */
+        const val FINAL_RESULT_TIMEOUT_SECONDS = 300L
     }
 }
