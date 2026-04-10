@@ -17,8 +17,10 @@ data class DownloadSourceEntry(
 )
 
 class DownloadSourceCatalog(
+    /** 当前生效的下载环境。 */
     private val environment: DownloadEnvironment,
 ) {
+    /** 读取指定应用在当前环境下的下载源配置。 */
     fun get(appId: String): DownloadSourceEntry {
         val table = when (environment) {
             DownloadEnvironment.DEV -> devSources()
@@ -28,6 +30,7 @@ class DownloadSourceCatalog(
         return table[appId] ?: defaultEntry(appId)
     }
 
+    /** 开发环境下载源目录。 */
     private fun devSources(): Map<String, DownloadSourceEntry> = mapOf(
         "gaode_map" to DownloadSourceEntry(
             appId = "gaode_map",
@@ -52,6 +55,7 @@ class DownloadSourceCatalog(
         ),
     )
 
+    /** 测试环境下载源目录。 */
     private fun testSources(): Map<String, DownloadSourceEntry> = mapOf(
         "gaode_map" to DownloadSourceEntry(
             appId = "gaode_map",
@@ -76,6 +80,7 @@ class DownloadSourceCatalog(
         ),
     )
 
+    /** 生产环境下载源目录。 */
     private fun prodSources(): Map<String, DownloadSourceEntry> = mapOf(
         "gaode_map" to DownloadSourceEntry(
             appId = "gaode_map",
@@ -100,6 +105,7 @@ class DownloadSourceCatalog(
         ),
     )
 
+    /** 未显式配置应用时的默认下载源配置。 */
     private fun defaultEntry(appId: String): DownloadSourceEntry {
         return DownloadSourceEntry(
             appId = appId,

@@ -3,6 +3,7 @@ package com.nio.appstore.core.downloader
 import java.io.File
 
 interface FileDownloader {
+    /** 执行一次下载请求，并通过事件回调持续上报下载进展。 */
     suspend fun download(
         request: DownloadRequest,
         onEvent: suspend (DownloadEvent) -> Unit,
@@ -39,22 +40,36 @@ data class DownloadRequest(
 )
 
 enum class DownloadFailureCode(val displayText: String, val retryable: Boolean) {
+    /** 网络连接超时。 */
     NETWORK_TIMEOUT(DownloaderText.FAILURE_NETWORK_TIMEOUT, true),
+    /** 网络传输过程中被中断。 */
     NETWORK_INTERRUPTED(DownloaderText.FAILURE_NETWORK_INTERRUPTED, true),
+    /** 服务端返回 4xx 错误。 */
     HTTP_4XX(DownloaderText.FAILURE_HTTP_4XX, false),
+    /** 服务端返回 5xx 错误。 */
     HTTP_5XX(DownloaderText.FAILURE_HTTP_5XX, true),
+    /** 远端不支持 Range 分片下载。 */
     RANGE_NOT_SUPPORTED(DownloaderText.FAILURE_RANGE_NOT_SUPPORTED, false),
+    /** 远端文件与本地缓存元数据不一致。 */
     REMOTE_FILE_CHANGED(DownloaderText.FAILURE_REMOTE_FILE_CHANGED, false),
+    /** 本地磁盘读写失败。 */
     STORAGE_IO(DownloaderText.FAILURE_STORAGE_IO, true),
+    /** 目标文件缺失。 */
     FILE_MISSING(DownloaderText.FAILURE_FILE_MISSING, true),
+    /** 文件长度与预期不符。 */
     FILE_INCOMPLETE(DownloaderText.FAILURE_FILE_INCOMPLETE, true),
+    /** 文件校验值不一致。 */
     CHECKSUM_MISMATCH(DownloaderText.FAILURE_CHECKSUM_MISMATCH, false),
+    /** 分片合并失败。 */
     MERGE_FAILED(DownloaderText.FAILURE_MERGE_FAILED, false),
+    /** 用户主动取消下载。 */
     USER_CANCELED(DownloaderText.FAILURE_USER_CANCELED, true),
+    /** 未归类的未知错误。 */
     UNKNOWN(DownloaderText.FAILURE_UNKNOWN, true),
 }
 
 sealed class DownloadEvent {
+    /** 下载任务已进入等待执行阶段。 */
     object Waiting : DownloadEvent()
 
     data class MetaReady(
@@ -71,6 +86,7 @@ sealed class DownloadEvent {
         val speedBytesPerSec: Long,
     ) : DownloadEvent()
 
+    /** 下载任务已完成并输出最终文件。 */
     data class Completed(
         /** 最终合并完成的文件。 */
         val file: File,
@@ -78,6 +94,7 @@ sealed class DownloadEvent {
         val totalBytes: Long,
     ) : DownloadEvent()
 
+    /** 下载任务执行失败。 */
     data class Failed(
         /** 归一化后的失败码。 */
         val code: DownloadFailureCode,

@@ -34,9 +34,12 @@ import kotlinx.coroutines.launch
  */
 class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.MainNavigator {
 
+    /** 主页面的 ViewBinding。 */
     private lateinit var binding: ActivityMainBinding
+    /** 从应用壳层获取的共享服务入口。 */
     private val appServices get() = (applicationContext as AppContainerProvider).appServices
 
+    /** 初始化主页面、导航按钮和安装确认监听。 */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -50,10 +53,12 @@ class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.Mai
         }
     }
 
+    /** 更新顶部标题栏文案。 */
     override fun updateTitle(title: String) {
         binding.tvTitle.text = title
     }
 
+    /** 打开首页。 */
     override fun openHome() {
         navigateTo(
             fragment = HomeFragment.newInstance(),
@@ -63,6 +68,7 @@ class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.Mai
         )
     }
 
+    /** 打开搜索页。 */
     override fun openSearch() {
         navigateTo(
             fragment = SearchFragment.newInstance(),
@@ -71,6 +77,7 @@ class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.Mai
         )
     }
 
+    /** 打开下载中心。 */
     override fun openDownloadManager() {
         navigateTo(
             fragment = DownloadManagerFragment.newInstance(),
@@ -79,6 +86,7 @@ class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.Mai
         )
     }
 
+    /** 打开升级中心。 */
     override fun openUpgradeManager() {
         navigateTo(
             fragment = UpgradeFragment.newInstance(),
@@ -87,6 +95,7 @@ class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.Mai
         )
     }
 
+    /** 打开安装中心。 */
     override fun openInstallManager() {
         navigateTo(
             fragment = InstallCenterFragment.newInstance(),
@@ -95,6 +104,7 @@ class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.Mai
         )
     }
 
+    /** 打开开发设置页。 */
     override fun openDeveloperSettings() {
         navigateTo(
             fragment = DeveloperSettingsFragment.newInstance(),
@@ -103,6 +113,7 @@ class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.Mai
         )
     }
 
+    /** 打开应用详情页。 */
     override fun openDetail(appId: String) {
         navigateTo(
             fragment = DetailFragment.newInstance(appId),
@@ -111,6 +122,7 @@ class MainActivity : AppCompatActivity(), com.nio.appstore.common.navigation.Mai
         )
     }
 
+    /** 打开“我的应用”页面。 */
     override fun openMyApps() {
         navigateTo(
             fragment = MyAppFragment.newInstance(),

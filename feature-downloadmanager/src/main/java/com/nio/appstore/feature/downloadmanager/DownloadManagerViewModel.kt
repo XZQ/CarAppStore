@@ -19,16 +19,24 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class DownloadManagerViewModel(
+    /** 提供任务中心聚合视图数据。 */
     private val appManager: AppManager,
+    /** 用于监听全局任务状态变化。 */
     private val stateCenter: StateCenter,
+    /** 下载业务入口。 */
     private val downloadManager: DownloadManager,
+    /** 安装业务入口。 */
     private val installManager: InstallManager,
+    /** 策略设置入口。 */
     private val policyCenter: PolicyCenter,
 ) : BaseViewModel<DownloadManagerUiState>(DownloadManagerUiState()) {
 
+    /** 状态订阅任务，避免重复注册全局观察。 */
     private var observeJob: Job? = null
+    /** 当前选中的任务筛选条件。 */
     private var selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL
 
+    /** 初始化页面数据并开始观察状态变化。 */
     fun load() {
         viewModelScope.launch {
             refresh()
@@ -36,6 +44,7 @@ class DownloadManagerViewModel(
         }
     }
 
+    /** 处理下载任务主按钮点击。 */
     fun onPrimaryClick(item: DownloadTaskViewData) {
         viewModelScope.launch {
             when (item.primaryAction) {
@@ -49,6 +58,7 @@ class DownloadManagerViewModel(
         }
     }
 
+    /** 处理安装任务区主按钮点击。 */
     fun onInstallPrimaryClick(item: InstallTaskViewData) {
         viewModelScope.launch {
             when (item.primaryAction) {
@@ -60,6 +70,7 @@ class DownloadManagerViewModel(
         }
     }
 
+    /** 处理下载任务二级按钮点击。 */
     fun onSecondaryClick(item: DownloadTaskViewData) {
         viewModelScope.launch {
             downloadManager.removeTask(item.appId, clearFile = true)
@@ -67,11 +78,13 @@ class DownloadManagerViewModel(
         }
     }
 
+    /** 切换当前筛选条件。 */
     fun onCycleFilter() {
         selectedFilter = selectedFilter.next()
         viewModelScope.launch { refresh() }
     }
 
+    /** 清理所有已完成任务。 */
     fun onClearCompleted() {
         viewModelScope.launch {
             downloadManager.clearCompletedTasks()
@@ -79,6 +92,7 @@ class DownloadManagerViewModel(
         }
     }
 
+    /** 清理所有失败任务。 */
     fun onClearFailed() {
         viewModelScope.launch {
             val failedTasks = appManager.getDownloadTasks().filter { it.overallStatus == com.nio.appstore.data.model.TaskOverallStatus.FAILED }
@@ -87,6 +101,7 @@ class DownloadManagerViewModel(
         }
     }
 
+    /** 重试失败的下载和安装任务。 */
     fun onRetryFailed() {
         viewModelScope.launch {
             val installFailed = appManager.getInstallTasks().filter { it.primaryAction == PrimaryAction.RETRY_INSTALL }
@@ -96,6 +111,7 @@ class DownloadManagerViewModel(
         }
     }
 
+    /** 批量安装所有已下载完成的任务。 */
     fun onBatchInstallReady() {
         viewModelScope.launch {
             val readyDownloads = appManager.getDownloadTasks().filter {
@@ -106,6 +122,7 @@ class DownloadManagerViewModel(
         }
     }
 
+    /** 切换自动恢复开关。 */
     fun onToggleAutoResume() {
         viewModelScope.launch {
             val current = downloadManager.getPreferences()
@@ -114,6 +131,7 @@ class DownloadManagerViewModel(
         }
     }
 
+    /** 切换自动重试开关。 */
     fun onToggleAutoRetry() {
         viewModelScope.launch {
             val current = downloadManager.getPreferences()
@@ -122,24 +140,28 @@ class DownloadManagerViewModel(
         }
     }
 
+    /** 切换 Wi‑Fi 策略开关。 */
     fun onToggleWifi() {
         val current = policyCenter.getSettings()
         policyCenter.updateSettings(current.copy(wifiConnected = !current.wifiConnected))
         viewModelScope.launch { refresh() }
     }
 
+    /** 切换驻车策略开关。 */
     fun onToggleParking() {
         val current = policyCenter.getSettings()
         policyCenter.updateSettings(current.copy(parkingMode = !current.parkingMode))
         viewModelScope.launch { refresh() }
     }
 
+    /** 切换低存储策略开关。 */
     fun onToggleStorage() {
         val current = policyCenter.getSettings()
         policyCenter.updateSettings(current.copy(lowStorageMode = !current.lowStorageMode))
         viewModelScope.launch { refresh() }
     }
 
+    /** 监听全局任务状态变化，并在变化时刷新页面。 */
     private fun observeStateChanges() {
         if (observeJob != null) return
         observeJob = stateCenter.observeAll()
@@ -147,11 +169,13 @@ class DownloadManagerViewModel(
             .launchIn(viewModelScope)
     }
 
+    /** 重新计算页面所需的下载中心 UI 状态。 */
     private suspend fun refresh() {
         val allTasks = appManager.getDownloadTasks()
         val allInstallTasks = appManager.getInstallTasks()
         val preferences = downloadManager.getPreferences()
         val policy = policyCenter.getSettings()
+        // 先按当前筛选条件得到可见任务，再计算统计信息和开关区状态。
         val visibleTasks = allTasks.filter { selectedFilter.matches(it.overallStatus) }
         val visibleInstallTasks = allInstallTasks.filter { selectedFilter.matches(it.overallStatus) }
         val downloadStats = appManager.getDownloadTaskStats()

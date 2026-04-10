@@ -14,24 +14,33 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class DetailViewModel(
+    /** 提供详情页应用详情和卡片状态数据。 */
     private val appManager: AppManager,
+    /** 下载业务入口。 */
     private val downloadManager: DownloadManager,
+    /** 安装业务入口。 */
     private val installManager: InstallManager,
+    /** 升级业务入口。 */
     private val upgradeManager: UpgradeManager,
+    /** 用于监听当前应用运行态变化。 */
     private val stateCenter: StateCenter,
 ) : BaseViewModel<DetailUiState>(DetailUiState()) {
 
+    /** 当前详情页正在展示的应用 id。 */
     private lateinit var currentAppId: String
 
+    /** 加载指定应用的详情页数据，并订阅其运行态。 */
     fun load(appId: String) {
         currentAppId = appId
         viewModelScope.launch {
+            // 先加载详情，再补一次升级可用性检查，保证主按钮状态准确。
             val detail = appManager.getAppDetail(appId)
             _uiState.value = _uiState.value.copy(appDetail = detail)
             upgradeManager.checkUpgrade(appId)
         }
         stateCenter.observe(appId)
             .onEach { appState ->
+                // 页面只消费已经归一化的状态文本、主按钮和进度，不自己做业务判断。
                 _uiState.value = _uiState.value.copy(
                     stateText = appState.statusText,
                     statusTone = CarUiStyle.resolveStatusTone(appState),
@@ -42,6 +51,7 @@ class DetailViewModel(
             .launchIn(viewModelScope)
     }
 
+    /** 处理详情页主按钮点击。 */
     fun onPrimaryClick() {
         when (_uiState.value.primaryAction) {
             PrimaryAction.DOWNLOAD, PrimaryAction.RETRY_DOWNLOAD -> viewModelScope.launch {

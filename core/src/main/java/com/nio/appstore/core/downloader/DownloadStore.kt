@@ -6,22 +6,27 @@ import org.json.JSONObject
 import java.io.File
 
 class DownloadStore(
+    /** 下载器工作目录根路径，内部包含 temp 和 final 两类子目录。 */
     private val baseDir: File,
 ) {
+    /** 返回指定任务的临时目录，不存在时自动创建。 */
     fun getTaskTempDir(taskId: String): File {
         val dir = File(baseDir, "temp/$taskId")
         if (!dir.exists()) dir.mkdirs()
         return dir
     }
 
+    /** 返回下载完成文件所在目录，不存在时自动创建。 */
     fun getFinalDir(): File {
         val dir = File(baseDir, "final")
         if (!dir.exists()) dir.mkdirs()
         return dir
     }
 
+    /** 返回指定任务的 meta 文件路径。 */
     fun getTaskMetaFile(taskId: String): File = File(getTaskTempDir(taskId), "meta.json")
 
+    /** 为指定任务创建版本化 JSON store。 */
     private fun metaStore(taskId: String): VersionedJsonStore = VersionedJsonStore(
         storeFile = getTaskMetaFile(taskId),
         schemaVersion = DOWNLOAD_META_SCHEMA_VERSION,
@@ -29,6 +34,7 @@ class DownloadStore(
         migration = ::migrateMetaRoot,
     )
 
+    /** 持久化远端探测得到的下载元信息。 */
     fun saveMeta(taskId: String, meta: DownloadRemoteMeta) {
         metaStore(taskId).update { root ->
             root.put("contentLength", meta.contentLength)
@@ -39,6 +45,7 @@ class DownloadStore(
         }
     }
 
+    /** 读取指定任务的远端元信息。 */
     fun readMeta(taskId: String): DownloadRemoteMeta? {
         val file = getTaskMetaFile(taskId)
         if (!file.exists()) return null
@@ -53,9 +60,11 @@ class DownloadStore(
         }
     }
 
+    /** 持久化分片下载记录。 */
     fun saveSegments(taskId: String, segments: List<DownloadSegmentRecord>) {
         metaStore(taskId).update { root ->
             root.put("segments", JSONArray().apply {
+                // 每个分片都独立落盘，便于冷启动恢复时继续续传。
                 segments.forEach { seg ->
                     put(JSONObject().apply {
                         put("segmentId", seg.segmentId)
@@ -75,6 +84,7 @@ class DownloadStore(
         }
     }
 
+    /** 读取指定任务的全部分片记录。 */
     fun readSegments(taskId: String): List<DownloadSegmentRecord> {
         val file = getTaskMetaFile(taskId)
         if (!file.exists()) return emptyList()
@@ -103,10 +113,12 @@ class DownloadStore(
         }
     }
 
+    /** 创建空的下载 meta 根节点。 */
     private fun createEmptyMetaRoot(): JSONObject = JSONObject().apply {
         put("segments", JSONArray())
     }
 
+    /** 将旧格式 meta 数据迁移为当前结构。 */
     private fun migrateMetaRoot(rawValue: Any): JSONObject {
         val legacyRoot = rawValue as? JSONObject ?: return createEmptyMetaRoot()
         return createEmptyMetaRoot().apply {

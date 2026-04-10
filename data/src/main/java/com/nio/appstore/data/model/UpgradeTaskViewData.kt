@@ -3,6 +3,9 @@ package com.nio.appstore.data.model
 import com.nio.appstore.common.ui.StatusTone
 import com.nio.appstore.domain.state.PrimaryAction
 
+/**
+ * UpgradeTaskViewData 是升级中心列表直接消费的展示模型。
+ */
 data class UpgradeTaskViewData(
     /** 稳定的应用标识。 */
     val appId: String,

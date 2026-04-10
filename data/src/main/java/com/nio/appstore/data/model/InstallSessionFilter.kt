@@ -1,6 +1,7 @@
 package com.nio.appstore.data.model
 
 enum class InstallSessionFilter(
+    /** 展示给用户的会话筛选标签。 */
     val label: String,
 ) {
     ALL(ModelText.SESSION_FILTER_ALL),
@@ -9,11 +10,13 @@ enum class InstallSessionFilter(
     RECOVERED(ModelText.SESSION_FILTER_RECOVERED),
     COMPLETED(ModelText.SESSION_FILTER_COMPLETED);
 
+    /** 获取下一个会话筛选项。 */
     fun next(): InstallSessionFilter {
         val values = entries
         return values[(ordinal + 1) % values.size]
     }
 
+    /** 判断当前筛选项是否匹配目标会话分组。 */
     fun matches(bucket: SessionBucket): Boolean {
         return when (this) {
             ALL -> true

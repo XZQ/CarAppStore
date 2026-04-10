@@ -1,5 +1,8 @@
 package com.nio.appstore.core.downloader
 
+/**
+ * DownloadSegmentRecord 描述下载器内部使用的分片记录。
+ */
 data class DownloadSegmentRecord(
     /** 稳定的分片标识。 */
     val segmentId: String,

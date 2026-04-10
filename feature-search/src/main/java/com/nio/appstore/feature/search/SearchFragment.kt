@@ -18,25 +18,32 @@ import kotlinx.coroutines.launch
 
 class SearchFragment : BaseFragment() {
 
+    /** 当前页面的 ViewBinding。 */
     private var _binding: FragmentSearchBinding? = null
+    /** 对外暴露的非空 Binding 访问入口。 */
     private val binding get() = _binding!!
 
+    /** 搜索页 ViewModel。 */
     private val viewModel: SearchViewModel by viewModels {
         SearchViewModelFactory(appServices.appManager, appServices.stateCenter)
     }
 
+    /** 搜索结果列表适配器。 */
     private val adapter by lazy { HomeAdapter { app -> navigator.openDetail(app.appId) } }
 
+    /** 创建搜索页视图。 */
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentSearchBinding.inflate(inflater, container, false)
         return binding.root
     }
 
+    /** 初始化搜索框、列表和状态订阅。 */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         navigator.updateTitle(getString(R.string.screen_search_title))
         binding.recyclerSearch.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerSearch.adapter = adapter
+        // 输入变化后立即驱动搜索状态更新。
         binding.etSearch.doAfterTextChanged { text ->
             viewModel.search(text?.toString().orEmpty())
         }
@@ -48,10 +55,12 @@ class SearchFragment : BaseFragment() {
         viewModel.load()
     }
 
+    /** 订阅搜索页 UI 状态，并同步输入框与结果列表。 */
     private fun observeState() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
+                    // 状态恢复时，需要把 ViewModel 中的关键词同步回输入框。
                     if (binding.etSearch.text?.toString() != state.keyword) {
                         binding.etSearch.setText(state.keyword)
                         binding.etSearch.setSelection(state.keyword.length)
@@ -69,12 +78,14 @@ class SearchFragment : BaseFragment() {
         }
     }
 
+    /** 释放搜索页 Binding。 */
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
     }
 
     companion object {
+        /** 创建搜索页实例。 */
         fun newInstance() = SearchFragment()
     }
 }

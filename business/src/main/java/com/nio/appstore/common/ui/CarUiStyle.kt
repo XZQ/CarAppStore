@@ -14,9 +14,13 @@ import com.nio.appstore.domain.state.PrimaryAction
 import com.nio.appstore.domain.state.UpgradeStatus
 
 enum class ActionTone {
+    /** 主按钮色调。 */
     PRIMARY,
+    /** 成功动作色调。 */
     SUCCESS,
+    /** 警示动作色调。 */
     WARNING,
+    /** 禁用动作色调。 */
     DISABLED,
 }
 
@@ -38,6 +42,7 @@ data class ActionStyle(
 
 object CarUiStyle {
 
+    /** 根据任务分组返回卡片背景资源。 */
     fun taskCardBackgroundRes(status: TaskOverallStatus): Int = when (status) {
         TaskOverallStatus.ACTIVE -> R.drawable.bg_task_card_active
         TaskOverallStatus.PENDING -> R.drawable.bg_task_card_pending
@@ -45,6 +50,7 @@ object CarUiStyle {
         TaskOverallStatus.COMPLETED -> R.drawable.bg_task_card_completed
     }
 
+    /** 根据任务分组返回分组文案。 */
     fun taskBucketText(status: TaskOverallStatus): String = when (status) {
         TaskOverallStatus.ACTIVE -> CommonUiText.TASK_ACTIVE
         TaskOverallStatus.PENDING -> CommonUiText.TASK_PENDING
@@ -52,6 +58,7 @@ object CarUiStyle {
         TaskOverallStatus.COMPLETED -> CommonUiText.TASK_COMPLETED
     }
 
+    /** 根据任务分组返回标签色调。 */
     fun taskBucketTone(status: TaskOverallStatus): StatusTone = when (status) {
         TaskOverallStatus.ACTIVE -> StatusTone.INFO
         TaskOverallStatus.PENDING -> StatusTone.WARNING
@@ -59,6 +66,7 @@ object CarUiStyle {
         TaskOverallStatus.COMPLETED -> StatusTone.SUCCESS
     }
 
+    /** 根据应用运行态解析状态标签色调。 */
     fun resolveStatusTone(state: AppState): StatusTone {
         return when {
             state.errorMessage != null -> StatusTone.ERROR
@@ -80,6 +88,7 @@ object CarUiStyle {
         }
     }
 
+    /** 根据文本和色调生成标签样式。 */
     fun tagStyle(text: String, tone: StatusTone): TagStyle {
         return TagStyle(
             text = text,
@@ -93,6 +102,7 @@ object CarUiStyle {
         )
     }
 
+    /** 根据主动作生成按钮样式。 */
     fun actionStyle(action: PrimaryAction): ActionStyle {
         val text = when (action) {
             PrimaryAction.DOWNLOAD -> CommonUiText.ACTION_DOWNLOAD
@@ -129,11 +139,13 @@ object CarUiStyle {
     }
 }
 
+/** 把状态标签样式应用到 TextView。 */
 fun TextView.applyTagStyle(style: TagStyle) {
     text = style.text
     setBackgroundResource(style.backgroundRes)
 }
 
+/** 把动作按钮样式应用到 Button。 */
 fun Button.applyActionStyle(style: ActionStyle) {
     text = style.text
     isEnabled = style.enabled
@@ -142,6 +154,7 @@ fun Button.applyActionStyle(style: ActionStyle) {
 }
 
 
+/** 按任务分组为卡片应用背景样式。 */
 fun View.applyTaskCardBackground(overallStatus: TaskOverallStatus) {
     setBackgroundResource(CarUiStyle.taskCardBackgroundRes(overallStatus))
 }

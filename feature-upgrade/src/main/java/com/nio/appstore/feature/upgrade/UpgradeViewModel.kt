@@ -15,14 +15,20 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class UpgradeViewModel(
+    /** 升级中心聚合入口。 */
     private val appManager: AppManager,
+    /** 用于监听全局升级状态变化。 */
     private val stateCenter: StateCenter,
+    /** 升级业务入口。 */
     private val upgradeManager: UpgradeManager,
 ) : BaseViewModel<UpgradeUiState>(UpgradeUiState()) {
 
+    /** 升级中心状态订阅任务。 */
     private var observeJob: Job? = null
+    /** 当前选中的任务筛选条件。 */
     private var selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL
 
+    /** 初始化升级中心并开始监听状态变化。 */
     fun load() {
         viewModelScope.launch {
             refresh()
@@ -30,6 +36,7 @@ class UpgradeViewModel(
         }
     }
 
+    /** 处理升级任务主按钮点击。 */
     fun onPrimaryClick(item: UpgradeTaskViewData) {
         viewModelScope.launch {
             when (item.primaryAction) {
@@ -41,6 +48,7 @@ class UpgradeViewModel(
         }
     }
 
+    /** 重试失败升级任务。 */
     fun onRetryFailed() {
         viewModelScope.launch {
             val failed = appManager.getUpgradeTasks().filter {
@@ -56,6 +64,7 @@ class UpgradeViewModel(
     }
 
 
+    /** 批量启动当前筛选范围内所有可执行升级任务。 */
     fun onStartAllRunnable() {
         viewModelScope.launch {
             val runnable = appManager.getUpgradeTasks().filter {
@@ -66,11 +75,13 @@ class UpgradeViewModel(
         }
     }
 
+    /** 切换升级中心筛选条件。 */
     fun onCycleFilter() {
         selectedFilter = selectedFilter.next()
         viewModelScope.launch { refresh() }
     }
 
+    /** 监听页面全局状态变化。 */
     private fun observeStateChanges() {
         if (observeJob != null) return
         observeJob = stateCenter.observeAll()
@@ -78,6 +89,7 @@ class UpgradeViewModel(
             .launchIn(viewModelScope)
     }
 
+    /** 重新计算升级中心页面状态。 */
     private suspend fun refresh() {
         val allTasks = appManager.getUpgradeTasks()
         val visible = allTasks.filter { selectedFilter.matches(it.overallStatus) }

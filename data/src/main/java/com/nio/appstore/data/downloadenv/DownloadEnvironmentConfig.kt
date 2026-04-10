@@ -3,8 +3,11 @@ package com.nio.appstore.data.downloadenv
 import com.nio.appstore.core.downloader.DownloadSourcePolicy
 
 enum class DownloadEnvironment {
+    /** 开发环境。 */
     DEV,
+    /** 测试环境。 */
     TEST,
+    /** 生产环境。 */
     PROD,
 }
 
@@ -19,6 +22,7 @@ data class DownloadEnvironmentConfig(
     val allowDirectHttp: Boolean = true,
 ) {
     companion object {
+        /** 根据下载环境生成对应的能力配置。 */
         fun forEnvironment(environment: DownloadEnvironment): DownloadEnvironmentConfig {
             return when (environment) {
                 DownloadEnvironment.DEV -> DownloadEnvironmentConfig(

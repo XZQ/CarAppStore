@@ -2,6 +2,9 @@ package com.nio.appstore.data.model
 
 import com.nio.appstore.domain.state.DownloadStatus
 
+/**
+ * DownloadTaskRecord 描述数据层持久化的下载任务记录。
+ */
 data class DownloadTaskRecord(
     /** 稳定的任务标识。 */
     val taskId: String,

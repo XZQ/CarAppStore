@@ -1,5 +1,8 @@
 package com.nio.appstore.core.downloader
 
+/**
+ * DownloadRemoteMeta 描述远端文件探测得到的元信息。
+ */
 data class DownloadRemoteMeta(
     /** 服务端返回的内容长度，未知时为 `-1`。 */
     val contentLength: Long = -1L,

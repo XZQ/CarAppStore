@@ -1,5 +1,8 @@
 package com.nio.appstore.core.installer
 
+/**
+ * InstallSessionRecord 描述一次安装会话的持久化记录。
+ */
 data class InstallSessionRecord(
     /** 平台分配的安装会话标识。 */
     val sessionId: Int = -1,

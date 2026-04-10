@@ -57,22 +57,30 @@ object TaskCenterText {
     private const val SESSION_FILTER_LINE_TEMPLATE = "｜%s｜会话 进行中 %d / 失败 %d / 恢复 %d"
     private const val SWITCH_SESSION_VIEW_TEMPLATE = "切换 Session 视图（%s）"
 
+    /** 生成动作区提示文案。 */
     fun actionHint(centerName: String, scope: String): String = ACTION_HINT_TEMPLATE.format(centerName, scope)
 
+    /** 生成任务中心头部统计摘要。 */
     fun centerSummary(centerName: String, visibleCount: Int, totalCount: Int): String =
         CENTER_SUMMARY_TEMPLATE.format(centerName, visibleCount, totalCount)
 
+    /** 生成“全部为空”场景的标题。 */
     fun emptyTitle(centerName: String): String = centerName + EMPTY_SUFFIX
 
+    /** 生成带筛选条件的空态标题。 */
     fun filteredEmptyTitle(centerName: String, filterLabel: String): String = FILTERED_EMPTY_TITLE_TEMPLATE.format(centerName, filterLabel)
 
+    /** 生成全量空态描述。 */
     fun emptyAll(centerName: String): String = EMPTY_ALL_TEMPLATE.format(centerName)
 
+    /** 生成失败筛选空态描述。 */
     fun emptyFailed(centerName: String): String = EMPTY_FAILED_TEMPLATE.format(centerName)
 
     // 摘要与统计文案
+    /** 生成没有任务时的副标题。 */
     fun subtitleEmpty(filterLabel: String): String = SUBTITLE_EMPTY_TEMPLATE.format(FILTER_PREFIX, filterLabel)
 
+    /** 生成带主次统计项的副标题。 */
     fun subtitleSummary(
         filterLabel: String,
         primaryLabel: String,
@@ -81,8 +89,10 @@ object TaskCenterText {
         failedCount: Int,
     ): String = SUBTITLE_SUMMARY_TEMPLATE.format(FILTER_PREFIX, filterLabel, primaryLabel, primaryCount, secondarySummary, failedCount)
 
+    /** 生成副统计项摘要。 */
     fun secondarySummary(secondaryLabel: String, secondaryCount: Int): String = SECONDARY_SUMMARY_TEMPLATE.format(secondaryLabel, secondaryCount)
 
+    /** 生成统计行文案。 */
     fun statsLine(
         prefix: String,
         active: Int,
@@ -91,39 +101,54 @@ object TaskCenterText {
         completed: Int,
     ): String = STATS_LINE_TEMPLATE.format(prefix, active, STATS_DIVIDER, pending, STATS_DIVIDER, failed, STATS_DIVIDER, completed)
 
+    /** 生成筛选按钮文案。 */
     fun filterButtonText(filterLabel: String): String =
         FILTER_BUTTON_PREFIX + filterLabel
 
+    /** 生成头部提示文案。 */
     fun headerHint(primary: String): String = HEADER_HINT_TEMPLATE.format(primary)
 
+    /** 生成批量操作摘要。 */
     fun batchSummary(filterLabel: String, total: Int, failed: Int): String = BATCH_SUMMARY_TEMPLATE.format(filterLabel, total, failed)
 
+    /** 生成紧凑统计标题。 */
     fun compactStatTitle(label: String, count: Int): String =
         "$label\n$count"
 
+    /** 生成空态面板提示文案。 */
     fun emptyPanelHint(centerName: String): String = EMPTY_PANEL_HINT_TEMPLATE.format(centerName)
 
+    /** 生成失败面板标题。 */
     fun failurePanelTitle(centerName: String, failedCount: Int): String = FAILURE_PANEL_TITLE_TEMPLATE.format(centerName, failedCount)
 
+    /** 生成失败面板提示文案。 */
     fun failurePanelHint(centerName: String): String = FAILURE_PANEL_HINT_TEMPLATE.format(centerName)
 
+    /** 生成批量动作统计摘要。 */
     fun batchActionSummary(runnableCount: Int, failedCount: Int): String = BATCH_ACTION_SUMMARY_TEMPLATE.format(runnableCount, failedCount)
 
+    /** 生成列表区块标题。 */
     fun sectionTitle(sectionName: String): String =
         sectionName
 
+    /** 生成列表区块提示文案。 */
     fun sectionHint(sectionName: String): String =
         sectionName + SECTION_HINT_SUFFIX
 
+    /** 生成扩展区标题。 */
     fun extensionTitle(centerName: String, title: String): String = EXTENSION_TITLE_TEMPLATE.format(centerName, title)
 
+    /** 生成扩展区提示文案。 */
     fun extensionHint(centerName: String, hint: String): String = EXTENSION_HINT_TEMPLATE.format(centerName, hint)
 
     // 安装中心会话相关文案
+    /** 生成安装会话摘要。 */
     fun sessionSummary(active: Int, failed: Int, recovered: Int): String = SESSION_SUMMARY_TEMPLATE.format(active, failed, recovered)
 
+    /** 生成安装会话筛选摘要行。 */
     fun sessionFilterLine(label: String, active: Int, failed: Int, recovered: Int): String =
         SESSION_FILTER_LINE_TEMPLATE.format(label, active, failed, recovered)
 
+    /** 生成切换 Session 视图的按钮文案。 */
     fun switchSessionView(label: String): String = SWITCH_SESSION_VIEW_TEMPLATE.format(label)
 }

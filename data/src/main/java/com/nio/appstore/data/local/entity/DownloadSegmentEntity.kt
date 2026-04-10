@@ -1,5 +1,8 @@
 package com.nio.appstore.data.local.entity
 
+/**
+ * DownloadSegmentEntity 描述本地持久化的下载分片实体。
+ */
 data class DownloadSegmentEntity(
     /** 稳定的分片标识。 */
     val segmentId: String,

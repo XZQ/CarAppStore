@@ -1,5 +1,8 @@
 package com.nio.appstore.data.model
 
+/**
+ * AppInfo 描述首页和搜索页使用的轻量应用信息。
+ */
 data class AppInfo(
     /** 稳定的应用标识。 */
     val appId: String,

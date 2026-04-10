@@ -23,14 +23,19 @@ import kotlinx.coroutines.launch
 
 class UpgradeFragment : BaseTaskCenterFragment() {
 
+    /** 当前页面的 ViewBinding。 */
     private var _binding: FragmentUpgradeBinding? = null
+    /** 对外暴露的非空 Binding 访问入口。 */
     private val binding get() = _binding!!
+    /** 升级中心扩展区控制器。 */
     private var controlsController: UpgradeCenterControlsController? = null
 
+    /** 升级中心 ViewModel。 */
     private val viewModel: UpgradeViewModel by viewModels {
         UpgradeViewModelFactory(appServices.appManager, appServices.stateCenter, appServices.upgradeManager)
     }
 
+    /** 升级任务列表适配器。 */
     private val adapter by lazy {
         UpgradeTaskAdapter(
             onPrimaryClick = { task -> viewModel.onPrimaryClick(task) },
@@ -38,11 +43,13 @@ class UpgradeFragment : BaseTaskCenterFragment() {
         )
     }
 
+    /** 创建升级中心视图。 */
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentUpgradeBinding.inflate(inflater, container, false)
         return binding.root
     }
 
+    /** 初始化升级中心扩展区、列表区和事件绑定。 */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         bindCenterTitle(binding.headerBlock, getString(R.string.screen_upgrade_manager_title))
@@ -55,6 +62,7 @@ class UpgradeFragment : BaseTaskCenterFragment() {
                 showPanel = true,
             ),
         )
+        // 升级中心把批量升级控制区挂接到公共扩展插槽中。
         val controlBinding = ViewUpgradeCenterControlsBinding.inflate(layoutInflater, binding.extensionSlot.extensionContentContainer, false)
         controlsController = UpgradeCenterControlsController(controlBinding)
         attachExtensionContent(binding.extensionSlot, controlBinding.root)
@@ -82,12 +90,14 @@ class UpgradeFragment : BaseTaskCenterFragment() {
         viewModel.load()
     }
 
+    /** 订阅升级中心 UI 状态，并刷新头部、扩展区和任务列表。 */
     private fun observeState() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
                     controlsController?.bind(state.controlsUiState)
 
+                    // 头部区优先展示当前筛选下的升级统计和批量处理提示。
                     bindHeaderBlock(
                         headerBinding = binding.headerBlock,
                         centerName = getString(R.string.screen_upgrade_center_name),
@@ -119,6 +129,7 @@ class UpgradeFragment : BaseTaskCenterFragment() {
                             failedCount = state.failedCount,
                         ),
                     )
+                    // 失败面板和空态面板根据当前筛选和失败数动态切换。
                     bindFailurePanel(
                         failureBinding = binding.failurePanel,
                         uiState = TaskCenterFailureUiState(
@@ -158,6 +169,7 @@ class UpgradeFragment : BaseTaskCenterFragment() {
         }
     }
 
+    /** 释放升级中心页面相关引用。 */
     override fun onDestroyView() {
         super.onDestroyView()
         controlsController = null
@@ -165,6 +177,7 @@ class UpgradeFragment : BaseTaskCenterFragment() {
     }
 
     companion object {
+        /** 创建升级中心实例。 */
         fun newInstance() = UpgradeFragment()
     }
 }

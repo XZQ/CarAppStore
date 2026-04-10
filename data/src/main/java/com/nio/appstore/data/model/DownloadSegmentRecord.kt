@@ -1,5 +1,8 @@
 package com.nio.appstore.data.model
 
+/**
+ * DownloadSegmentRecord 描述数据层持久化的下载分片记录。
+ */
 data class DownloadSegmentRecord(
     /** 稳定的分片标识。 */
     val segmentId: String,

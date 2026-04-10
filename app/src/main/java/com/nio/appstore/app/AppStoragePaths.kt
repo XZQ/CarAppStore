@@ -10,6 +10,7 @@ import java.io.File
  * 向更独立的 assembly / bootstrap 结构收敛，也能更容易迁移。
  */
 class AppStoragePaths(context: Context) {
+    /** 统一提供文件目录时使用的应用级上下文。 */
     private val appContext = context.applicationContext
 
     /** 统一数据层当前使用的结构化 JSON 落盘文件。 */

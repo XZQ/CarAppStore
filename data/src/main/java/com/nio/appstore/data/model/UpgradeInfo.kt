@@ -1,5 +1,8 @@
 package com.nio.appstore.data.model
 
+/**
+ * UpgradeInfo 描述指定应用的升级信息。
+ */
 data class UpgradeInfo(
     /** 稳定的应用标识。 */
     val appId: String,

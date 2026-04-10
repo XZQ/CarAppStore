@@ -1,5 +1,8 @@
 package com.nio.appstore.data.local.entity
 
+/**
+ * DownloadArtifactRefEntity 描述已下载 APK 的本地引用记录。
+ */
 data class DownloadArtifactRefEntity(
     /** 稳定的应用标识。 */
     val appId: String,

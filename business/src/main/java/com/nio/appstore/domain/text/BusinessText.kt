@@ -11,18 +11,31 @@ import com.nio.appstore.core.installer.InstallSessionStatus
  * 3. 为后续继续做文案策略收口和国际化迁移保留统一替换点。
  */
 object BusinessText {
+    /** 升级执行中状态文案。 */
     const val STATUS_UPGRADING = "升级中"
+    /** 升级失败状态文案。 */
     const val STATUS_UPGRADE_FAILED = "升级失败"
+    /** 安装执行中状态文案。 */
     const val STATUS_INSTALLING = "安装中"
+    /** 等待安装状态文案。 */
     const val STATUS_WAITING_INSTALL = "等待安装"
+    /** 等待系统确认状态文案。 */
     const val STATUS_WAITING_SYSTEM_CONFIRM = "等待系统确认"
+    /** 安装失败状态文案。 */
     const val STATUS_INSTALL_FAILED = "安装失败"
+    /** 可升级状态文案。 */
     const val STATUS_UPGRADE_AVAILABLE = "可升级"
+    /** 已安装状态文案。 */
     const val STATUS_INSTALLED = "已安装"
+    /** 等待下载状态文案。 */
     const val STATUS_WAITING_DOWNLOAD = "等待下载"
+    /** 下载完成状态文案。 */
     const val STATUS_DOWNLOAD_COMPLETED = "下载完成"
+    /** 下载失败状态文案。 */
     const val STATUS_DOWNLOAD_FAILED = "下载失败"
+    /** 已取消状态文案。 */
     const val STATUS_CANCELED = "已取消"
+    /** 未安装状态文案。 */
     const val STATUS_NOT_INSTALLED = "未安装"
 
     const val POLICY_NOT_WIFI = "当前非 Wi‑Fi 网络"
@@ -65,32 +78,46 @@ object BusinessText {
     private const val UPDATED_AT_FORMAT = "更新于 %s"
     private const val RETRY_COUNT_FORMAT = " · 重试%d次"
 
+    /** 生成下载中状态文案。 */
     fun downloading(progress: Int): String = DOWNLOADING_FORMAT.format(progress)
 
+    /** 生成已暂停状态文案。 */
     fun paused(progress: Int): String = PAUSED_FORMAT.format(progress)
 
+    /** 生成下载受限文案。 */
     fun downloadRestricted(reason: String): String = DOWNLOAD_RESTRICTED_FORMAT.format(reason)
 
+    /** 生成安装受限文案。 */
     fun installRestricted(reason: String): String = INSTALL_RESTRICTED_FORMAT.format(reason)
 
+    /** 生成升级受限文案。 */
     fun upgradeRestricted(reason: String): String = UPGRADE_RESTRICTED_FORMAT.format(reason)
 
+    /** 生成安装失败文案。 */
     fun installFailed(message: String): String = INSTALL_FAILED_FORMAT.format(message)
 
+    /** 生成重新下载提示文案。 */
     fun retryDownload(message: String): String = RETRY_DOWNLOAD_FORMAT.format(message)
 
+    /** 生成安装会话阶段文案。 */
     fun sessionPhase(status: String): String = SESSION_PHASE_FORMAT.format(sessionPhaseLabel(status))
 
+    /** 生成安装会话进度文案。 */
     fun sessionProgress(progress: Int): String = SESSION_PROGRESS_FORMAT.format(progress)
 
+    /** 生成安装会话失败文案。 */
     fun sessionFailed(status: String): String = SESSION_FAILED_FORMAT.format(sessionPhaseLabel(status))
 
+    /** 生成升级目标版本文案。 */
     fun upgradeTarget(currentVersion: String, targetVersion: String): String = UPGRADE_TARGET_FORMAT.format(currentVersion, targetVersion)
 
+    /** 生成人类可读的更新时间文案。 */
     fun updatedAt(timeText: String): String = UPDATED_AT_FORMAT.format(timeText)
 
+    /** 生成重试次数附加文案。 */
     fun retryPart(retryCount: Int): String = RETRY_COUNT_FORMAT.format(retryCount)
 
+    /** 把安装会话状态码转换为用户可读阶段标签。 */
     private fun sessionPhaseLabel(status: String): String {
         return when (status) {
             InstallSessionStatus.CREATED -> "已创建"

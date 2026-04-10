@@ -6,6 +6,9 @@ import com.nio.appstore.data.model.InstallTaskViewData
 import com.nio.appstore.data.model.TaskCenterFilter
 import com.nio.appstore.data.model.TaskCenterStats
 
+/**
+ * InstallCenterUiState 描述安装中心页面的完整界面状态。
+ */
 data class InstallCenterUiState(
     /** 当前筛选条件下展示的安装任务列表。 */
     val tasks: List<InstallTaskViewData> = emptyList(),

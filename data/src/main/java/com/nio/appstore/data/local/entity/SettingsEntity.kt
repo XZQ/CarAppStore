@@ -1,5 +1,8 @@
 package com.nio.appstore.data.local.entity
 
+/**
+ * SettingsEntity 描述本地持久化的单个设置项。
+ */
 data class SettingsEntity(
     /** 稳定的设置项键名。 */
     val key: String,

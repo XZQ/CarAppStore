@@ -6,6 +6,9 @@ import com.nio.appstore.data.model.InstallTaskViewData
 import com.nio.appstore.data.model.TaskCenterFilter
 import com.nio.appstore.data.model.TaskCenterStats
 
+/**
+ * DownloadManagerUiState 描述下载中心页面的完整界面状态。
+ */
 data class DownloadManagerUiState(
     /** 当前筛选条件下展示的下载任务列表。 */
     val tasks: List<DownloadTaskViewData> = emptyList(),

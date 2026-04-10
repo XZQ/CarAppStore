@@ -20,23 +20,28 @@ import com.nio.appstore.common.ui.CommonUiText
 
 abstract class BaseTaskCenterFragment : BaseFragment() {
 
+    /** 绑定任务中心标题，并同步更新宿主页面标题。 */
     protected fun bindCenterTitle(headerBinding: ViewTaskCenterHeaderBinding, title: String) {
         navigator.updateTitle(title)
         headerBinding.tvCenterTitle.text = title
     }
 
+    /** 初始化任务列表的布局管理器和适配器。 */
     protected fun setupTaskRecycler(recyclerView: RecyclerView, adapter: RecyclerView.Adapter<*>) {
         if (recyclerView.layoutManager == null) {
+            // 任务中心统一使用纵向列表布局。
             recyclerView.layoutManager = LinearLayoutManager(requireContext())
         }
         recyclerView.adapter = adapter
     }
 
+    /** 绑定任务列表区块标题，并挂接对应适配器。 */
     protected fun setupListBlock(listBlockBinding: ViewTaskCenterListBlockBinding, adapter: RecyclerView.Adapter<*>, sectionName: String) {
         bindListBlock(listBlockBinding, sectionName, visible = true)
         setupTaskRecycler(listBlockBinding.recyclerTaskList, adapter)
     }
 
+    /** 绑定任务中心头部摘要区。 */
     protected fun bindHeaderBlock(
             headerBinding: ViewTaskCenterHeaderBinding,
             centerName: String,
@@ -47,6 +52,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
             statsPrefix: String,
             stats: TaskCenterStats,
     ) {
+        // 头部区同时展示描述信息和当前统计摘要。
         headerBinding.tvCenterSubtitle.text = subtitle
         headerBinding.tvCenterHint.text = hint
         headerBinding.tvCenterSummary.text = TaskCenterUiFormatter.centerSummary(centerName, visibleCount, totalCount)
@@ -57,6 +63,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
         headerBinding.tvStatSummary.text = TaskCenterUiFormatter.statsLine(statsPrefix, stats)
     }
 
+    /** 绑定批量动作区的文案和显隐状态。 */
     protected fun bindActionBlock(
             actionBinding: ViewTaskCenterActionsBinding,
             centerName: String,
@@ -68,6 +75,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
             runnableCount: Int,
             failedCount: Int,
     ) {
+        // 先刷新动作区的文案，再根据是否有第四按钮决定显隐。
         actionBinding.tvActionTitle.text = TaskCenterUiFormatter.actionTitle(centerName)
         actionBinding.tvActionHint.text = TaskCenterUiFormatter.actionHint(centerName, scopeHint)
         actionBinding.btnActionPrimary.text = TaskCenterUiFormatter.filterButtonText(selectedFilter)
@@ -82,6 +90,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
         actionBinding.tvActionSummary.text = TaskCenterUiFormatter.batchActionSummary(runnableCount, failedCount)
     }
 
+    /** 绑定失败面板的文案和显隐状态。 */
     protected fun bindFailurePanel(
             failureBinding: ViewTaskCenterFailurePanelBinding,
             centerName: String,
@@ -92,6 +101,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
             showSecondary: Boolean = true,
     ) {
         failureBinding.root.visibility = if (showPanel) View.VISIBLE else View.GONE
+        // 失败面板只负责展示当前失败批次的集中处理入口。
         failureBinding.tvFailureTitle.text = TaskCenterUiFormatter.failurePanelTitle(centerName, failedCount)
         failureBinding.tvFailureDesc.text = TaskCenterUiFormatter.failurePanelMessage(centerName)
         failureBinding.tvFailureHint.text = TaskCenterUiFormatter.failurePanelHint(centerName)
@@ -100,6 +110,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
         failureBinding.btnFailureSecondary.visibility = if (showSecondary) View.VISIBLE else View.GONE
     }
 
+    /** 绑定空态面板的文案和显隐状态。 */
     protected fun bindEmptyPanel(
             emptyPanelBinding: ViewTaskCenterEmptyPanelBinding,
             centerName: String,
@@ -108,12 +119,14 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
             secondaryVisible: Boolean = true,
     ) {
         emptyPanelBinding.root.visibility = if (showEmpty) View.VISIBLE else View.GONE
+        // 空态文案会跟随当前筛选条件变化。
         emptyPanelBinding.tvEmptyTitle.text = TaskCenterUiFormatter.emptyTitle(centerName, selectedFilter)
         emptyPanelBinding.tvEmptyDesc.text = TaskCenterUiFormatter.emptyMessage(centerName, selectedFilter)
         emptyPanelBinding.tvEmptyHint.text = TaskCenterUiFormatter.emptyPanelHint(centerName)
         emptyPanelBinding.btnEmptySecondary.visibility = if (secondaryVisible) View.VISIBLE else View.GONE
     }
 
+    /** 绑定列表区块标题和显隐状态。 */
     protected fun bindListBlock(
             listBlockBinding: ViewTaskCenterListBlockBinding,
             sectionName: String,
@@ -124,6 +137,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
         listBlockBinding.root.visibility = if (visible) View.VISIBLE else View.GONE
     }
 
+    /** 使用动作区 UI 状态对象批量绑定动作区。 */
     protected fun bindActionBlock(actionBinding: ViewTaskCenterActionsBinding, uiState: TaskCenterActionUiState) {
         bindActionBlock(
                 actionBinding = actionBinding,
@@ -138,6 +152,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
         )
     }
 
+    /** 使用失败区 UI 状态对象批量绑定失败面板。 */
     protected fun bindFailurePanel(
             failureBinding: ViewTaskCenterFailurePanelBinding,
             uiState: TaskCenterFailureUiState,
@@ -153,6 +168,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
         )
     }
 
+    /** 使用空态 UI 状态对象批量绑定空态面板。 */
     protected fun bindEmptyPanel(
             emptyPanelBinding: ViewTaskCenterEmptyPanelBinding,
             uiState: TaskCenterEmptyUiState,
@@ -169,6 +185,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
     }
 
 
+    /** 绑定扩展插槽的标题、提示和显隐状态。 */
     protected fun bindExtensionSlot(
             extensionBinding: ViewTaskCenterExtensionSlotBinding,
             uiState: TaskCenterExtensionUiState,
@@ -178,18 +195,21 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
         extensionBinding.tvExtensionHint.text = TaskCenterUiFormatter.extensionHint(uiState.centerName, uiState.hint)
     }
 
+    /** 将扩展内容视图挂接到任务中心插槽中。 */
     protected fun attachExtensionContent(
             extensionBinding: ViewTaskCenterExtensionSlotBinding,
             contentView: View,
     ) {
         val currentParent = contentView.parent
         if (currentParent is android.view.ViewGroup) {
+            // 同一个 View 只能有一个父容器，先从旧容器移除。
             currentParent.removeView(contentView)
         }
         extensionBinding.extensionContentContainer.removeAllViews()
         extensionBinding.extensionContentContainer.addView(contentView)
     }
 
+    /** 绑定动作区按钮点击事件。 */
     protected fun bindActionHandlers(
             actionBinding: ViewTaskCenterActionsBinding,
             onPrimary: () -> Unit,
@@ -203,6 +223,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
         actionBinding.btnActionQuaternary.setOnClickListener { onQuaternary?.invoke() }
     }
 
+    /** 绑定失败面板按钮点击事件。 */
     protected fun bindFailureHandlers(
             failureBinding: ViewTaskCenterFailurePanelBinding,
             onPrimary: () -> Unit,
@@ -212,6 +233,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
         failureBinding.btnFailureSecondary.setOnClickListener { onSecondary?.invoke() }
     }
 
+    /** 绑定空态面板按钮点击事件。 */
     protected fun bindEmptyHandlers(
             emptyPanelBinding: ViewTaskCenterEmptyPanelBinding,
             onPrimary: () -> Unit,
