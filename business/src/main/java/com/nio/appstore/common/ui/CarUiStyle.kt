@@ -153,6 +153,15 @@ fun Button.applyActionStyle(style: ActionStyle) {
     alpha = if (style.enabled) 1f else 0.7f
 }
 
+/** 把动作样式应用到 TextView 形式的轻量主按钮。 */
+fun TextView.applyActionStyle(style: ActionStyle) {
+    text = style.text
+    isEnabled = style.enabled
+    isClickable = style.enabled
+    setBackgroundResource(style.backgroundRes)
+    alpha = if (style.enabled) 1f else 0.7f
+}
+
 
 /** 按任务分组为卡片应用背景样式。 */
 fun View.applyTaskCardBackground(overallStatus: TaskOverallStatus) {

@@ -39,6 +39,7 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
             appServices.stateCenter,
             appServices.downloadManager,
             appServices.installManager,
+            appServices.upgradeManager,
             appServices.policyCenter,
         )
     }

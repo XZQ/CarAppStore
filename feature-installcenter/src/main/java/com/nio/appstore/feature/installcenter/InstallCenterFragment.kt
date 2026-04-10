@@ -37,6 +37,7 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
             appServices.appManager,
             appServices.stateCenter,
             appServices.installManager,
+            appServices.upgradeManager,
             appServices.installSessionStore,
         )
     }

@@ -7,12 +7,14 @@ import com.nio.appstore.data.model.DownloadTaskViewData
 import com.nio.appstore.data.model.InstallTaskViewData
 import com.nio.appstore.data.model.TaskCenterFilter
 import com.nio.appstore.data.model.TaskCenterStats
+import com.nio.appstore.domain.action.AppPrimaryActionExecutor
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.download.DownloadManager
 import com.nio.appstore.domain.install.InstallManager
 import com.nio.appstore.domain.policy.PolicyCenter
 import com.nio.appstore.domain.state.PrimaryAction
 import com.nio.appstore.domain.state.StateCenter
+import com.nio.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -27,6 +29,8 @@ class DownloadManagerViewModel(
     private val downloadManager: DownloadManager,
     /** 安装业务入口。 */
     private val installManager: InstallManager,
+    /** 升级业务入口，用于安装后刷新升级可用性。 */
+    private val upgradeManager: UpgradeManager,
     /** 策略设置入口。 */
     private val policyCenter: PolicyCenter,
 ) : BaseViewModel<DownloadManagerUiState>(DownloadManagerUiState()) {
@@ -35,6 +39,14 @@ class DownloadManagerViewModel(
     private var observeJob: Job? = null
     /** 当前选中的任务筛选条件。 */
     private var selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL
+
+    /** 下载中心单项任务主动作分发器。 */
+    private val primaryActionExecutor = AppPrimaryActionExecutor(
+        appManager = appManager,
+        downloadManager = downloadManager,
+        installManager = installManager,
+        upgradeManager = upgradeManager,
+    )
 
     /** 初始化页面数据并开始观察状态变化。 */
     fun load() {
@@ -47,13 +59,7 @@ class DownloadManagerViewModel(
     /** 处理下载任务主按钮点击。 */
     fun onPrimaryClick(item: DownloadTaskViewData) {
         viewModelScope.launch {
-            when (item.primaryAction) {
-                PrimaryAction.DOWNLOAD, PrimaryAction.RETRY_DOWNLOAD -> downloadManager.startDownload(item.appId)
-                PrimaryAction.PAUSE -> downloadManager.pauseDownload(item.appId)
-                PrimaryAction.RESUME -> downloadManager.resumeDownload(item.appId)
-                PrimaryAction.INSTALL, PrimaryAction.RETRY_INSTALL -> installManager.install(item.appId)
-                PrimaryAction.OPEN, PrimaryAction.UPGRADE, PrimaryAction.DISABLED -> Unit
-            }
+            primaryActionExecutor.execute(appId = item.appId, action = item.primaryAction)
             refresh()
         }
     }
@@ -61,11 +67,11 @@ class DownloadManagerViewModel(
     /** 处理安装任务区主按钮点击。 */
     fun onInstallPrimaryClick(item: InstallTaskViewData) {
         viewModelScope.launch {
-            when (item.primaryAction) {
-                PrimaryAction.INSTALL, PrimaryAction.RETRY_INSTALL -> installManager.install(item.appId)
-                PrimaryAction.OPEN -> appManager.openApp(item.packageName)
-                else -> Unit
-            }
+            primaryActionExecutor.execute(
+                appId = item.appId,
+                action = item.primaryAction,
+                packageName = item.packageName,
+            )
             refresh()
         }
     }
@@ -105,7 +111,7 @@ class DownloadManagerViewModel(
     fun onRetryFailed() {
         viewModelScope.launch {
             val installFailed = appManager.getInstallTasks().filter { it.primaryAction == PrimaryAction.RETRY_INSTALL }
-            installFailed.forEach { installManager.install(it.appId) }
+            installFailed.forEach { primaryActionExecutor.execute(it.appId, it.primaryAction, it.packageName) }
             downloadManager.retryFailedTasks()
             refresh()
         }
@@ -117,7 +123,7 @@ class DownloadManagerViewModel(
             val readyDownloads = appManager.getDownloadTasks().filter {
                 it.primaryAction == PrimaryAction.INSTALL || it.primaryAction == PrimaryAction.RETRY_INSTALL
             }
-            readyDownloads.forEach { installManager.install(it.appId) }
+            readyDownloads.forEach { primaryActionExecutor.execute(it.appId, it.primaryAction) }
             refresh()
         }
     }

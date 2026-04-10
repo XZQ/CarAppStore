@@ -7,10 +7,12 @@ import com.nio.appstore.data.model.InstallCenterControlsUiState
 import com.nio.appstore.data.model.InstallSessionFilter
 import com.nio.appstore.data.model.SessionBucket
 import com.nio.appstore.data.model.TaskCenterFilter
+import com.nio.appstore.domain.action.AppPrimaryActionExecutor
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.install.InstallManager
 import com.nio.appstore.domain.state.PrimaryAction
 import com.nio.appstore.domain.state.StateCenter
+import com.nio.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -23,6 +25,8 @@ class InstallCenterViewModel(
     private val stateCenter: StateCenter,
     /** 安装业务入口。 */
     private val installManager: InstallManager,
+    /** 安装完成后的升级状态检查入口。 */
+    private val upgradeManager: UpgradeManager,
     /** 安装会话存储，用于读取可重试会话。 */
     private val installSessionStore: InstallSessionStore,
 ) : BaseViewModel<InstallCenterUiState>(InstallCenterUiState()) {
@@ -33,6 +37,13 @@ class InstallCenterViewModel(
     private var selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL
     /** 当前选中的会话筛选条件。 */
     private var selectedSessionFilter: InstallSessionFilter = InstallSessionFilter.ALL
+
+    /** 安装中心单项任务主动作分发器。 */
+    private val primaryActionExecutor = AppPrimaryActionExecutor(
+        appManager = appManager,
+        installManager = installManager,
+        upgradeManager = upgradeManager,
+    )
 
     /** 初始化页面并开始观察安装状态变化。 */
     fun load() {
@@ -45,10 +56,7 @@ class InstallCenterViewModel(
     /** 处理安装任务主按钮点击。 */
     fun onPrimaryClick(appId: String, action: PrimaryAction) {
         viewModelScope.launch {
-            when (action) {
-                PrimaryAction.INSTALL, PrimaryAction.RETRY_INSTALL -> installManager.install(appId)
-                else -> Unit
-            }
+            primaryActionExecutor.execute(appId = appId, action = action)
             refresh()
         }
     }
@@ -72,7 +80,7 @@ class InstallCenterViewModel(
                 .filter { selectedFilter.matches(it.overallStatus) }
                 .filter { selectedSessionFilter.matches(it.sessionBucket) }
                 .filter { it.primaryAction == PrimaryAction.INSTALL || it.primaryAction == PrimaryAction.RETRY_INSTALL }
-                .forEach { installManager.install(it.appId) }
+                .forEach { primaryActionExecutor.execute(it.appId, it.primaryAction, it.packageName) }
             refresh()
         }
     }
@@ -83,7 +91,7 @@ class InstallCenterViewModel(
             appManager.getInstallTasks()
                 .filter { selectedSessionFilter.matches(it.sessionBucket) }
                 .filter { it.primaryAction == PrimaryAction.RETRY_INSTALL }
-                .forEach { installManager.install(it.appId) }
+                .forEach { primaryActionExecutor.execute(it.appId, it.primaryAction, it.packageName) }
             refresh()
         }
     }
@@ -94,7 +102,7 @@ class InstallCenterViewModel(
             installSessionStore.getRetryableSessions()
                 .map { it.appId }
                 .distinct()
-                .forEach { installManager.install(it) }
+                .forEach { primaryActionExecutor.execute(it, PrimaryAction.RETRY_INSTALL) }
             refresh()
         }
     }

@@ -17,12 +17,23 @@ class SimulatedFileDownloader(
     /** 通过本地文件写入和延时来模拟真实下载过程。 */
     override suspend fun download(
         request: DownloadRequest,
+        control: DownloadExecutionControl,
         onEvent: suspend (DownloadEvent) -> Unit,
     ) {
+        if (emitStoppedIfRequested(request, control, onEvent, request.downloadedBytes, request.totalBytes)) return
         onEvent(DownloadEvent.Waiting)
         delay(150L)
-        val totalBytes = request.totalBytes.takeIf { it > 0L } ?: 512L * 1024L
-        onEvent(DownloadEvent.MetaReady(DownloadRemoteMeta(contentLength = totalBytes, supportsRange = true, mimeType = "application/vnd.android.package-archive")))
+        val totalBytes = request.totalBytes.takeIf { it > 0L } ?: (512L * 1024L)
+        if (emitStoppedIfRequested(request, control, onEvent, request.downloadedBytes, totalBytes)) return
+        onEvent(
+            DownloadEvent.MetaReady(
+                DownloadRemoteMeta(
+                    contentLength = totalBytes,
+                    supportsRange = true,
+                    mimeType = "application/vnd.android.package-archive"
+                )
+            )
+        )
 
         val targetFile = request.targetFile
         targetFile.parentFile?.mkdirs()
@@ -38,10 +49,12 @@ class SimulatedFileDownloader(
 
         var downloaded = targetFile.length().coerceAtLeast(request.downloadedBytes).coerceAtMost(totalBytes)
         while (downloaded < totalBytes) {
+            if (emitStoppedIfRequested(request, control, onEvent, downloaded, totalBytes)) return
             delay(tickMs)
+            if (emitStoppedIfRequested(request, control, onEvent, downloaded, totalBytes)) return
             val delta = chunkBytes.coerceAtMost(totalBytes - downloaded)
             appendChunk(targetFile, downloaded, delta)
-            downloaded = (downloaded + delta).coerceAtMost(request.totalBytes)
+            downloaded = (downloaded + delta).coerceAtMost(totalBytes)
 
             if (plannedFailure != null && downloaded >= failTriggerBytes) {
                 onEvent(DownloadEvent.Failed(plannedFailure, plannedFailure.displayText))
@@ -52,7 +65,28 @@ class SimulatedFileDownloader(
             val speed = ((delta * 1000L) / tickMs).coerceAtLeast(1L)
             onEvent(DownloadEvent.Running(downloaded, totalBytes, speed))
         }
+        if (emitStoppedIfRequested(request, control, onEvent, downloaded, totalBytes)) return
         onEvent(DownloadEvent.Completed(targetFile, totalBytes))
+    }
+
+    /** 在模拟下载过程中检测是否已经收到暂停或取消请求。 */
+    private suspend fun emitStoppedIfRequested(
+        request: DownloadRequest,
+        control: DownloadExecutionControl,
+        onEvent: suspend (DownloadEvent) -> Unit,
+        downloadedBytes: Long,
+        totalBytes: Long,
+    ): Boolean {
+        val reason = control.currentStopReason() ?: return false
+        val normalizedTotalBytes = totalBytes.takeIf { it > 0L } ?: request.totalBytes
+        onEvent(
+            DownloadEvent.Stopped(
+                reason = reason,
+                downloadedBytes = downloadedBytes,
+                totalBytes = normalizedTotalBytes,
+            )
+        )
+        return true
     }
 
     /** 将一段模拟字节写入到目标文件指定偏移位置。 */

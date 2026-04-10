@@ -25,11 +25,22 @@ class SearchFragment : BaseFragment() {
 
     /** 搜索页 ViewModel。 */
     private val viewModel: SearchViewModel by viewModels {
-        SearchViewModelFactory(appServices.appManager, appServices.stateCenter)
+        SearchViewModelFactory(
+            appServices.appManager,
+            appServices.stateCenter,
+            appServices.downloadManager,
+            appServices.installManager,
+            appServices.upgradeManager,
+        )
     }
 
     /** 搜索结果列表适配器。 */
-    private val adapter by lazy { HomeAdapter { app -> navigator.openDetail(app.appId) } }
+    private val adapter by lazy {
+        HomeAdapter(
+            onPrimaryClick = { app -> viewModel.onPrimaryClick(app) },
+            onDetailClick = { app -> navigator.openDetail(app.appId) },
+        )
+    }
 
     /** 创建搜索页视图。 */
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
