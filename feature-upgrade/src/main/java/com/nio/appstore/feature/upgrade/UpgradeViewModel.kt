@@ -5,6 +5,7 @@ import com.nio.appstore.common.base.BaseViewModel
 import com.nio.appstore.data.model.TaskCenterFilter
 import com.nio.appstore.data.model.UpgradeCenterControlsUiState
 import com.nio.appstore.data.model.UpgradeTaskViewData
+import com.nio.appstore.domain.action.AppPrimaryActionExecutor
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.state.PrimaryAction
 import com.nio.appstore.domain.state.StateCenter
@@ -28,6 +29,12 @@ class UpgradeViewModel(
     /** 当前选中的任务筛选条件。 */
     private var selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL
 
+    /** 升级中心单项任务主动作分发器。 */
+    private val primaryActionExecutor = AppPrimaryActionExecutor(
+        appManager = appManager,
+        upgradeManager = upgradeManager,
+    )
+
     /** 初始化升级中心并开始监听状态变化。 */
     fun load() {
         viewModelScope.launch {
@@ -39,11 +46,11 @@ class UpgradeViewModel(
     /** 处理升级任务主按钮点击。 */
     fun onPrimaryClick(item: UpgradeTaskViewData) {
         viewModelScope.launch {
-            when (item.primaryAction) {
-                PrimaryAction.UPGRADE -> upgradeManager.startUpgrade(item.appId)
-                PrimaryAction.OPEN -> appManager.openApp(item.packageName)
-                else -> Unit
-            }
+            primaryActionExecutor.execute(
+                appId = item.appId,
+                action = item.primaryAction,
+                packageName = item.packageName,
+            )
             refresh()
         }
     }
@@ -55,9 +62,7 @@ class UpgradeViewModel(
                 it.overallStatus == com.nio.appstore.data.model.TaskOverallStatus.FAILED || it.primaryAction == PrimaryAction.UPGRADE
             }
             failed.forEach { task ->
-                if (task.primaryAction == PrimaryAction.UPGRADE) {
-                    upgradeManager.startUpgrade(task.appId)
-                }
+                primaryActionExecutor.execute(task.appId, task.primaryAction, task.packageName)
             }
             refresh()
         }
@@ -70,7 +75,7 @@ class UpgradeViewModel(
             val runnable = appManager.getUpgradeTasks().filter {
                 (it.primaryAction == PrimaryAction.UPGRADE) && selectedFilter.matches(it.overallStatus)
             }
-            runnable.forEach { task -> upgradeManager.startUpgrade(task.appId) }
+            runnable.forEach { task -> primaryActionExecutor.execute(task.appId, task.primaryAction, task.packageName) }
             refresh()
         }
     }

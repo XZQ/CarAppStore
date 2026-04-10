@@ -34,6 +34,7 @@ object StateReducer {
             base.installStatus == InstallStatus.INSTALLED && base.upgradeStatus == UpgradeStatus.AVAILABLE -> PrimaryAction.UPGRADE
             base.installStatus == InstallStatus.INSTALLED -> PrimaryAction.OPEN
             base.downloadStatus == DownloadStatus.COMPLETED -> PrimaryAction.INSTALL
+            base.downloadStatus == DownloadStatus.WAITING -> PrimaryAction.DISABLED
             base.downloadStatus == DownloadStatus.RUNNING -> PrimaryAction.PAUSE
             base.downloadStatus == DownloadStatus.PAUSED -> PrimaryAction.RESUME
             base.downloadStatus == DownloadStatus.FAILED || base.downloadStatus == DownloadStatus.CANCELED -> PrimaryAction.RETRY_DOWNLOAD
