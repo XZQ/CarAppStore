@@ -42,4 +42,6 @@ dependencies {
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.recyclerview)
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit4)
 }

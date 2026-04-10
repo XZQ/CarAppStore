@@ -1,13 +1,67 @@
 package com.nio.appstore.core.downloader
 
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicReference
 
 interface FileDownloader {
     /** 执行一次下载请求，并通过事件回调持续上报下载进展。 */
     suspend fun download(
         request: DownloadRequest,
+        control: DownloadExecutionControl = DownloadExecutionControl(),
         onEvent: suspend (DownloadEvent) -> Unit,
     )
+}
+
+/**
+ * DownloadExecutionControl 用于在业务层和下载器之间传递停止指令。
+ *
+ * 当前支持两种停止语义：
+ * 1. 暂停：保留已下载进度，供后续继续恢复；
+ * 2. 取消：终止当前任务，并由上层决定是否清理产物与记录。
+ */
+class DownloadExecutionControl {
+    /** 当前下载任务已经收到的停止指令。 */
+    private val stopReasonRef = AtomicReference<DownloadStopReason?>(null)
+
+    /** 用于主动打断底层阻塞 IO 的中断回调列表。 */
+    private val interruptHandlers = CopyOnWriteArrayList<() -> Unit>()
+
+    /** 请求暂停当前下载任务。 */
+    fun requestPause(): Boolean = requestStop(DownloadStopReason.PAUSED)
+
+    /** 请求取消当前下载任务。 */
+    fun requestCancel(): Boolean = requestStop(DownloadStopReason.CANCELED)
+
+    /** 读取当前已经生效的停止原因。 */
+    fun currentStopReason(): DownloadStopReason? = stopReasonRef.get()
+
+    /** 判断当前任务是否已经收到停止请求。 */
+    fun isStopRequested(): Boolean = currentStopReason() != null
+
+    /**
+     * 注册一个中断回调，用于在停止下载时主动断开底层连接。
+     *
+     * @return 用于移除该中断回调的取消函数
+     */
+    fun registerInterrupt(handler: () -> Unit): () -> Unit {
+        interruptHandlers += handler
+        if (isStopRequested()) {
+            runCatching { handler() }
+        }
+        return { interruptHandlers.remove(handler) }
+    }
+
+    /** 尝试设置停止原因，并主动触发已注册的中断回调。 */
+    private fun requestStop(reason: DownloadStopReason): Boolean {
+        val updated = stopReasonRef.compareAndSet(null, reason)
+        if (updated) {
+            interruptHandlers.forEach { handler ->
+                runCatching { handler() }
+            }
+        }
+        return updated
+    }
 }
 
 data class DownloadRequest(
@@ -68,6 +122,15 @@ enum class DownloadFailureCode(val displayText: String, val retryable: Boolean) 
     UNKNOWN(DownloaderText.FAILURE_UNKNOWN, true),
 }
 
+/** 下载任务主动停止时的语义原因。 */
+enum class DownloadStopReason {
+    /** 当前任务被暂停，后续可继续恢复。 */
+    PAUSED,
+
+    /** 当前任务被取消，后续需要重新发起。 */
+    CANCELED,
+}
+
 sealed class DownloadEvent {
     /** 下载任务已进入等待执行阶段。 */
     object Waiting : DownloadEvent()
@@ -84,6 +147,16 @@ sealed class DownloadEvent {
         val totalBytes: Long,
         /** 当前估算出的瞬时下载速度。 */
         val speedBytesPerSec: Long,
+    ) : DownloadEvent()
+
+    /** 下载任务按业务层指令停止，可能是暂停，也可能是取消。 */
+    data class Stopped(
+        /** 当前停止对应的业务原因。 */
+        val reason: DownloadStopReason,
+        /** 停止时已经下载完成的字节数。 */
+        val downloadedBytes: Long,
+        /** 当前任务已知的总字节数。 */
+        val totalBytes: Long,
     ) : DownloadEvent()
 
     /** 下载任务已完成并输出最终文件。 */

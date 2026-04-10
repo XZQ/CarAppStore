@@ -3,10 +3,10 @@ package com.nio.appstore.feature.detail
 import androidx.lifecycle.viewModelScope
 import com.nio.appstore.common.base.BaseViewModel
 import com.nio.appstore.common.ui.CarUiStyle
+import com.nio.appstore.domain.action.AppPrimaryActionExecutor
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.download.DownloadManager
 import com.nio.appstore.domain.install.InstallManager
-import com.nio.appstore.domain.state.PrimaryAction
 import com.nio.appstore.domain.state.StateCenter
 import com.nio.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.flow.launchIn
@@ -28,6 +28,14 @@ class DetailViewModel(
 
     /** 当前详情页正在展示的应用 id。 */
     private lateinit var currentAppId: String
+
+    /** 详情页与卡片共用的主动作分发器。 */
+    private val primaryActionExecutor = AppPrimaryActionExecutor(
+        appManager = appManager,
+        downloadManager = downloadManager,
+        installManager = installManager,
+        upgradeManager = upgradeManager,
+    )
 
     /** 加载指定应用的详情页数据，并订阅其运行态。 */
     fun load(appId: String) {
@@ -53,25 +61,12 @@ class DetailViewModel(
 
     /** 处理详情页主按钮点击。 */
     fun onPrimaryClick() {
-        when (_uiState.value.primaryAction) {
-            PrimaryAction.DOWNLOAD, PrimaryAction.RETRY_DOWNLOAD -> viewModelScope.launch {
-                downloadManager.startDownload(currentAppId)
-            }
-            PrimaryAction.PAUSE -> viewModelScope.launch {
-                downloadManager.pauseDownload(currentAppId)
-            }
-            PrimaryAction.RESUME -> viewModelScope.launch {
-                downloadManager.resumeDownload(currentAppId)
-            }
-            PrimaryAction.INSTALL, PrimaryAction.RETRY_INSTALL -> viewModelScope.launch {
-                installManager.install(currentAppId)
-                upgradeManager.checkUpgrade(currentAppId)
-            }
-            PrimaryAction.OPEN -> _uiState.value.appDetail?.let { appManager.openApp(it.packageName) }
-            PrimaryAction.UPGRADE -> viewModelScope.launch {
-                upgradeManager.startUpgrade(currentAppId)
-            }
-            PrimaryAction.DISABLED -> Unit
+        viewModelScope.launch {
+            primaryActionExecutor.execute(
+                appId = currentAppId,
+                action = _uiState.value.primaryAction,
+                packageName = _uiState.value.appDetail?.packageName,
+            )
         }
     }
 }

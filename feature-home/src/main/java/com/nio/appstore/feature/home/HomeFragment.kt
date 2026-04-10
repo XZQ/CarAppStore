@@ -22,12 +22,21 @@ class HomeFragment : BaseFragment() {
 
     /** 首页 ViewModel。 */
     private val viewModel: HomeViewModel by viewModels {
-        HomeViewModelFactory(appServices.appManager, appServices.stateCenter)
+        HomeViewModelFactory(
+            appServices.appManager,
+            appServices.stateCenter,
+            appServices.downloadManager,
+            appServices.installManager,
+            appServices.upgradeManager,
+        )
     }
 
     /** 首页应用列表适配器。 */
     private val homeAdapter by lazy {
-        HomeAdapter { app -> navigator.openDetail(app.appId) }
+        HomeAdapter(
+            onPrimaryClick = { app -> viewModel.onPrimaryClick(app) },
+            onDetailClick = { app -> navigator.openDetail(app.appId) },
+        )
     }
 
     /** 创建首页视图。 */

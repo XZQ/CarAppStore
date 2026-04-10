@@ -22,6 +22,8 @@ object DownloaderText {
     const val STATUS_WAITING = "WAITING"
     const val STATUS_RESUMING = "RESUMING"
     const val STATUS_RUNNING = "RUNNING"
+    const val STATUS_PAUSED = "PAUSED"
+    const val STATUS_CANCELED = "CANCELED"
     const val STATUS_COMPLETED = "COMPLETED"
     const val STATUS_FAILED_INCOMPLETE = "FAILED_INCOMPLETE"
     const val STATUS_FAILED_TIMEOUT = "FAILED_TIMEOUT"

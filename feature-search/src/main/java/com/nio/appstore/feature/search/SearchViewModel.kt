@@ -2,8 +2,13 @@ package com.nio.appstore.feature.search
 
 import androidx.lifecycle.viewModelScope
 import com.nio.appstore.common.base.BaseViewModel
+import com.nio.appstore.data.model.AppViewData
+import com.nio.appstore.domain.action.AppPrimaryActionExecutor
 import com.nio.appstore.domain.appmanager.AppManager
+import com.nio.appstore.domain.download.DownloadManager
+import com.nio.appstore.domain.install.InstallManager
 import com.nio.appstore.domain.state.StateCenter
+import com.nio.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -14,11 +19,25 @@ class SearchViewModel(
     private val appManager: AppManager,
     /** 用于监听全局状态变化。 */
     private val stateCenter: StateCenter,
+    /** 搜索结果卡片发起下载时复用的下载入口。 */
+    private val downloadManager: DownloadManager,
+    /** 搜索结果卡片发起安装时复用的安装入口。 */
+    private val installManager: InstallManager,
+    /** 搜索结果卡片发起升级时复用的升级入口。 */
+    private val upgradeManager: UpgradeManager,
 ) :
     BaseViewModel<SearchUiState>(SearchUiState()) {
 
     /** 搜索页状态订阅任务。 */
     private var observeJob: Job? = null
+
+    /** 搜索结果和详情共用的主动作分发器。 */
+    private val primaryActionExecutor = AppPrimaryActionExecutor(
+        appManager = appManager,
+        downloadManager = downloadManager,
+        installManager = installManager,
+        upgradeManager = upgradeManager,
+    )
 
     /** 初始化搜索页数据并开始监听状态变化。 */
     fun load() {
@@ -40,6 +59,17 @@ class SearchViewModel(
         observeJob = stateCenter.observeAll()
             .onEach { refresh(_uiState.value.keyword) }
             .launchIn(viewModelScope)
+    }
+
+    /** 处理搜索结果卡片主动作点击。 */
+    fun onPrimaryClick(item: AppViewData) {
+        viewModelScope.launch {
+            primaryActionExecutor.execute(
+                appId = item.appId,
+                action = item.primaryAction,
+                packageName = item.packageName,
+            )
+        }
     }
 
     /** 重新加载指定关键字的搜索结果与策略提示。 */
