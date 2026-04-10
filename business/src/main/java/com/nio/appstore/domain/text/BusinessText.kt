@@ -1,5 +1,7 @@
 package com.nio.appstore.domain.text
 
+import com.nio.appstore.core.installer.InstallSessionStatus
+
 /**
  * BusinessText 用于收敛业务层当前直接写在代码中的状态文案和策略提示文案。
  *
@@ -13,6 +15,7 @@ object BusinessText {
     const val STATUS_UPGRADE_FAILED = "升级失败"
     const val STATUS_INSTALLING = "安装中"
     const val STATUS_WAITING_INSTALL = "等待安装"
+    const val STATUS_WAITING_SYSTEM_CONFIRM = "等待系统确认"
     const val STATUS_INSTALL_FAILED = "安装失败"
     const val STATUS_UPGRADE_AVAILABLE = "可升级"
     const val STATUS_INSTALLED = "已安装"
@@ -76,15 +79,30 @@ object BusinessText {
 
     fun retryDownload(message: String): String = RETRY_DOWNLOAD_FORMAT.format(message)
 
-    fun sessionPhase(status: String): String = SESSION_PHASE_FORMAT.format(status)
+    fun sessionPhase(status: String): String = SESSION_PHASE_FORMAT.format(sessionPhaseLabel(status))
 
     fun sessionProgress(progress: Int): String = SESSION_PROGRESS_FORMAT.format(progress)
 
-    fun sessionFailed(status: String): String = SESSION_FAILED_FORMAT.format(status)
+    fun sessionFailed(status: String): String = SESSION_FAILED_FORMAT.format(sessionPhaseLabel(status))
 
     fun upgradeTarget(currentVersion: String, targetVersion: String): String = UPGRADE_TARGET_FORMAT.format(currentVersion, targetVersion)
 
     fun updatedAt(timeText: String): String = UPDATED_AT_FORMAT.format(timeText)
 
     fun retryPart(retryCount: Int): String = RETRY_COUNT_FORMAT.format(retryCount)
+
+    private fun sessionPhaseLabel(status: String): String {
+        return when (status) {
+            InstallSessionStatus.CREATED -> "已创建"
+            InstallSessionStatus.WRITTEN -> "已写入"
+            InstallSessionStatus.COMMITTED -> "已提交"
+            InstallSessionStatus.PENDING_USER_ACTION -> "等待系统确认"
+            InstallSessionStatus.CALLBACK_SUCCESS -> "已完成"
+            InstallSessionStatus.RECOVERED_INTERRUPTED -> "已中断，可重试"
+            InstallSessionStatus.FAILED_CREATE -> "创建失败"
+            InstallSessionStatus.FAILED_WRITE -> "写入失败"
+            InstallSessionStatus.FAILED_COMMIT -> "提交失败"
+            else -> status
+        }
+    }
 }

@@ -9,6 +9,7 @@ object StateReducer {
             base.upgradeStatus == UpgradeStatus.UPGRADING -> BusinessText.STATUS_UPGRADING
             base.upgradeStatus == UpgradeStatus.FAILED -> BusinessText.STATUS_UPGRADE_FAILED
             base.installStatus == InstallStatus.INSTALLING -> BusinessText.STATUS_INSTALLING
+            base.installStatus == InstallStatus.PENDING_USER_ACTION -> BusinessText.STATUS_WAITING_SYSTEM_CONFIRM
             base.installStatus == InstallStatus.WAITING -> BusinessText.STATUS_WAITING_INSTALL
             base.installStatus == InstallStatus.FAILED -> BusinessText.STATUS_INSTALL_FAILED
             base.installStatus == InstallStatus.INSTALLED && base.upgradeStatus == UpgradeStatus.AVAILABLE -> BusinessText.STATUS_UPGRADE_AVAILABLE
@@ -24,6 +25,7 @@ object StateReducer {
 
         val primaryAction = when {
             base.upgradeStatus == UpgradeStatus.UPGRADING -> PrimaryAction.DISABLED
+            base.installStatus == InstallStatus.PENDING_USER_ACTION -> PrimaryAction.DISABLED
             base.installStatus == InstallStatus.INSTALLING -> PrimaryAction.DISABLED
             base.installStatus == InstallStatus.FAILED -> PrimaryAction.RETRY_INSTALL
             base.installStatus == InstallStatus.INSTALLED && base.upgradeStatus == UpgradeStatus.AVAILABLE -> PrimaryAction.UPGRADE

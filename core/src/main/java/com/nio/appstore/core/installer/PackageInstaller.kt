@@ -1,5 +1,6 @@
 package com.nio.appstore.core.installer
 
+import android.content.Intent
 import java.io.File
 
 interface PackageInstaller {
@@ -35,6 +36,14 @@ sealed class InstallEvent {
     object Waiting : InstallEvent()
     data class SessionCreated(val sessionId: Int) : InstallEvent()
     data class Progress(val sessionId: Int, val progress: Int) : InstallEvent()
+    data class PendingUserAction(
+        /** 当前等待系统确认的安装会话标识。 */
+        val sessionId: Int,
+        /** 系统确认阶段展示给用户的提示文案。 */
+        val message: String,
+        /** 系统要求拉起的确认 Intent。 */
+        val confirmationIntent: Intent? = null,
+    ) : InstallEvent()
     object Installing : InstallEvent()
     data class Success(val installedVersion: String) : InstallEvent()
     data class Failed(val code: InstallFailureCode, val message: String) : InstallEvent()
