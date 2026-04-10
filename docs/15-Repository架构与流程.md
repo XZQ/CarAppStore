@@ -1,22 +1,34 @@
 # Repository 架构与流程
 
 ## 1. 当前结论
-当前项目中的 Repository 已经具备：
+Repository 是当前工程的数据聚合入口，但它的真实形态需要看清楚：
 
-- 远端应用数据入口
-- 本地应用元数据与任务记录入口
-- 已安装应用信息聚合入口
-- 下载任务持久化
+- 接口名是 `AppRepository`
+- 当前实现名是 `FakeAppRepository`
+- 它已经承担真实本地持久化聚合
+- 但远端和系统能力仍然偏 fake / stub
+
+当前已经具备：
+
+- 统一远端应用数据入口
+- 统一本地下载任务入口
+- 统一 APK 路径入口
 - 下载偏好持久化
 - 策略设置持久化
-- staged upgrade version 管理
-- 安装包路径记录
+- staged upgrade version 持久化
+- 已安装应用本地记录
+- 下载分片记录入口
 
-Repository 当前承担的是：
+当前仍然存在的边界：
 
-**统一数据聚合入口**
+- 远端应用数据仍是本地构造数据
+- 系统数据源当前主要只暴露 `openApp()`，且实现仍是 stub
+- 没有数据库，主要是 JSON 持久化
+- 没有缓存策略和同步策略
 
-不是页面层直接访问的数据源集合，也不是业务决策层。
+准确定位应该是：
+
+**统一数据入口已经成立，但它还不是成熟数据平台。**
 
 ---
 
@@ -25,19 +37,20 @@ Repository 当前承担的是：
 ```mermaid
 flowchart TD
 
-AM[AppManager] --> REPO[Repository]
+AM[AppManager] --> REPO[AppRepository]
 DM[DownloadManager] --> REPO
 IM[InstallManager] --> REPO
 UM[UpgradeManager] --> REPO
-PC[PolicyCenter] --> REPO
+PC[PolicyCenter] --> LOCAL[AppLocalDataSource]
 
-REPO --> REMOTE[RemoteDataSource]
-REPO --> LOCAL[LocalDataSource]
-REPO --> SYSTEM[SystemDataSource]
+REPO --> REMOTE[AppRemoteDataSource]
+REPO --> LOCAL[AppLocalDataSource]
+REPO --> SYSTEM[AppSystemDataSource]
 
-LOCAL --> JSON[local_store.json]
-SYSTEM --> PM[系统已安装应用信息]
-REMOTE --> API[远端应用/版本信息]
+LOCAL --> FACADE[JsonBackedLocalStoreFacade]
+LOCAL --> LEGACY[legacy local_store.json]
+SYSTEM --> OPENAPP[openApp stub]
+REMOTE --> CATALOG[DownloadSourceCatalog + fake app data]
 ```
 
 ---
@@ -48,16 +61,28 @@ REMOTE --> API[远端应用/版本信息]
 classDiagram
 
 class AppRepository {
-  +fetchHomeApps()
-  +fetchAppDetail(appId)
-  +fetchUpgradeInfo(appId)
+  +getHomeApps()
+  +getAppDetail(appId)
   +getInstalledApps()
-  +saveDownloadTask(...)
-  +getDownloadTasks()
-  +savePreferences(...)
-  +getPreferences()
-  +savePolicySettings(...)
+  +markInstalled(appId)
+  +isInstalled(appId)
+  +saveDownloadedApk(appId, apkPath)
+  +getDownloadedApk(appId)
+  +clearDownloadedApk(appId)
+  +getUpgradeInfo(appId)
+  +stageUpgrade(appId, versionName)
+  +peekStagedUpgradeVersion(appId)
+  +saveDownloadTask(record)
+  +getDownloadTask(appId)
+  +getAllDownloadTasks()
+  +removeDownloadTask(appId)
+  +saveDownloadSegments(appId, segments)
+  +getDownloadSegments(appId)
+  +getOrCreateDownloadFile(appId)
+  +getDownloadPreferences()
+  +saveDownloadPreferences(preferences)
   +getPolicySettings()
+  +openApp(packageName)
 }
 
 class FakeAppRepository
@@ -78,17 +103,22 @@ FakeAppRepository --> AppSystemDataSource
 ```mermaid
 sequenceDiagram
 participant DM as DownloadManager
-participant REPO as Repository
-participant LOCAL as LocalDataSource
-participant STORE as local_store.json
+participant REPO as FakeAppRepository
+participant LOCAL as AppLocalDataSource
+participant FACADE as JsonBackedLocalStoreFacade
 
 DM->>REPO: saveDownloadTask(record)
 REPO->>LOCAL: saveDownloadTask(record)
-LOCAL->>STORE: 写入 JSON 持久化
-STORE-->>LOCAL: success
+LOCAL->>FACADE: saveDownloadTask(entity)
+LOCAL->>LOCAL: persist legacy fallback
+FACADE-->>LOCAL: success
 LOCAL-->>REPO: success
 REPO-->>DM: success
 ```
+
+这里有一个关键现实：
+
+`AppLocalDataSource` 现在不是单纯写旧 `local_store.json`，而是优先接结构化 facade，同时保留 legacy fallback 兼容逻辑。
 
 ---
 
@@ -98,70 +128,110 @@ REPO-->>DM: success
 sequenceDiagram
 participant APP as AppContainer
 participant DM as DownloadManager
-participant REPO as Repository
-participant LOCAL as LocalDataSource
-participant STORE as local_store.json
+participant REPO as FakeAppRepository
+participant LOCAL as AppLocalDataSource
+participant FACADE as JsonBackedLocalStoreFacade
 
 APP->>DM: initialize()
-DM->>REPO: getDownloadTasks()
-REPO->>LOCAL: readDownloadTasks()
-LOCAL->>STORE: 读取 JSON
-STORE-->>LOCAL: task records
-LOCAL-->>REPO: tasks
+DM->>REPO: getAllDownloadTasks()
+REPO->>LOCAL: getAllDownloadTasks()
+LOCAL->>FACADE: getAllDownloadTasks()
+LOCAL->>LOCAL: fallback legacy tasks if needed
+LOCAL-->>REPO: task records
 REPO-->>DM: tasks
-DM->>DM: 恢复任务状态
+DM->>DM: normalizeRecoveredTask()
 ```
 
 ---
 
 ## 6. Repository 职责说明
 
-### 6.1 对业务模块提供统一数据入口
-业务模块不应该分别直接操作 Remote/Local/System 三种源，而应该通过 Repository 获取统一数据。
+### 6.1 `AppRepository`
+负责：
 
-### 6.2 承担本地持久化聚合
-当前 Repository 已经承接：
+- 对业务模块提供统一数据入口
+- 屏蔽 remote / local / system 三类来源差异
 
-- 下载任务记录
-- 下载偏好
-- 策略设置
-- staged upgrade version
-- 安装包路径信息
+关键接口：
 
-### 6.3 统一远端 + 本地 + 系统数据
-例如：
+- [AppRepository.kt](/home/didi/AI/CarAppStore_work/data/src/main/java/com/nio/appstore/data/repository/AppRepository.kt)
 
-- 应用列表：来自远端
-- 已安装应用：来自系统
-- 任务记录：来自本地
-- 升级版本：来自远端 + 本地 staged 信息
+### 6.2 `FakeAppRepository`
+负责：
 
-### 6.4 为恢复能力提供基础
-下载模块、策略中心、安装/升级流程的很多恢复能力，底层都依赖 Repository 的本地持久化能力。
+- 聚合远端、本地、系统数据源
+- 用统一接口向业务层提供应用、任务、偏好、策略、升级信息
+- 把本地持久化细节收敛在仓库后面
+
+关键实现：
+
+- [FakeAppRepository.kt](/home/didi/AI/CarAppStore_work/data/src/main/java/com/nio/appstore/data/repository/FakeAppRepository.kt)
+
+### 6.3 `AppLocalDataSource`
+负责：
+
+- 下载任务持久化
+- 分片记录持久化
+- APK 路径持久化
+- 下载偏好持久化
+- 策略设置持久化
+- staged target version 持久化
+- 已安装应用本地记录
+
+关键实现：
+
+- [AppLocalDataSource.kt](/home/didi/AI/CarAppStore_work/data/src/main/java/com/nio/appstore/data/datasource/local/AppLocalDataSource.kt)
+
+### 6.4 `AppRemoteDataSource`
+负责：
+
+- 提供首页应用列表
+- 提供应用详情
+- 提供升级信息
+
+但当前远端数据仍然是内置 fake 数据，不是实际网络 API。
+
+### 6.5 `AppSystemDataSource`
+负责：
+
+- 当前只暴露 `openApp(packageName)`
+
+但实现仍是 stub 级逻辑，不是真实系统拉起能力。
 
 ---
 
 ## 7. 当前 Repository 的价值
 
-### 当前已具备
-- 单一数据入口
-- 本地 JSON 持久化
-- 冷启动恢复支持
-- 偏好与策略设置持久化
-- 安装/升级数据承接
+### 7.1 已具备
 
-### 当前未具备
-- 真实数据库
-- 网络缓存策略
-- 分层仓储拆分
-- 离线同步与冲突解决
-- 多账户数据隔离
+- 单一数据入口
+- 本地持久化聚合
+- 冷启动恢复支撑
+- 任务、偏好、策略、升级目标版本统一承接
+
+### 7.2 当前不足
+
+- 远端数据不是实际网络
+- 系统数据不是完整系统数据
+- 没有数据库
+- 没有缓存失效策略
+- 没有离线同步
+- 没有多账户隔离
 
 ---
 
 ## 8. 后续演进建议
 
-1. 从 JSON 存储演进到 Room/数据库
-2. 增加缓存失效策略
-3. 拆分任务仓储/应用仓储/配置仓储
-4. 增加离线能力和同步策略
+1. 从 fake remote 演进到真实 API
+2. 从 JSON 存储逐步演进到数据库
+3. 拆分任务仓储、应用仓储、配置仓储
+4. 强化系统数据源真实能力
+5. 增加缓存、同步和冲突策略
+
+---
+
+## 9. 一句话总结
+
+Repository 当前的真实形态可以总结为：
+
+**它已经是统一数据入口，但现阶段是“真实本地持久化 + fake 远端 / fake 系统能力”的混合实现。**
