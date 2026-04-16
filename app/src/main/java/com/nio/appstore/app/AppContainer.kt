@@ -24,6 +24,7 @@ import com.nio.appstore.data.local.store.JsonBackedLocalStoreFacade
 import com.nio.appstore.data.local.store.LocalStoreFacade
 import com.nio.appstore.data.repository.AppRepository
 import com.nio.appstore.data.repository.FakeAppRepository
+import com.nio.appstore.data.repository.RealAppRepository
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.appmanager.DefaultAppManager
 import com.nio.appstore.domain.download.DefaultDownloadManager
@@ -83,9 +84,7 @@ class AppContainer(context: Context) : AppServices {
 
     /** 远端数据源，根据当前下载环境切换下载源目录。 */
     private val remoteDataSource: AppRemoteDataSource by lazy {
-        AppRemoteDataSource(
-            sourceCatalog = DownloadSourceCatalog(downloadEnvConfig.environment),
-        )
+        AppRemoteDataSource(sourceCatalog = DownloadSourceCatalog(downloadEnvConfig.environment))
     }
 
     /** 本地数据源，当前已开始统一接入结构化访问入口。 */
@@ -100,7 +99,7 @@ class AppContainer(context: Context) : AppServices {
 
     /** 仓库层装配入口，负责聚合远端、本地、系统三类数据。 */
     val repository: AppRepository by lazy {
-        FakeAppRepository(remoteDataSource, localDataSource, systemDataSource)
+        RealAppRepository(remoteDataSource, localDataSource, systemDataSource)
     }
 
     /** 全局状态中心。 */

@@ -148,6 +148,150 @@ class DefaultDownloadManagerTest {
         assertEquals(DownloadStatus.COMPLETED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
     }
 
+    @Test
+    fun `冷启动恢复时会把运行中任务归一化为暂停且不自动启动`() = runBlocking {
+        val harness = TestHarness(
+            configureRepository = {
+                saveDownloadPreferences(
+                    DownloadPreferences(
+                        autoResumeOnLaunch = false,
+                        autoRetryEnabled = true,
+                        maxAutoRetryCount = 2,
+                    )
+                )
+                val targetFile = createPartialDownloadFileForTest()
+                saveDownloadTask(
+                    buildDownloadTaskRecord(
+                        status = DownloadStatus.RUNNING,
+                        progress = 1,
+                        targetFilePath = targetFile.absolutePath,
+                        downloadedBytes = 1L,
+                        totalBytes = TEST_TOTAL_BYTES,
+                        retryCount = 0,
+                    )
+                )
+            }
+        )
+
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.PAUSED
+        }
+
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(DownloadStatus.PAUSED, task.status)
+        assertEquals(TEST_DOWNLOADED_BYTES, task.downloadedBytes)
+        assertEquals(TEST_DOWNLOADED_BYTES.toInt() * 100 / TEST_TOTAL_BYTES.toInt(), task.progress)
+        assertEquals(0, harness.downloader.startCount.get())
+        assertEquals(DownloadStatus.PAUSED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+    }
+
+    @Test
+    fun `冷启动恢复时会在开启自动恢复后继续执行暂停任务`() = runBlocking {
+        val harness = TestHarness(
+            configureRepository = {
+                saveDownloadPreferences(
+                    DownloadPreferences(
+                        autoResumeOnLaunch = true,
+                        autoRetryEnabled = true,
+                        maxAutoRetryCount = 2,
+                    )
+                )
+                val targetFile = createPartialDownloadFileForTest()
+                saveDownloadTask(
+                    buildDownloadTaskRecord(
+                        status = DownloadStatus.PAUSED,
+                        progress = 40,
+                        targetFilePath = targetFile.absolutePath,
+                        downloadedBytes = TEST_DOWNLOADED_BYTES,
+                        totalBytes = TEST_TOTAL_BYTES,
+                        retryCount = 0,
+                    )
+                )
+            }
+        )
+
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.COMPLETED
+        }
+
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(1, harness.downloader.startCount.get())
+        assertEquals(DownloadStatus.COMPLETED, task.status)
+        assertEquals(100, task.progress)
+    }
+
+    @Test
+    fun `冷启动恢复时会在开启自动重试后重试失败任务`() = runBlocking {
+        val harness = TestHarness(
+            configureRepository = {
+                saveDownloadPreferences(
+                    DownloadPreferences(
+                        autoResumeOnLaunch = false,
+                        autoRetryEnabled = true,
+                        maxAutoRetryCount = 2,
+                    )
+                )
+                val targetFile = createPartialDownloadFileForTest()
+                saveDownloadTask(
+                    buildDownloadTaskRecord(
+                        status = DownloadStatus.FAILED,
+                        progress = 40,
+                        targetFilePath = targetFile.absolutePath,
+                        downloadedBytes = TEST_DOWNLOADED_BYTES,
+                        totalBytes = TEST_TOTAL_BYTES,
+                        retryCount = 1,
+                    )
+                )
+            }
+        )
+
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.COMPLETED
+        }
+
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(1, harness.downloader.startCount.get())
+        assertEquals(DownloadStatus.COMPLETED, task.status)
+        assertEquals(100, task.progress)
+    }
+
+    @Test
+    fun `冷启动恢复时会把丢失 APK 的已完成任务纠正为失败态`() = runBlocking {
+        val harness = TestHarness(
+            configureRepository = {
+                saveDownloadPreferences(
+                    DownloadPreferences(
+                        autoResumeOnLaunch = false,
+                        autoRetryEnabled = false,
+                        maxAutoRetryCount = 2,
+                    )
+                )
+                val missingTargetFile = File(createMissingDownloadFilePathForTest())
+                saveDownloadedApk(TEST_APP_ID, missingTargetFile.absolutePath)
+                saveDownloadTask(
+                    buildDownloadTaskRecord(
+                        status = DownloadStatus.COMPLETED,
+                        progress = 100,
+                        targetFilePath = missingTargetFile.absolutePath,
+                        downloadedBytes = TEST_TOTAL_BYTES,
+                        totalBytes = TEST_TOTAL_BYTES,
+                        retryCount = 0,
+                    )
+                )
+            }
+        )
+
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.FAILED
+        }
+
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(0, harness.downloader.startCount.get())
+        assertEquals(DownloadStatus.FAILED, task.status)
+        assertEquals(DownloadFailureCode.FILE_MISSING.name, task.failureCode)
+        assertEquals(DownloadStatus.FAILED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+    }
+
     /** 等待条件成立，避免后台下载协程的异步写回造成断言竞争。 */
     private suspend fun waitUntil(predicate: suspend () -> Boolean) {
         repeat(MAX_WAIT_RETRY_COUNT) {
@@ -157,8 +301,44 @@ class DefaultDownloadManagerTest {
         throw AssertionError("condition not satisfied within timeout")
     }
 
+    /** 创建默认的下载任务记录，供不同恢复场景复用。 */
+    private fun buildDownloadTaskRecord(
+        status: DownloadStatus,
+        progress: Int,
+        targetFilePath: String,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        retryCount: Int,
+    ): DownloadTaskRecord {
+        return DownloadTaskRecord(
+            taskId = "download-$TEST_APP_ID",
+            appId = TEST_APP_ID,
+            status = status,
+            progress = progress,
+            targetFilePath = targetFilePath,
+            downloadedBytes = downloadedBytes,
+            totalBytes = totalBytes,
+            failureCode = if (status == DownloadStatus.FAILED) DownloadFailureCode.NETWORK_INTERRUPTED.name else null,
+            failureMessage = if (status == DownloadStatus.FAILED) DownloadFailureCode.NETWORK_INTERRUPTED.displayText else null,
+            retryCount = retryCount,
+            downloadUrl = "https://example.com/test.apk",
+            tempDirPath = null,
+            eTag = null,
+            lastModified = null,
+            supportsRange = true,
+            checksumType = null,
+            checksumValue = null,
+            segmentCount = 2,
+            createdAt = 1L,
+            updatedAt = 1L,
+        )
+    }
+
     /** 测试下载管理器时使用的依赖集合。 */
-    private class TestHarness {
+    private class TestHarness(
+        /** 初始化下载管理器前预置仓库状态。 */
+        configureRepository: suspend FakeRepository.() -> Unit = {},
+    ) {
         /** 每个测试对应的临时工作目录。 */
         val workDir: File = Files.createTempDirectory("download-manager-test").toFile()
 
@@ -172,14 +352,21 @@ class DefaultDownloadManagerTest {
         val downloader = ControllableFileDownloader()
 
         /** 被测下载管理器实例。 */
-        val manager = DefaultDownloadManager(
-            repository = repository,
-            stateCenter = stateCenter,
-            policyCenter = AllowAllPolicyCenter(),
-            fileDownloader = downloader,
-            logger = QuietLogger(),
-            tracker = QuietTracker(),
-        )
+        val manager: DefaultDownloadManager
+
+        init {
+            runBlocking {
+                repository.configureRepository()
+            }
+            manager = DefaultDownloadManager(
+                repository = repository,
+                stateCenter = stateCenter,
+                policyCenter = AllowAllPolicyCenter(),
+                fileDownloader = downloader,
+                logger = QuietLogger(),
+                tracker = QuietTracker(),
+            )
+        }
     }
 
     /** 允许所有下载动作通过的策略中心替身。 */
@@ -365,6 +552,19 @@ class DefaultDownloadManagerTest {
         override suspend fun getOrCreateDownloadFile(appId: String): File {
             val downloadsDir = File(workDir, "downloads").apply { mkdirs() }
             return File(downloadsDir, "$appId.apk")
+        }
+
+        /** 创建一份用于恢复测试的半下载 APK 文件。 */
+        suspend fun createPartialDownloadFileForTest(): File {
+            return getOrCreateDownloadFile(TEST_APP_ID).apply {
+                parentFile?.mkdirs()
+                writeBytes(ByteArray(TEST_DOWNLOADED_BYTES.toInt()) { 1 })
+            }
+        }
+
+        /** 创建一条不存在的 APK 路径，用于模拟失效的完成记录。 */
+        fun createMissingDownloadFilePathForTest(): String {
+            return File(workDir, "downloads/missing-$TEST_APP_ID.apk").absolutePath
         }
 
         override suspend fun getDownloadPreferences(): DownloadPreferences = downloadPreferences

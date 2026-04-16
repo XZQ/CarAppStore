@@ -673,7 +673,8 @@ class DefaultDownloadManager(
     /** 解析当前任务对应的 APK 路径，优先使用仍然存在的目标文件。 */
     private suspend fun resolveDownloadedApkPath(record: DownloadTaskRecord): String? {
         val recordPath = record.targetFilePath.takeIf { it.isNotBlank() && File(it).exists() }
-        return recordPath ?: repository.getDownloadedApk(record.appId)
+        val artifactPath = repository.getDownloadedApk(record.appId)?.takeIf { it.isNotBlank() && File(it).exists() }
+        return recordPath ?: artifactPath
     }
 
     /** 判断当前任务是否符合自动恢复条件。 */
