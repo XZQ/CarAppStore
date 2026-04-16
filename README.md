@@ -1,67 +1,66 @@
 # CarAppStore
 
-一个基于 MVVM 的车载应用商店 Android 工程，当前工程已经具备首页、详情页、我的应用、下载管理、安装管理、升级管理和开发设置等基础页面与业务编排能力。
+车载应用商店 Android 工程 — 主链路已通，R1-R6 真实能力全部完成，87 单元测试全绿。
 
-## 文档说明
-- 项目介绍、模块划分、构建方式看本文件。
-- 代码生成与改造规范以 [AGENTS.md](./AGENTS.md) 为准。
-- 如果 README 与 AGENTS 出现冲突，以 `AGENTS.md` 为准。
+## 技术栈
 
-## 当前架构
-- 架构模式：MVVM
-- 页面组织：`Activity + FragmentManager`
-- 依赖注入：手动注入，入口为 `AppContainer`
-- 导航方案：不使用 Navigation
-- 注入框架：不使用 Hilt
-- 数据分层：`feature / business / data / core / common / app`
+- Kotlin + Coroutines + ViewBinding
+- MVVM，手动 DI（AppContainer），FragmentManager 导航
+- 不使用 Hilt / Navigation
+- Java 11 target，JBR 17 构建
 
-## 核心业务模块
-- 下载模块
-- 安装模块
-- 升级模块
-- 应用管理模块
-- 状态中心
-- 策略中心
-- Repository
+## 模块结构（14 模块）
 
-## 当前工程包含
-- 首页 / 详情页 / 我的应用 基础页面
-- 下载中心 / 安装中心 / 升级中心
-- 开发设置页与下载环境切换能力
-- `AppContainer` 手动装配
-- Fake 数据源，可作为后续真实实现的替身
-- 真实下载器、系统安装会话接入与模拟兜底实现
+```
+app/              壳层：AppContainer、MainActivity
+common/           BaseFragment、AppServices、UI 共享
+core/             RealFileDownloader、RealPackageInstaller、DownloadStore、VersionedJsonStore
+data/             RealAppRepository、3 DataSource（remote/local/system）、LocalStoreFacade
+business/         7 个领域模块：download、install、upgrade、appmanager、state、policy
+feature-*/        8 个页面模块：home、detail、myapp、search、downloadmanager、installcenter、upgrade、debug
+```
+
+## 已完成能力
+
+| 能力 | 状态 |
+|------|------|
+| HTTP 下载（Range、分片、校验、断点续传） | ✅ |
+| 系统安装（PackageInstaller.Session、用户确认） | ✅ |
+| 统一数据层（JSON 持久化、schema 迁移、并发锁） | ✅ |
+| 执行控制（IO 中断、去重保护、暂停/取消） | ✅ |
+| Repository 真实化（PackageManager 查询、Intent 启动） | ✅ |
+| 批量升级（checkAll、串行执行、策略门控） | ✅ |
+| 升级失败可重试（StateReducer 回退） | ✅ |
+
+## 构建与测试
+
+```bash
+./gradlew testDebugUnitTest    # 87 tests, 0 failures
+./gradlew compileDebugKotlin   # 全量编译
+./gradlew app:assemble         # 构建 APK
+```
+
+JBR 17 路径已固定在 `gradle.properties`。
+
+## 文档入口
+
+- **当前状态**：`docs/25-当前项目状态与接手指南.md`（最新进度、风险、下一步）
+- **架构总览**：`docs/01-架构总览.md`
+- **模块详解**：`docs/03-七个业务模块详解.md`、`docs/09-16`
+- **编码规范**：`AGENTS.md`（命名、XML、ViewBinding、线程等）
 
 ## 开发规范摘要
-- 严格遵循 MVVM，Activity / Fragment 不承载业务逻辑。
-- Repository 负责聚合 remote / local / system 数据来源。
-- 所有新增常量必须提取，禁止散落魔法数字和魔法字符串。
-- 所有新增注释必须使用中文。
-- `data class` 参数必须带中文注释，成员变量也需要说明业务含义。
-- 中文文案不要在业务代码中直接拼接，优先放到统一文案入口或 `string.xml`。
-- 命名、XML、ViewBinding、线程与异常处理规范请直接参考 [AGENTS.md](./AGENTS.md)。
 
-## 构建命令
-```bash
-./gradlew app:assemble
-```
+- Activity/Fragment 不承载业务逻辑，严格 MVVM
+- 所有新增常量必须提取，禁止魔法数字/字符串
+- 新增注释使用中文
+- `data class` 参数带中文注释
+- 中文文案走统一入口，不在业务代码中拼接
+- 详见 `AGENTS.md`
 
-项目当前在仓库内固定使用 `JBR 17`：
+## 下一步
 
-```properties
-org.gradle.java.home=/home/didi/.jdks/jbr-17.0.14
-```
-
-因此直接执行 `./gradlew` 即可，不需要再额外手工切换 `JAVA_HOME`。
-
-如果本地需要固定环境，也可以使用项目当前验证通过的命令：
-
-```bash
-JAVA_HOME=/home/didi/.jdks/jbr-17.0.14 GRADLE_USER_HOME=/home/didi/.gradle /home/didi/.gradle/wrapper/dists/gradle-8.14.3-all/10utluxaxniiv4wxiphsi49nj/gradle-8.14.3/bin/gradle app:assemble
-```
-
-## 下一步建议
-1. 将 Fake Repository 逐步替换为真实的 remote / local / system 数据源实现。
-2. 继续补齐真实下载、安装、升级链路中的平台能力接入。
-3. 为状态中心、任务中心和策略中心补充更完整的自动化测试。
-4. 按 `AGENTS.md` 继续清理历史布局、注释和资源命名上的存量问题。
+1. 真实设备联调下载→安装→升级全链路
+2. 远端数据接入（替换硬编码 app 列表）
+3. 策略动态化（监听网络/驻车状态实时刷新）
+4. ViewModel loading/error 状态完善
