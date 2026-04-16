@@ -1,5 +1,6 @@
 package com.nio.appstore.domain.state
 
+import com.nio.appstore.domain.text.BusinessText
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -216,5 +217,32 @@ class DefaultStateCenterTest {
             )
         )
         assertEquals(PrimaryAction.DISABLED, state.primaryAction)
+    }
+
+    @Test
+    fun `StateReducer 升级失败时主动作为 UPGRADE 允许重试`() {
+        val state = StateReducer.reduce(
+            AppState(
+                appId = "test",
+                installStatus = InstallStatus.INSTALLED,
+                upgradeStatus = UpgradeStatus.FAILED,
+                errorMessage = "升级安装失败",
+            )
+        )
+        assertEquals(PrimaryAction.UPGRADE, state.primaryAction)
+        assertEquals("升级安装失败", state.statusText)
+    }
+
+    @Test
+    fun `StateReducer 升级失败文案正确展示`() {
+        val state = StateReducer.reduce(
+            AppState(
+                appId = "test",
+                upgradeStatus = UpgradeStatus.FAILED,
+                errorMessage = null,
+            )
+        )
+        assertEquals(BusinessText.STATUS_UPGRADE_FAILED, state.statusText)
+        assertEquals(PrimaryAction.UPGRADE, state.primaryAction)
     }
 }
