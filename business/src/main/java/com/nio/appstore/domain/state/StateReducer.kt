@@ -28,6 +28,7 @@ object StateReducer {
         // 主动作优先反映当前最重要、且用户可以执行的下一步动作。
         val primaryAction = when {
             base.upgradeStatus == UpgradeStatus.UPGRADING -> PrimaryAction.DISABLED
+            base.upgradeStatus == UpgradeStatus.FAILED -> PrimaryAction.UPGRADE
             base.installStatus == InstallStatus.PENDING_USER_ACTION -> PrimaryAction.DISABLED
             base.installStatus == InstallStatus.INSTALLING -> PrimaryAction.DISABLED
             base.installStatus == InstallStatus.FAILED -> PrimaryAction.RETRY_INSTALL
