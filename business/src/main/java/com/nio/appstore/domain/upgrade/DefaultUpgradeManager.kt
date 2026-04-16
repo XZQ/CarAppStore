@@ -40,6 +40,37 @@ class DefaultUpgradeManager(
         return available
     }
 
+    /** 检查全部已安装应用是否有可升级版本，返回有升级的 appId 列表。 */
+    override suspend fun checkAllUpgrades(): List<String> {
+        val installed = repository.getInstalledApps()
+        return installed.mapNotNull { app ->
+            val hasUpgrade = checkUpgrade(app.appId)
+            if (hasUpgrade) app.appId else null
+        }
+    }
+
+    /** 批量启动升级流程，逐个串行执行，遇到失败时停止后续。 */
+    override suspend fun startBatchUpgrade(appIds: List<String>) {
+        for (appId in appIds) {
+            val policy = policyCenter.canUpgrade(appId)
+            if (!policy.allow) {
+                stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.upgradeRestricted(policy.reason))
+                return
+            }
+            startUpgrade(appId)
+            // 等待单个升级完成后再继续下一个。
+            while (true) {
+                delay(200)
+                val state = stateCenter.snapshot(appId)
+                when (state.upgradeStatus) {
+                    UpgradeStatus.NONE -> break
+                    UpgradeStatus.FAILED -> return
+                    else -> Unit
+                }
+            }
+        }
+    }
+
     /**
      * 启动升级流程。
      *

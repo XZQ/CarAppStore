@@ -100,6 +100,10 @@ class InstallCenterViewModelTest {
         override suspend fun startUpgrade(appId: String) = Unit
 
         override suspend fun checkUpgrade(appId: String): Boolean = true
+
+        override suspend fun checkAllUpgrades(): List<String> = emptyList()
+
+        override suspend fun startBatchUpgrade(appIds: List<String>) = Unit
     }
 
     class MainDispatcherRule(
