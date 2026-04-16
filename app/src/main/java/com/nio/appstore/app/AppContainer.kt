@@ -23,7 +23,6 @@ import com.nio.appstore.data.downloadenv.LocalDownloadEnvironmentProvider
 import com.nio.appstore.data.local.store.JsonBackedLocalStoreFacade
 import com.nio.appstore.data.local.store.LocalStoreFacade
 import com.nio.appstore.data.repository.AppRepository
-import com.nio.appstore.data.repository.FakeAppRepository
 import com.nio.appstore.data.repository.RealAppRepository
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.appmanager.DefaultAppManager

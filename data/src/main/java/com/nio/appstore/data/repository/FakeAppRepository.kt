@@ -14,6 +14,12 @@ import com.nio.appstore.data.model.UpgradeInfo
 import kotlinx.coroutines.delay
 import java.io.File
 
+/**
+ * FakeAppRepository 仅用于测试环境，通过模拟延迟提供可控的数据访问行为。
+ *
+ * 生产环境已切换到 [RealAppRepository]，此类不再被 AppContainer 使用。
+ * 测试中仍可使用此类构建隔离的依赖替身。
+ */
 class FakeAppRepository(
     /** 远端数据源，当前提供应用列表、详情和升级信息。 */
     private val remote: AppRemoteDataSource,
