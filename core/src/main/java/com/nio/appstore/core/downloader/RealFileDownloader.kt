@@ -34,6 +34,8 @@ class RealFileDownloader(
     private val maxParallelSegments: Int = 2,
     /** 单个分片的最大重试次数。 */
     private val maxSegmentRetryCount: Int = 2,
+    /** 合并前测试钩子，供测试场景注入分片文件扰动。 */
+    private val beforeMergeHook: ((segments: List<DownloadSegmentRecord>, finalFile: File) -> Unit)? = null,
 ) : FileDownloader {
 
     /**
@@ -57,7 +59,7 @@ class RealFileDownloader(
         onEvent(DownloadEvent.Waiting)
         // 在正式下载前先探测远端元数据，获取长度、ETag 和 Range 能力。
         val meta = try {
-            probeRemoteMeta(request.url)
+            probeRemoteMeta(request.url, control)
         } catch (e: SocketTimeoutException) {
             if (emitStoppedIfRequested(request, control, onEvent, request.totalBytes)) return@withContext
             onEvent(DownloadEvent.Failed(DownloadFailureCode.NETWORK_TIMEOUT, e.message ?: DownloadFailureCode.NETWORK_TIMEOUT.displayText))
@@ -165,6 +167,8 @@ class RealFileDownloader(
 
         val finalFile = request.targetFile
         if (finalFile.exists()) finalFile.delete()
+        // 合并前预留测试钩子，便于验证分片文件被破坏时的收口行为。
+        beforeMergeHook?.invoke(plannedSegments, finalFile)
         // 所有分片成功后再顺序合并成最终 APK 文件。
         val mergeOk = mergeSegments(plannedSegments, finalFile)
         if (emitStoppedIfRequested(request, control, onEvent, totalBytes)) return@withContext
@@ -375,11 +379,12 @@ class RealFileDownloader(
             return SegmentResult(segment.segmentId, true, attempts = attempt)
         } catch (e: SocketTimeoutException) {
             val stopAfterTimeout = control.currentStopReason()
+            val downloadedBytes = maxOf(existingBytes, partFile.takeIf { it.exists() }?.length() ?: 0L)
             if (stopAfterTimeout != null) {
-                saveSegmentRecord(request, segment, existingBytes, stopStatus(stopAfterTimeout), retryCount = attempt)
+                saveSegmentRecord(request, segment, downloadedBytes, stopStatus(stopAfterTimeout), retryCount = attempt)
                 return SegmentResult(segment.segmentId, false, stopReason = stopAfterTimeout, attempts = attempt)
             }
-            saveSegmentRecord(request, segment, existingBytes, DownloaderText.STATUS_FAILED_TIMEOUT, retryCount = attempt)
+            saveSegmentRecord(request, segment, downloadedBytes, DownloaderText.STATUS_FAILED_TIMEOUT, retryCount = attempt)
             return SegmentResult(
                 segmentId = segment.segmentId,
                 success = false,
@@ -388,13 +393,13 @@ class RealFileDownloader(
                 attempts = attempt,
             )
         } catch (e: IOException) {
+            val downloadedBytes = maxOf(existingBytes, partFile.takeIf { it.exists() }?.length() ?: 0L)
             val stopAfterIo = control.currentStopReason()
             if (stopAfterIo != null) {
-                val downloadedBytes = maxOf(existingBytes, partFile.takeIf { it.exists() }?.length() ?: 0L)
                 saveSegmentRecord(request, segment, downloadedBytes, stopStatus(stopAfterIo), retryCount = attempt)
                 return SegmentResult(segment.segmentId, false, stopReason = stopAfterIo, attempts = attempt)
             }
-            saveSegmentRecord(request, segment, existingBytes, DownloaderText.STATUS_FAILED_IO, retryCount = attempt)
+            saveSegmentRecord(request, segment, downloadedBytes, DownloaderText.STATUS_FAILED_IO, retryCount = attempt)
             return SegmentResult(
                 segmentId = segment.segmentId,
                 success = false,
@@ -561,10 +566,17 @@ class RealFileDownloader(
     }
 
     /** 通过 HEAD 请求探测远端文件元数据。 */
-    private fun probeRemoteMeta(url: String): DownloadRemoteMeta {
+    private fun probeRemoteMeta(url: String, control: DownloadExecutionControl): DownloadRemoteMeta {
         val headConnection = openConnection(url, head = true)
+        val removeInterrupt = control.registerInterrupt { headConnection.disconnect() }
         return try {
+            if (control.isStopRequested()) {
+                throw IOException("download stopped before probe connect")
+            }
             headConnection.connect()
+            if (control.isStopRequested()) {
+                throw IOException("download stopped after probe connect")
+            }
             val contentLength = headConnection.getHeaderFieldLong("Content-Length", -1L)
             val acceptsRange = headConnection.getHeaderField("Accept-Ranges")?.contains("bytes", ignoreCase = true) == true
             val eTag = headConnection.getHeaderField("ETag")
@@ -578,6 +590,7 @@ class RealFileDownloader(
                 mimeType = mimeType,
             )
         } finally {
+            removeInterrupt()
             headConnection.disconnect()
         }
     }

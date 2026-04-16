@@ -193,6 +193,10 @@ class HomeViewModelTest {
             checkedUpgradeAppId = appId
             return true
         }
+
+        override suspend fun checkAllUpgrades(): List<String> = emptyList()
+
+        override suspend fun startBatchUpgrade(appIds: List<String>) = Unit
     }
 
     class MainDispatcherRule(
