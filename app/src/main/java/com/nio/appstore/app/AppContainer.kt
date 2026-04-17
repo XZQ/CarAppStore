@@ -14,6 +14,7 @@ import com.nio.appstore.core.installer.SimulatedPackageInstaller
 import com.nio.appstore.core.installer.SystemPackageInstallerSessionAdapter
 import com.nio.appstore.core.logger.AppLogger
 import com.nio.appstore.core.policy.AndroidPolicyRuntimeSignalProvider
+import com.nio.appstore.core.policy.StaticVehicleStateSignalProvider
 import com.nio.appstore.core.tracker.EventTracker
 import com.nio.appstore.data.datasource.local.AppLocalDataSource
 import com.nio.appstore.data.datasource.remote.AppRemoteDataSource
@@ -89,8 +90,10 @@ class AppContainer(context: Context) : AppServices {
             context = appContext,
             sourceCatalog = DownloadSourceCatalog(downloadEnvConfig.environment),
             catalogEndpointUrl = downloadEnvConfig.catalogEndpointUrl,
+            catalogRequestHeaders = downloadEnvConfig.catalogRequestHeaders,
             httpClient = HttpUrlConnectionAppCatalogHttpClient(),
             catalogCacheFile = storagePaths.remoteCatalogCacheFile,
+            catalogCacheMetadataFile = storagePaths.remoteCatalogCacheMetadataFile,
         )
     }
 
@@ -113,8 +116,13 @@ class AppContainer(context: Context) : AppServices {
     override val stateCenter: StateCenter by lazy { DefaultStateCenter() }
 
     /** 全局策略中心。 */
+    private val vehicleStateSignalProvider by lazy {
+        StaticVehicleStateSignalProvider()
+    }
+
+    /** 全局策略中心。 */
     private val runtimeSignalProvider by lazy {
-        AndroidPolicyRuntimeSignalProvider(appContext, logger)
+        AndroidPolicyRuntimeSignalProvider(appContext, vehicleStateSignalProvider, logger)
     }
 
     /** 全局策略中心。 */
