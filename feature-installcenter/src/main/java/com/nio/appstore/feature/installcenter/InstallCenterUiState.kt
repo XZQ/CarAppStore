@@ -36,4 +36,30 @@ data class InstallCenterUiState(
     val showFailurePanel: Boolean = false,
     /** 安装中心扩展控制区的界面状态。 */
     val controlsUiState: InstallCenterControlsUiState = InstallCenterControlsUiState(),
+    /** 当前显式页面状态机。 */
+    val screenState: InstallCenterScreenState = InstallCenterScreenState.Loading,
 )
+
+/**
+ * InstallCenterScreenState 描述安装中心当前页面状态。
+ */
+sealed interface InstallCenterScreenState {
+    /** 页面正在同步安装任务。 */
+    data object Loading : InstallCenterScreenState
+
+    /** 页面已有可展示内容。 */
+    data object Content : InstallCenterScreenState
+
+    /** 页面暂无可展示内容。 */
+    data object Empty : InstallCenterScreenState
+
+    /**
+     * 页面加载失败。
+     *
+     * @property message 当前需要展示给用户的失败原因。
+     */
+    data class Error(
+        /** 当前需要展示给用户的失败原因。 */
+        val message: String,
+    ) : InstallCenterScreenState
+}

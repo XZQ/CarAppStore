@@ -25,4 +25,30 @@ data class UpgradeUiState(
     val showFailurePanel: Boolean = false,
     /** 升级中心扩展控制区的界面状态。 */
     val controlsUiState: UpgradeCenterControlsUiState = UpgradeCenterControlsUiState(),
+    /** 当前显式页面状态机。 */
+    val screenState: UpgradeScreenState = UpgradeScreenState.Loading,
 )
+
+/**
+ * UpgradeScreenState 描述升级中心当前页面状态。
+ */
+sealed interface UpgradeScreenState {
+    /** 页面正在同步升级任务。 */
+    data object Loading : UpgradeScreenState
+
+    /** 页面已有可展示内容。 */
+    data object Content : UpgradeScreenState
+
+    /** 页面暂无可展示内容。 */
+    data object Empty : UpgradeScreenState
+
+    /**
+     * 页面加载失败。
+     *
+     * @property message 当前需要展示给用户的失败原因。
+     */
+    data class Error(
+        /** 当前需要展示给用户的失败原因。 */
+        val message: String,
+    ) : UpgradeScreenState
+}

@@ -13,9 +13,11 @@ import com.nio.appstore.core.installer.RealPackageInstaller
 import com.nio.appstore.core.installer.SimulatedPackageInstaller
 import com.nio.appstore.core.installer.SystemPackageInstallerSessionAdapter
 import com.nio.appstore.core.logger.AppLogger
+import com.nio.appstore.core.policy.AndroidPolicyRuntimeSignalProvider
 import com.nio.appstore.core.tracker.EventTracker
 import com.nio.appstore.data.datasource.local.AppLocalDataSource
 import com.nio.appstore.data.datasource.remote.AppRemoteDataSource
+import com.nio.appstore.data.datasource.remote.HttpUrlConnectionAppCatalogHttpClient
 import com.nio.appstore.data.datasource.remote.DownloadSourceCatalog
 import com.nio.appstore.data.datasource.system.AppSystemDataSource
 import com.nio.appstore.data.downloadenv.DownloadEnvironmentEntry
@@ -83,7 +85,13 @@ class AppContainer(context: Context) : AppServices {
 
     /** 远端数据源，根据当前下载环境切换下载源目录。 */
     private val remoteDataSource: AppRemoteDataSource by lazy {
-        AppRemoteDataSource(sourceCatalog = DownloadSourceCatalog(downloadEnvConfig.environment))
+        AppRemoteDataSource(
+            context = appContext,
+            sourceCatalog = DownloadSourceCatalog(downloadEnvConfig.environment),
+            catalogEndpointUrl = downloadEnvConfig.catalogEndpointUrl,
+            httpClient = HttpUrlConnectionAppCatalogHttpClient(),
+            catalogCacheFile = storagePaths.remoteCatalogCacheFile,
+        )
     }
 
     /** 本地数据源，当前已开始统一接入结构化访问入口。 */
@@ -105,8 +113,13 @@ class AppContainer(context: Context) : AppServices {
     override val stateCenter: StateCenter by lazy { DefaultStateCenter() }
 
     /** 全局策略中心。 */
+    private val runtimeSignalProvider by lazy {
+        AndroidPolicyRuntimeSignalProvider(appContext, logger)
+    }
+
+    /** 全局策略中心。 */
     override val policyCenter: PolicyCenter by lazy {
-        DefaultPolicyCenter(appContext, localDataSource)
+        DefaultPolicyCenter(appContext, localDataSource, runtimeSignalProvider, logger)
     }
 
     /** 下载执行器，当前优先走真实下载器，必要时回退模拟实现。 */
@@ -184,7 +197,7 @@ class AppContainer(context: Context) : AppServices {
 
     /** 应用管理聚合入口，给首页、详情页、我的应用、各任务中心使用。 */
     override val appManager: AppManager by lazy {
-        DefaultAppManager(repository, stateCenter, installSessionStore)
+        DefaultAppManager(repository, stateCenter, installSessionStore, policyCenter)
     }
 
     init {

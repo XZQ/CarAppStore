@@ -7,7 +7,9 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import com.nio.appstore.common.R
+import com.nio.appstore.data.downloadenv.DownloadEnvironmentConfig
 import com.nio.appstore.data.downloadenv.DownloadEnvironment
+import com.nio.appstore.data.downloadenv.DownloadEnvironmentEntry
 import com.nio.appstore.data.downloadenv.LocalDownloadEnvironmentProvider
 import com.nio.appstore.common.navigation.MainNavigator
 import com.nio.appstore.feature.debug.databinding.FragmentDeveloperSettingsBinding
@@ -65,11 +67,26 @@ class DeveloperSettingsFragment : Fragment() {
     /** 根据当前环境刷新页面展示文案。 */
     private fun renderCurrentEnvironment() {
         val current = environmentProvider.getCurrentEnvironment()
+        val config = DownloadEnvironmentEntry(environmentProvider).currentConfig()
         binding.tvCurrentEnvironment.text = getString(R.string.ui_download_environment_current_format, current.name)
         binding.tvEnvironmentHint.text = when (current) {
             DownloadEnvironment.DEV -> getString(R.string.ui_download_environment_hint_dev)
             DownloadEnvironment.TEST -> getString(R.string.ui_download_environment_hint_test)
             DownloadEnvironment.PROD -> getString(R.string.ui_download_environment_hint_prod)
+        }
+        binding.tvCatalogSource.text = getString(
+            R.string.ui_catalog_source_current_format,
+            resolveCatalogSourceText(config),
+        )
+    }
+
+    /** 根据当前环境配置生成目录来源说明。 */
+    private fun resolveCatalogSourceText(config: DownloadEnvironmentConfig): String {
+        val endpoint = config.catalogEndpointUrl
+        return if (endpoint.isNullOrBlank()) {
+            getString(R.string.ui_catalog_source_fallback_only)
+        } else {
+            getString(R.string.ui_catalog_source_http_with_fallback, endpoint)
         }
     }
 

@@ -16,6 +16,7 @@ import com.nio.appstore.data.repository.AppRepository
 import com.nio.appstore.domain.state.AppState
 import com.nio.appstore.domain.state.DownloadStatus
 import com.nio.appstore.domain.state.InstallStatus
+import com.nio.appstore.domain.policy.PolicyCenter
 import com.nio.appstore.domain.state.PrimaryAction
 import com.nio.appstore.domain.state.StateCenter
 import com.nio.appstore.domain.state.UpgradeStatus
@@ -32,6 +33,8 @@ class DefaultAppManager(
     private val stateCenter: StateCenter,
     /** 安装会话存储，供安装中心读取最新会话状态。 */
     private val installSessionStore: InstallSessionStore,
+    /** 策略中心，供聚合层生成实时策略提示。 */
+    private val policyCenter: PolicyCenter,
 ) : AppManager {
 
     /** 获取首页应用卡片列表，并补齐已安装版本与升级状态。 */
@@ -44,7 +47,13 @@ class DefaultAppManager(
         return apps.mapNotNull { app ->
             // 首页卡片构建前先同步升级可用性，保证展示的主动作和状态文案一致。
             syncUpgradeAvailability(app.appId, installed[app.appId]?.versionName)
-            buildViewData(app.appId, app.name, app.description, app.versionName, app.packageName)
+            buildViewData(
+                appId = app.appId,
+                name = app.name,
+                description = app.recommendedReason.ifBlank { app.description },
+                versionName = app.versionName,
+                packageName = app.packageName,
+            )
         }
     }
 
@@ -91,16 +100,32 @@ class DefaultAppManager(
         val installedVersion = repository.getInstalledApps().firstOrNull { it.appId == appId }?.versionName
         if (installedVersion != null) stateCenter.syncInstalled(appId, installedVersion)
         syncUpgradeAvailability(appId, installedVersion)
-        return buildViewData(app.appId, app.name, app.description, app.versionName, app.packageName)
+        return buildViewData(
+            appId = app.appId,
+            name = app.name,
+            description = app.recommendedReason.ifBlank { app.description },
+            versionName = app.versionName,
+            packageName = app.packageName,
+        )
     }
 
     /** 根据关键字搜索应用卡片。 */
     override suspend fun searchApps(keyword: String): List<AppViewData> {
         val normalized = keyword.trim()
+        val apps = repository.getHomeApps()
         val source = getHomeApps()
         if (normalized.isBlank()) return source
-        return source.filter {
-            it.name.contains(normalized, ignoreCase = true) || it.description.contains(normalized, ignoreCase = true)
+        val matchedAppIds = apps.filter { app ->
+            app.name.contains(normalized, ignoreCase = true) ||
+                app.description.contains(normalized, ignoreCase = true) ||
+                app.category.contains(normalized, ignoreCase = true) ||
+                app.editorialTag.contains(normalized, ignoreCase = true) ||
+                app.recommendedReason.contains(normalized, ignoreCase = true) ||
+                app.searchKeywords.any { keywordText -> keywordText.contains(normalized, ignoreCase = true) }
+        }.map { it.appId }
+            .toSet()
+        return source.filter { viewData ->
+            viewData.appId in matchedAppIds
         }
     }
 
@@ -313,7 +338,7 @@ class DefaultAppManager(
 
     /** 聚合当前策略提示文案。 */
     override fun getPolicyPrompt(): String {
-        val settings = repository.getPolicySettings()
+        val settings = policyCenter.getSettings()
         val prompts = mutableListOf<String>()
         if (!settings.wifiConnected) prompts += BusinessText.POLICY_DOWNLOAD_CELLULAR
         if (!settings.parkingMode) prompts += BusinessText.POLICY_INSTALL_DRIVING

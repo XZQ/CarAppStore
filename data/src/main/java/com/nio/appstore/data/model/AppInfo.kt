@@ -14,4 +14,12 @@ data class AppInfo(
     val description: String,
     /** 远端数据源当前给出的版本号。 */
     val versionName: String,
+    /** 应用所属分类。 */
+    val category: String = "",
+    /** 首页运营标签。 */
+    val editorialTag: String = "",
+    /** 推荐理由。 */
+    val recommendedReason: String = "",
+    /** 搜索召回使用的关键词。 */
+    val searchKeywords: List<String> = emptyList(),
 )

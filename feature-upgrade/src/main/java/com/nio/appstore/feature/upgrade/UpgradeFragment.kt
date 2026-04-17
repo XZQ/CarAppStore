@@ -95,27 +95,48 @@ class UpgradeFragment : BaseTaskCenterFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
+                    val showTaskPanels = state.screenState == UpgradeScreenState.Content
+                    val showChrome = state.screenState !is UpgradeScreenState.Error
+                    val subtitle = when (val screenState = state.screenState) {
+                        UpgradeScreenState.Loading -> getString(R.string.loading)
+                        UpgradeScreenState.Content -> TaskCenterUiFormatter.subtitle(
+                            filter = state.selectedFilter,
+                            primaryLabel = getString(R.string.screen_upgrade_primary_label),
+                            primaryCount = state.tasks.size,
+                            failedCount = state.failedCount,
+                        )
+                        UpgradeScreenState.Empty -> getString(R.string.screen_upgrade_empty_hint)
+                        is UpgradeScreenState.Error -> screenState.message.ifBlank {
+                            getString(R.string.screen_upgrade_error_hint)
+                        }
+                    }
+                    val hint = when (val screenState = state.screenState) {
+                        UpgradeScreenState.Loading -> getString(R.string.screen_upgrade_loading_hint)
+                        UpgradeScreenState.Content,
+                        UpgradeScreenState.Empty,
+                        -> listOf(
+                            TaskCenterUiFormatter.headerHint(getString(R.string.screen_upgrade_tasks)),
+                            TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.tasks.size, state.failedCount),
+                        ).joinToString("\n")
+                        is UpgradeScreenState.Error -> screenState.message.ifBlank {
+                            getString(R.string.screen_upgrade_error_hint)
+                        }
+                    }
                     controlsController?.bind(state.controlsUiState)
 
                     // 头部区优先展示当前筛选下的升级统计和批量处理提示。
                     bindHeaderBlock(
                         headerBinding = binding.headerBlock,
                         centerName = getString(R.string.screen_upgrade_center_name),
-                        subtitle = TaskCenterUiFormatter.subtitle(
-                            filter = state.selectedFilter,
-                            primaryLabel = getString(R.string.screen_upgrade_primary_label),
-                            primaryCount = state.tasks.size,
-                            failedCount = state.failedCount,
-                        ),
-                        hint = listOf(
-                            TaskCenterUiFormatter.headerHint(getString(R.string.screen_upgrade_tasks)),
-                            TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.tasks.size, state.failedCount),
-                        ).joinToString("\n"),
+                        subtitle = subtitle,
+                        hint = hint,
                         visibleCount = state.tasks.size,
                         totalCount = state.availableCount,
                         statsPrefix = getString(R.string.screen_upgrade_primary_label),
                         stats = state.stats,
                     )
+                    binding.actionBlock.root.visibility = if (showChrome) View.VISIBLE else View.GONE
+                    binding.extensionSlot.root.visibility = if (showChrome) View.VISIBLE else View.GONE
                     bindActionBlock(
                         actionBinding = binding.actionBlock,
                         uiState = TaskCenterActionUiState(
@@ -137,7 +158,7 @@ class UpgradeFragment : BaseTaskCenterFragment() {
                             failedCount = state.failedCount,
                             primaryText = getString(R.string.screen_upgrade_retry_failed_format, state.failedCount),
                             secondaryText = getString(R.string.screen_upgrade_start_runnable_format, state.batchRunnableCount),
-                            showPanel = state.showFailurePanel,
+                            showPanel = showChrome && state.showFailurePanel,
                             showSecondary = state.batchRunnableCount > 0,
                         ),
                     )
@@ -154,14 +175,14 @@ class UpgradeFragment : BaseTaskCenterFragment() {
                             selectedFilter = state.selectedFilter,
                             primaryText = getString(R.string.screen_download_go_home),
                             secondaryText = getString(R.string.screen_download_go_my_apps),
-                            showEmpty = state.tasks.isEmpty(),
+                            showEmpty = state.screenState == UpgradeScreenState.Empty || state.screenState is UpgradeScreenState.Error,
                             showSecondary = true,
                         ),
                     )
                     bindListBlock(
                         listBlockBinding = binding.upgradeTaskBlock,
                         sectionName = getString(R.string.screen_upgrade_tasks),
-                        visible = state.tasks.isNotEmpty(),
+                        visible = showTaskPanels && state.tasks.isNotEmpty(),
                     )
                     adapter.submitList(state.tasks)
                 }

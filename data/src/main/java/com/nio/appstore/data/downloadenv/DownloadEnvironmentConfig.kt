@@ -20,6 +20,8 @@ data class DownloadEnvironmentConfig(
     val allowMockSource: Boolean = true,
     /** 当前环境是否允许直连下载源。 */
     val allowDirectHttp: Boolean = true,
+    /** 当前环境下商店目录接口地址。 */
+    val catalogEndpointUrl: String? = null,
 ) {
     companion object {
         /** 根据下载环境生成对应的能力配置。 */
@@ -30,18 +32,21 @@ data class DownloadEnvironmentConfig(
                     defaultSourcePolicy = DownloadSourcePolicy.FALLBACK_SIMULATED,
                     allowMockSource = true,
                     allowDirectHttp = true,
+                    catalogEndpointUrl = null,
                 )
                 DownloadEnvironment.TEST -> DownloadEnvironmentConfig(
                     environment = environment,
                     defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
                     allowMockSource = true,
                     allowDirectHttp = true,
+                    catalogEndpointUrl = "https://test.example.org/carappstore/catalog.json",
                 )
                 DownloadEnvironment.PROD -> DownloadEnvironmentConfig(
                     environment = environment,
                     defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
                     allowMockSource = false,
                     allowDirectHttp = true,
+                    catalogEndpointUrl = "https://cdn.example.com/carappstore/catalog.json",
                 )
             }
         }

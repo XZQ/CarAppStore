@@ -28,6 +28,7 @@ class HomeFragment : BaseFragment() {
             appServices.downloadManager,
             appServices.installManager,
             appServices.upgradeManager,
+            appServices.policyCenter,
         )
     }
 
@@ -61,11 +62,14 @@ class HomeFragment : BaseFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    // 根据应用列表数量切换副标题，同时控制策略提示的显示与隐藏。
-                    binding.tvHomeSubtitle.text = if (state.apps.isEmpty()) {
-                        getString(R.string.screen_home_empty_apps)
-                    } else {
-                        getString(R.string.screen_home_recommend_count, state.apps.size)
+                    // 根据页面状态切换副标题，同时控制策略提示的显示与隐藏。
+                    binding.tvHomeSubtitle.text = when (val screenState = state.screenState) {
+                        HomeScreenState.Loading -> getString(R.string.loading)
+                        HomeScreenState.Content -> getString(R.string.screen_home_recommend_count, state.apps.size)
+                        HomeScreenState.Empty -> getString(R.string.screen_home_empty_apps)
+                        is HomeScreenState.Error -> screenState.message.ifBlank {
+                            getString(R.string.screen_home_error_hint)
+                        }
                     }
                     binding.tvPolicyPrompt.text = state.policyPrompt
                     binding.tvPolicyPrompt.visibility = if (state.policyPrompt.isBlank()) View.GONE else View.VISIBLE

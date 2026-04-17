@@ -31,6 +31,7 @@ class SearchFragment : BaseFragment() {
             appServices.downloadManager,
             appServices.installManager,
             appServices.upgradeManager,
+            appServices.policyCenter,
         )
     }
 
@@ -76,10 +77,14 @@ class SearchFragment : BaseFragment() {
                         binding.etSearch.setText(state.keyword)
                         binding.etSearch.setSelection(state.keyword.length)
                     }
-                    binding.tvSearchSubtitle.text = if (state.apps.isEmpty()) {
-                        getString(R.string.screen_search_empty_result)
-                    } else {
-                        getString(R.string.screen_search_result_count, state.apps.size)
+                    binding.tvSearchSubtitle.text = when (val screenState = state.screenState) {
+                        SearchScreenState.Idle -> getString(R.string.ui_search_input_hint)
+                        SearchScreenState.Loading -> getString(R.string.loading)
+                        SearchScreenState.Content -> getString(R.string.screen_search_result_count, state.apps.size)
+                        SearchScreenState.Empty -> getString(R.string.screen_search_empty_result)
+                        is SearchScreenState.Error -> screenState.message.ifBlank {
+                            getString(R.string.screen_search_error_hint)
+                        }
                     }
                     binding.tvPolicyPrompt.text = state.policyPrompt
                     binding.tvPolicyPrompt.visibility = if (state.policyPrompt.isBlank()) View.GONE else View.VISIBLE

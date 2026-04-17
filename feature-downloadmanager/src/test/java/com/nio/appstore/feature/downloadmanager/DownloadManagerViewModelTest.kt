@@ -26,6 +26,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -38,6 +39,24 @@ class DownloadManagerViewModelTest {
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    @Test
+    fun `load 有任务时会进入内容态`() = runTest {
+        val viewModel = DownloadManagerViewModel(
+            appManager = FakeAppManager(),
+            stateCenter = DefaultStateCenter(),
+            downloadManager = RecordingDownloadManager(),
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            policyCenter = FakePolicyCenter(),
+        )
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(DownloadManagerScreenState.Content, viewModel.uiState.value.screenState)
+        assertEquals(2, viewModel.uiState.value.visibleTaskCount)
+    }
 
     @Test
     fun `onPrimaryClick 为恢复动作时会恢复下载`() = runTest {
@@ -81,7 +100,27 @@ class DownloadManagerViewModelTest {
         assertNull(downloadManager.resumedAppId)
     }
 
-    private class FakeAppManager : AppManager {
+    @Test
+    fun `load 失败时会进入错误态`() = runTest {
+        val viewModel = DownloadManagerViewModel(
+            appManager = FailingAppManager(),
+            stateCenter = DefaultStateCenter(),
+            downloadManager = RecordingDownloadManager(),
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            policyCenter = FakePolicyCenter(),
+        )
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(
+            DownloadManagerScreenState.Error("download tasks unavailable"),
+            viewModel.uiState.value.screenState,
+        )
+    }
+
+    private open class FakeAppManager : AppManager {
         /** 最近一次被请求打开的包名。 */
         var openedPackageName: String? = null
 
@@ -117,6 +156,10 @@ class DownloadManagerViewModelTest {
             openedPackageName = packageName
             return true
         }
+    }
+
+    private class FailingAppManager : FakeAppManager() {
+        override suspend fun getDownloadTasks(): List<DownloadTaskViewData> = error("download tasks unavailable")
     }
 
     private class RecordingDownloadManager : DownloadManager {
@@ -166,15 +209,24 @@ class DownloadManagerViewModelTest {
     }
 
     private class FakePolicyCenter : PolicyCenter {
+        /** 测试策略流。 */
+        private val settingsFlow = MutableStateFlow(PolicySettings())
+
         override fun canDownload(appId: String): PolicyResult = PolicyResult(allow = true)
 
         override fun canInstall(appId: String): PolicyResult = PolicyResult(allow = true)
 
         override fun canUpgrade(appId: String): PolicyResult = PolicyResult(allow = true)
 
-        override fun getSettings(): PolicySettings = PolicySettings()
+        override fun observeSettings() = settingsFlow
 
-        override fun updateSettings(settings: PolicySettings) = Unit
+        override fun getSettings(): PolicySettings = settingsFlow.value
+
+        override fun getStoredSettings(): PolicySettings = settingsFlow.value
+
+        override fun updateSettings(settings: PolicySettings) {
+            settingsFlow.value = settings
+        }
     }
 
     class MainDispatcherRule(

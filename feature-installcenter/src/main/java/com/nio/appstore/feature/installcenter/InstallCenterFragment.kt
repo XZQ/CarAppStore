@@ -103,13 +103,11 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    controlsController?.bind(state.controlsUiState)
-
-                    // 安装中心头部除了任务统计，还会拼上 Session 维度摘要。
-                    bindHeaderBlock(
-                        headerBinding = binding.headerBlock,
-                        centerName = getString(R.string.screen_install_center_name),
-                        subtitle = TaskCenterUiFormatter.subtitle(
+                    val showTaskPanels = state.screenState == InstallCenterScreenState.Content
+                    val showChrome = state.screenState !is InstallCenterScreenState.Error
+                    val subtitle = when (val screenState = state.screenState) {
+                        InstallCenterScreenState.Loading -> getString(R.string.loading)
+                        InstallCenterScreenState.Content -> TaskCenterUiFormatter.subtitle(
                             filter = state.selectedFilter,
                             primaryLabel = getString(R.string.screen_install_primary_label),
                             primaryCount = state.tasks.size,
@@ -119,8 +117,17 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
                             state.activeSessionCount,
                             state.failedSessionCount,
                             state.recoveredSessionCount,
-                        ),
-                        hint = listOf(
+                        )
+                        InstallCenterScreenState.Empty -> getString(R.string.screen_install_empty_hint)
+                        is InstallCenterScreenState.Error -> screenState.message.ifBlank {
+                            getString(R.string.screen_install_error_hint)
+                        }
+                    }
+                    val hint = when (val screenState = state.screenState) {
+                        InstallCenterScreenState.Loading -> getString(R.string.screen_install_loading_hint)
+                        InstallCenterScreenState.Content,
+                        InstallCenterScreenState.Empty,
+                        -> listOf(
                             TaskCenterUiFormatter.headerHint(getString(R.string.screen_install_tasks)),
                             TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.tasks.size, state.failedCount),
                             TaskCenterText.sessionSummary(
@@ -128,12 +135,26 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
                                 state.failedSessionCount,
                                 state.recoveredSessionCount,
                             ),
-                        ).joinToString("\n"),
+                        ).joinToString("\n")
+                        is InstallCenterScreenState.Error -> screenState.message.ifBlank {
+                            getString(R.string.screen_install_error_hint)
+                        }
+                    }
+                    controlsController?.bind(state.controlsUiState)
+
+                    // 安装中心头部除了任务统计，还会拼上 Session 维度摘要。
+                    bindHeaderBlock(
+                        headerBinding = binding.headerBlock,
+                        centerName = getString(R.string.screen_install_center_name),
+                        subtitle = subtitle,
+                        hint = hint,
                         visibleCount = state.tasks.size,
                         totalCount = state.allTaskCount,
                         statsPrefix = getString(R.string.screen_install_primary_label),
                         stats = state.stats,
                     )
+                    binding.actionBlock.root.visibility = if (showChrome) View.VISIBLE else View.GONE
+                    binding.extensionSlot.root.visibility = if (showChrome) View.VISIBLE else View.GONE
                     bindActionBlock(
                         actionBinding = binding.actionBlock,
                         uiState = TaskCenterActionUiState(
@@ -155,14 +176,14 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
                             selectedFilter = state.selectedFilter,
                             primaryText = getString(R.string.ui_go_download_manager),
                             secondaryText = getString(R.string.ui_clear_failed_state),
-                            showEmpty = state.tasks.isEmpty(),
-                            showSecondary = state.showFailurePanel,
+                            showEmpty = state.screenState == InstallCenterScreenState.Empty || state.screenState is InstallCenterScreenState.Error,
+                            showSecondary = showChrome && state.showFailurePanel,
                         ),
                     )
                     bindListBlock(
                         listBlockBinding = binding.installTaskBlock,
                         sectionName = getString(R.string.screen_install_tasks),
-                        visible = state.tasks.isNotEmpty(),
+                        visible = showTaskPanels && state.tasks.isNotEmpty(),
                     )
                     bindFailurePanel(
                         failureBinding = binding.failurePanel,
@@ -171,7 +192,7 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
                             failedCount = state.clearFailedCount,
                             primaryText = getString(R.string.screen_install_retry_failed_format, state.failedCount),
                             secondaryText = getString(R.string.ui_clear_failed_state_format, state.clearFailedCount),
-                            showPanel = state.showFailurePanel,
+                            showPanel = showChrome && state.showFailurePanel,
                         ),
                     )
                     bindFailureHandlers(

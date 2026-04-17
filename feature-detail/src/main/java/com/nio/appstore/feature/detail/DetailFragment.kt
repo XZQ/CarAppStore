@@ -35,6 +35,7 @@ class DetailFragment : BaseFragment() {
             installManager = appServices.installManager,
             upgradeManager = appServices.upgradeManager,
             stateCenter = appServices.stateCenter,
+            policyCenter = appServices.policyCenter,
         )
     }
 
@@ -61,9 +62,9 @@ class DetailFragment : BaseFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    binding.tvDetailName.text = state.appDetail?.name ?: ""
-                    binding.tvDetailVersion.text = getString(R.string.screen_detail_version_format, state.appDetail?.versionName.orEmpty())
-                    binding.tvDetailDesc.text = state.appDetail?.description ?: ""
+                    binding.tvDetailName.text = state.appDetail?.name ?: getString(R.string.screen_detail_empty_name)
+                    binding.tvDetailVersion.text = buildVersionText(state)
+                    binding.tvDetailDesc.text = buildDetailText(state)
                     binding.tvState.applyTagStyle(CarUiStyle.tagStyle(state.stateText, state.statusTone))
                     // 进度和主动作始终跟随状态中心与业务编排结果刷新。
                     binding.progressDownload.progress = state.progress
@@ -72,10 +73,56 @@ class DetailFragment : BaseFragment() {
                     } else {
                         getString(R.string.screen_detail_no_progress)
                     }
+                    binding.tvPolicyPrompt.text = state.policyPrompt
+                    binding.tvPolicyPrompt.visibility = if (state.policyPrompt.isBlank()) View.GONE else View.VISIBLE
                     binding.btnPrimaryAction.applyActionStyle(CarUiStyle.actionStyle(state.primaryAction))
                 }
             }
         }
+    }
+
+    /** 组装版本、副标题与状态文案。 */
+    private fun buildVersionText(state: DetailUiState): String {
+        return when (val screenState = state.screenState) {
+            DetailScreenState.Loading -> getString(R.string.loading)
+            is DetailScreenState.Error -> screenState.message.ifBlank {
+                getString(R.string.screen_detail_error_hint)
+            }
+            DetailScreenState.Content -> {
+                val detail = state.appDetail
+                getString(
+                    R.string.screen_detail_version_meta_format,
+                    detail?.versionName.orEmpty(),
+                    detail?.sizeText.orEmpty(),
+                    detail?.lastUpdatedText.orEmpty(),
+                )
+            }
+        }
+    }
+
+    /** 组装详情页描述与信任信息。 */
+    private fun buildDetailText(state: DetailUiState): String {
+        return when (state.screenState) {
+            DetailScreenState.Loading -> getString(R.string.screen_detail_loading_hint)
+            is DetailScreenState.Error -> getString(R.string.screen_detail_error_hint)
+            DetailScreenState.Content -> listOfNotNull(
+                state.appDetail?.description,
+                state.appDetail?.let(::buildDetailSummary),
+            ).joinToString("\n\n")
+        }
+    }
+
+    /** 组装详情页信任信息。 */
+    private fun buildDetailSummary(detail: com.nio.appstore.data.model.AppDetail): String {
+        return listOf(
+            getString(R.string.screen_detail_developer_format, detail.developerName),
+            getString(R.string.screen_detail_category_format, detail.category),
+            getString(R.string.screen_detail_rating_format, detail.ratingText),
+            getString(R.string.screen_detail_compatibility_format, detail.compatibilitySummary),
+            getString(R.string.screen_detail_permissions_format, detail.permissionsSummary),
+            getString(R.string.screen_detail_update_summary_format, detail.updateSummary),
+        ).filterNot { it.substringAfter('：').isBlank() }
+            .joinToString("\n")
     }
 
     /** 释放详情页 Binding。 */

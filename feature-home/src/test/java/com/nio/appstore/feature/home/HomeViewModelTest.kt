@@ -25,9 +25,12 @@ import com.nio.appstore.data.model.UpgradeTaskViewData
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.download.DownloadManager
 import com.nio.appstore.domain.install.InstallManager
+import com.nio.appstore.domain.policy.PolicyCenter
+import com.nio.appstore.domain.policy.PolicyResult
 import com.nio.appstore.domain.state.DefaultStateCenter
 import com.nio.appstore.domain.state.PrimaryAction
 import com.nio.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.flow.MutableStateFlow
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
@@ -47,6 +50,7 @@ class HomeViewModelTest {
             downloadManager = downloadManager,
             installManager = installManager,
             upgradeManager = upgradeManager,
+            policyCenter = FakePolicyCenter(),
         )
 
         viewModel.onPrimaryClick(TEST_DOWNLOAD_APP)
@@ -69,6 +73,7 @@ class HomeViewModelTest {
             downloadManager = downloadManager,
             installManager = installManager,
             upgradeManager = upgradeManager,
+            policyCenter = FakePolicyCenter(),
         )
 
         viewModel.onPrimaryClick(TEST_INSTALL_APP)
@@ -91,6 +96,7 @@ class HomeViewModelTest {
             downloadManager = downloadManager,
             installManager = installManager,
             upgradeManager = upgradeManager,
+            policyCenter = FakePolicyCenter(),
         )
 
         viewModel.onPrimaryClick(TEST_OPEN_APP)
@@ -197,6 +203,27 @@ class HomeViewModelTest {
         override suspend fun checkAllUpgrades(): List<String> = emptyList()
 
         override suspend fun startBatchUpgrade(appIds: List<String>) = Unit
+    }
+
+    private class FakePolicyCenter : PolicyCenter {
+        /** 测试策略流。 */
+        private val settingsFlow = MutableStateFlow(com.nio.appstore.data.model.PolicySettings())
+
+        override fun canDownload(appId: String): PolicyResult = PolicyResult(true)
+
+        override fun canInstall(appId: String): PolicyResult = PolicyResult(true)
+
+        override fun canUpgrade(appId: String): PolicyResult = PolicyResult(true)
+
+        override fun observeSettings() = settingsFlow
+
+        override fun getSettings() = settingsFlow.value
+
+        override fun getStoredSettings() = settingsFlow.value
+
+        override fun updateSettings(settings: com.nio.appstore.data.model.PolicySettings) {
+            settingsFlow.value = settings
+        }
     }
 
     class MainDispatcherRule(

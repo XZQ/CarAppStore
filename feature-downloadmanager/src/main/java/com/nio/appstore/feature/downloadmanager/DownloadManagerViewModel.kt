@@ -37,6 +37,8 @@ class DownloadManagerViewModel(
 
     /** 状态订阅任务，避免重复注册全局观察。 */
     private var observeJob: Job? = null
+    /** 策略订阅任务。 */
+    private var observePolicyJob: Job? = null
     /** 当前选中的任务筛选条件。 */
     private var selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL
 
@@ -51,8 +53,9 @@ class DownloadManagerViewModel(
     /** 初始化页面数据并开始观察状态变化。 */
     fun load() {
         viewModelScope.launch {
-            refresh()
+            refresh(showLoading = true)
             observeStateChanges()
+            observePolicyChanges()
         }
     }
 
@@ -148,21 +151,21 @@ class DownloadManagerViewModel(
 
     /** 切换 Wi‑Fi 策略开关。 */
     fun onToggleWifi() {
-        val current = policyCenter.getSettings()
+        val current = policyCenter.getStoredSettings()
         policyCenter.updateSettings(current.copy(wifiConnected = !current.wifiConnected))
         viewModelScope.launch { refresh() }
     }
 
     /** 切换驻车策略开关。 */
     fun onToggleParking() {
-        val current = policyCenter.getSettings()
+        val current = policyCenter.getStoredSettings()
         policyCenter.updateSettings(current.copy(parkingMode = !current.parkingMode))
         viewModelScope.launch { refresh() }
     }
 
     /** 切换低存储策略开关。 */
     fun onToggleStorage() {
-        val current = policyCenter.getSettings()
+        val current = policyCenter.getStoredSettings()
         policyCenter.updateSettings(current.copy(lowStorageMode = !current.lowStorageMode))
         viewModelScope.launch { refresh() }
     }
@@ -175,44 +178,69 @@ class DownloadManagerViewModel(
             .launchIn(viewModelScope)
     }
 
-    /** 重新计算页面所需的下载中心 UI 状态。 */
-    private suspend fun refresh() {
-        val allTasks = appManager.getDownloadTasks()
-        val allInstallTasks = appManager.getInstallTasks()
-        val preferences = downloadManager.getPreferences()
-        val policy = policyCenter.getSettings()
-        // 先按当前筛选条件得到可见任务，再计算统计信息和开关区状态。
-        val visibleTasks = allTasks.filter { selectedFilter.matches(it.overallStatus) }
-        val visibleInstallTasks = allInstallTasks.filter { selectedFilter.matches(it.overallStatus) }
-        val downloadStats = appManager.getDownloadTaskStats()
-        val installStats = appManager.getInstallTaskStats()
+    /** 监听策略变化，并在变化时刷新下载中心。 */
+    private fun observePolicyChanges() {
+        if (observePolicyJob != null) return
+        observePolicyJob = policyCenter.observeSettings()
+            .onEach { refresh() }
+            .launchIn(viewModelScope)
+    }
 
-        _uiState.value = DownloadManagerUiState(
-            tasks = visibleTasks,
-            installTasks = visibleInstallTasks,
-            allTaskCount = allTasks.size + allInstallTasks.size,
-            selectedFilter = selectedFilter,
-            preferencesUiState = DownloadCenterPreferencesUiState(
-                autoResumeEnabled = preferences.autoResumeOnLaunch,
-                autoRetryEnabled = preferences.autoRetryEnabled,
-                maxAutoRetryCount = preferences.maxAutoRetryCount,
-                wifiConnected = policy.wifiConnected,
-                parkingMode = policy.parkingMode,
-                lowStorageMode = policy.lowStorageMode,
-            ),
-            failedCount = allTasks.count { it.reasonText != null } + allInstallTasks.count { !it.reasonText.isNullOrBlank() },
-            downloadStats = downloadStats,
-            installStats = installStats,
-            readyInstallCount = visibleTasks.count {
-                it.primaryAction == PrimaryAction.INSTALL || it.primaryAction == PrimaryAction.RETRY_INSTALL
-            },
-            visibleTaskCount = visibleTasks.size + visibleInstallTasks.size,
-            combinedStats = TaskCenterStats(
-                activeCount = downloadStats.activeCount + installStats.activeCount,
-                pendingCount = downloadStats.pendingCount + installStats.pendingCount,
-                failedCount = downloadStats.failedCount + installStats.failedCount,
-                completedCount = downloadStats.completedCount + installStats.completedCount,
-            ),
-        )
+    /** 重新计算页面所需的下载中心 UI 状态。 */
+    private suspend fun refresh(showLoading: Boolean = false) {
+        if (showLoading) {
+            _uiState.value = _uiState.value.copy(screenState = DownloadManagerScreenState.Loading)
+        }
+        runCatching {
+            val allTasks = appManager.getDownloadTasks()
+            val allInstallTasks = appManager.getInstallTasks()
+            val preferences = downloadManager.getPreferences()
+            val policy = policyCenter.getSettings()
+            // 先按当前筛选条件得到可见任务，再计算统计信息和开关区状态。
+            val visibleTasks = allTasks.filter { selectedFilter.matches(it.overallStatus) }
+            val visibleInstallTasks = allInstallTasks.filter { selectedFilter.matches(it.overallStatus) }
+            val downloadStats = appManager.getDownloadTaskStats()
+            val installStats = appManager.getInstallTaskStats()
+            val visibleTaskCount = visibleTasks.size + visibleInstallTasks.size
+
+            DownloadManagerUiState(
+                tasks = visibleTasks,
+                installTasks = visibleInstallTasks,
+                allTaskCount = allTasks.size + allInstallTasks.size,
+                selectedFilter = selectedFilter,
+                preferencesUiState = DownloadCenterPreferencesUiState(
+                    autoResumeEnabled = preferences.autoResumeOnLaunch,
+                    autoRetryEnabled = preferences.autoRetryEnabled,
+                    maxAutoRetryCount = preferences.maxAutoRetryCount,
+                    wifiConnected = policy.wifiConnected,
+                    parkingMode = policy.parkingMode,
+                    lowStorageMode = policy.lowStorageMode,
+                ),
+                failedCount = allTasks.count { it.reasonText != null } + allInstallTasks.count { !it.reasonText.isNullOrBlank() },
+                downloadStats = downloadStats,
+                installStats = installStats,
+                readyInstallCount = visibleTasks.count {
+                    it.primaryAction == PrimaryAction.INSTALL || it.primaryAction == PrimaryAction.RETRY_INSTALL
+                },
+                visibleTaskCount = visibleTaskCount,
+                combinedStats = TaskCenterStats(
+                    activeCount = downloadStats.activeCount + installStats.activeCount,
+                    pendingCount = downloadStats.pendingCount + installStats.pendingCount,
+                    failedCount = downloadStats.failedCount + installStats.failedCount,
+                    completedCount = downloadStats.completedCount + installStats.completedCount,
+                ),
+                screenState = if (visibleTaskCount == 0) {
+                    DownloadManagerScreenState.Empty
+                } else {
+                    DownloadManagerScreenState.Content
+                },
+            )
+        }.onSuccess { _uiState.value = it }
+            .onFailure { throwable ->
+                _uiState.value = DownloadManagerUiState(
+                    selectedFilter = selectedFilter,
+                    screenState = DownloadManagerScreenState.Error(throwable.message.orEmpty()),
+                )
+            }
     }
 }

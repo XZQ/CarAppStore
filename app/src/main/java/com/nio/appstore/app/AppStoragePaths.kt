@@ -24,4 +24,8 @@ class AppStoragePaths(context: Context) {
     /** 下载器工作目录。 */
     val downloadsDir: File =
         appContext.filesDir.resolve("downloads")
+
+    /** 远端商店目录缓存文件。 */
+    val remoteCatalogCacheFile: File =
+        appContext.filesDir.resolve("remote_catalog_cache.json")
 }

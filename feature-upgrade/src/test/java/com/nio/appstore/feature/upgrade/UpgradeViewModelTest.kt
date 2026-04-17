@@ -34,6 +34,21 @@ class UpgradeViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
+    fun `load 有任务时会进入内容态`() = runTest {
+        val viewModel = UpgradeViewModel(
+            appManager = FakeAppManager(),
+            stateCenter = DefaultStateCenter(),
+            upgradeManager = RecordingUpgradeManager(),
+        )
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(UpgradeScreenState.Content, viewModel.uiState.value.screenState)
+        assertEquals(2, viewModel.uiState.value.availableCount)
+    }
+
+    @Test
     fun `onPrimaryClick 为升级动作时会发起升级`() = runTest {
         val appManager = FakeAppManager()
         val upgradeManager = RecordingUpgradeManager()
@@ -67,7 +82,24 @@ class UpgradeViewModelTest {
         assertNull(upgradeManager.startedUpgradeAppId)
     }
 
-    private class FakeAppManager : AppManager {
+    @Test
+    fun `load 失败时会进入错误态`() = runTest {
+        val viewModel = UpgradeViewModel(
+            appManager = FailingAppManager(),
+            stateCenter = DefaultStateCenter(),
+            upgradeManager = RecordingUpgradeManager(),
+        )
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(
+            UpgradeScreenState.Error("upgrade tasks unavailable"),
+            viewModel.uiState.value.screenState,
+        )
+    }
+
+    private open class FakeAppManager : AppManager {
         /** 最近一次被请求打开的包名。 */
         var openedPackageName: String? = null
 
@@ -103,6 +135,10 @@ class UpgradeViewModelTest {
             openedPackageName = packageName
             return true
         }
+    }
+
+    private class FailingAppManager : FakeAppManager() {
+        override suspend fun getUpgradeTasks(): List<UpgradeTaskViewData> = error("upgrade tasks unavailable")
     }
 
     private class RecordingUpgradeManager : UpgradeManager {

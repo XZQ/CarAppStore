@@ -12,4 +12,6 @@ data class UpgradeInfo(
     val apkUrl: String,
     /** 当前是否存在可升级版本。 */
     val hasUpgrade: Boolean,
+    /** 升级变更摘要。 */
+    val changelog: String = "",
 )

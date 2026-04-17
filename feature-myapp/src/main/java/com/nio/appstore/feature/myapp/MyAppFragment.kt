@@ -53,10 +53,13 @@ class MyAppFragment : BaseFragment() {
             viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
                     // 根据结果数量切换副标题文案。
-                    binding.tvMyAppSubtitle.text = if (state.apps.isEmpty()) {
-                        getString(R.string.screen_my_apps_empty_tasks)
-                    } else {
-                        getString(R.string.screen_my_apps_count, state.apps.size)
+                    binding.tvMyAppSubtitle.text = when (val screenState = state.screenState) {
+                        MyAppScreenState.Loading -> getString(R.string.loading)
+                        MyAppScreenState.Content -> getString(R.string.screen_my_apps_count, state.apps.size)
+                        MyAppScreenState.Empty -> getString(R.string.screen_my_apps_empty_tasks)
+                        is MyAppScreenState.Error -> screenState.message.ifBlank {
+                            getString(R.string.screen_my_apps_error_hint)
+                        }
                     }
                     adapter.submitList(state.apps)
                 }

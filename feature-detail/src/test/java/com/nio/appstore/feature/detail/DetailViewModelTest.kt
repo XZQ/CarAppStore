@@ -11,6 +11,8 @@ import com.nio.appstore.data.model.UpgradeTaskViewData
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.download.DownloadManager
 import com.nio.appstore.domain.install.InstallManager
+import com.nio.appstore.domain.policy.PolicyCenter
+import com.nio.appstore.domain.policy.PolicyResult
 import com.nio.appstore.domain.state.DefaultStateCenter
 import com.nio.appstore.domain.state.DownloadStatus
 import com.nio.appstore.domain.state.PrimaryAction
@@ -23,6 +25,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -47,6 +50,7 @@ class DetailViewModelTest {
             installManager = RecordingInstallManager(),
             upgradeManager = upgradeManager,
             stateCenter = stateCenter,
+            policyCenter = FakePolicyCenter(),
         )
 
         viewModel.load(TEST_APP_DETAIL.appId)
@@ -67,6 +71,7 @@ class DetailViewModelTest {
             installManager = RecordingInstallManager(),
             upgradeManager = RecordingUpgradeManager(),
             stateCenter = stateCenter,
+            policyCenter = FakePolicyCenter(),
         )
 
         viewModel.load(TEST_APP_DETAIL.appId)
@@ -90,6 +95,7 @@ class DetailViewModelTest {
             installManager = RecordingInstallManager(),
             upgradeManager = RecordingUpgradeManager(),
             stateCenter = stateCenter,
+            policyCenter = FakePolicyCenter(),
         )
 
         viewModel.load(TEST_APP_DETAIL.appId)
@@ -201,6 +207,27 @@ class DetailViewModelTest {
         override suspend fun checkAllUpgrades(): List<String> = emptyList()
 
         override suspend fun startBatchUpgrade(appIds: List<String>) = Unit
+    }
+
+    private class FakePolicyCenter : PolicyCenter {
+        /** 测试策略流。 */
+        private val settingsFlow = MutableStateFlow(com.nio.appstore.data.model.PolicySettings())
+
+        override fun canDownload(appId: String): PolicyResult = PolicyResult(true)
+
+        override fun canInstall(appId: String): PolicyResult = PolicyResult(true)
+
+        override fun canUpgrade(appId: String): PolicyResult = PolicyResult(true)
+
+        override fun observeSettings() = settingsFlow
+
+        override fun getSettings() = settingsFlow.value
+
+        override fun getStoredSettings() = settingsFlow.value
+
+        override fun updateSettings(settings: com.nio.appstore.data.model.PolicySettings) {
+            settingsFlow.value = settings
+        }
     }
 
     class MainDispatcherRule(

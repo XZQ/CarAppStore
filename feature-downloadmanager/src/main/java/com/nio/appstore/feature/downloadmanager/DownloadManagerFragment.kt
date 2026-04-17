@@ -121,27 +121,48 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    // 头部摘要同时展示下载任务和待安装任务的联合统计。
-                    bindHeaderBlock(
-                        headerBinding = binding.headerBlock,
-                        centerName = getString(R.string.screen_download_center_name),
-                        subtitle = TaskCenterUiFormatter.subtitle(
+                    val showTaskPanels = state.screenState == DownloadManagerScreenState.Content
+                    val showChrome = state.screenState !is DownloadManagerScreenState.Error
+                    val subtitle = when (val screenState = state.screenState) {
+                        DownloadManagerScreenState.Loading -> getString(R.string.loading)
+                        DownloadManagerScreenState.Content -> TaskCenterUiFormatter.subtitle(
                             filter = state.selectedFilter,
                             primaryLabel = getString(R.string.screen_download_primary_label),
                             primaryCount = state.tasks.size,
                             secondaryLabel = getString(R.string.screen_download_secondary_label),
                             secondaryCount = state.installTasks.size,
                             failedCount = state.failedCount,
-                        ),
-                        hint = listOf(
+                        )
+                        DownloadManagerScreenState.Empty -> getString(R.string.screen_download_empty_hint)
+                        is DownloadManagerScreenState.Error -> screenState.message.ifBlank {
+                            getString(R.string.screen_download_error_hint)
+                        }
+                    }
+                    val hint = when (val screenState = state.screenState) {
+                        DownloadManagerScreenState.Loading -> getString(R.string.screen_download_loading_hint)
+                        DownloadManagerScreenState.Content,
+                        DownloadManagerScreenState.Empty,
+                        -> listOf(
                             TaskCenterUiFormatter.headerHint(getString(R.string.screen_download_overview_title)),
                             TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.visibleTaskCount, state.failedCount),
-                        ).joinToString("\n"),
+                        ).joinToString("\n")
+                        is DownloadManagerScreenState.Error -> screenState.message.ifBlank {
+                            getString(R.string.screen_download_error_hint)
+                        }
+                    }
+                    // 头部摘要同时展示下载任务和待安装任务的联合统计。
+                    bindHeaderBlock(
+                        headerBinding = binding.headerBlock,
+                        centerName = getString(R.string.screen_download_center_name),
+                        subtitle = subtitle,
+                        hint = hint,
                         visibleCount = state.visibleTaskCount,
                         totalCount = state.allTaskCount,
                         statsPrefix = getString(R.string.screen_download_overview_hint),
                         stats = state.combinedStats,
                     )
+                    binding.actionBlock.root.visibility = if (showChrome) View.VISIBLE else View.GONE
+                    binding.extensionSlot.root.visibility = if (showChrome) View.VISIBLE else View.GONE
                     bindActionBlock(
                         actionBinding = binding.actionBlock,
                         uiState = TaskCenterActionUiState(
@@ -163,7 +184,7 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
                             failedCount = state.failedCount,
                             primaryText = getString(R.string.screen_download_retry_failed_format, state.failedCount),
                             secondaryText = getString(R.string.action_clear_failed),
-                            showPanel = state.failedCount > 0,
+                            showPanel = showChrome && state.failedCount > 0,
                         ),
                     )
                     bindFailureHandlers(
@@ -179,19 +200,19 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
                             selectedFilter = state.selectedFilter,
                             primaryText = getString(R.string.screen_download_go_home),
                             secondaryText = getString(R.string.screen_download_go_my_apps),
-                            showEmpty = state.visibleTaskCount == 0,
+                            showEmpty = state.screenState == DownloadManagerScreenState.Empty || state.screenState is DownloadManagerScreenState.Error,
                             showSecondary = true,
                         ),
                     )
                     bindListBlock(
                         listBlockBinding = binding.installTaskBlock,
                         sectionName = getString(R.string.screen_install_tasks),
-                        visible = state.installTasks.isNotEmpty(),
+                        visible = showTaskPanels && state.installTasks.isNotEmpty(),
                     )
                     bindListBlock(
                         listBlockBinding = binding.downloadTaskBlock,
                         sectionName = getString(R.string.screen_download_tasks),
-                        visible = state.tasks.isNotEmpty(),
+                        visible = showTaskPanels && state.tasks.isNotEmpty(),
                     )
 
                     // 扩展控制区和双列表会随同一份 UI 状态一起刷新。

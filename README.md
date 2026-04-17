@@ -1,6 +1,6 @@
 # CarAppStore
 
-车载应用商店 Android 工程 — 主链路已通，R1-R6 真实能力全部完成，87 单元测试全绿。
+车载应用商店 Android 工程 — 主链路已通，R1-R6 真实能力全部完成，103 单元测试全绿。
 
 ## 技术栈
 
@@ -31,11 +31,17 @@ feature-*/        8 个页面模块：home、detail、myapp、search、downloadm
 | Repository 真实化（PackageManager 查询、Intent 启动） | ✅ |
 | 批量升级（checkAll、串行执行、策略门控） | ✅ |
 | 升级失败可重试（StateReducer 回退） | ✅ |
+| 资源化商店目录（分类、推荐理由、详情元信息） | ✅ |
+| 远端目录回退链路（HTTP -> 缓存 -> 资源目录） | ✅ |
+| 策略中心可观察化（设置流驱动页面刷新） | ✅ |
+| 实时策略信号（网络/存储监听接入） | ✅ |
+| 首页/搜索/详情页页面状态机 | ✅ |
+| 我的应用/任务中心页面状态机 | ✅ |
 
 ## 构建与测试
 
 ```bash
-./gradlew testDebugUnitTest    # 87 tests, 0 failures
+./gradlew testDebugUnitTest    # 103 tests, 0 failures
 ./gradlew compileDebugKotlin   # 全量编译
 ./gradlew app:assemble         # 构建 APK
 ```
@@ -62,6 +68,6 @@ JBR 17 路径已固定在 `gradle.properties`。
 ## 下一步
 
 1. 真实设备联调下载→安装→升级全链路
-2. 远端数据接入（替换硬编码 app 列表）
-3. 策略动态化（监听网络/驻车状态实时刷新）
-4. ViewModel loading/error 状态完善
+2. 远端数据接入（把当前 HTTP/缓存/资源回退链路接到真实 API）
+3. 策略动态化（补驻车/OEM 车况真实信号，而非仅网络/存储）
+4. 真实后端/OEM 联调清单落地并推进外部对接

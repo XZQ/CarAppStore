@@ -22,6 +22,7 @@ import com.nio.appstore.domain.state.DefaultStateCenter
 import com.nio.appstore.domain.state.DownloadStatus
 import com.nio.appstore.domain.state.InstallStatus
 import com.nio.appstore.domain.state.UpgradeStatus
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -149,7 +150,7 @@ class DefaultUpgradeManagerTest {
     private fun createManager(
         policyCenter: PolicyCenter = AllowAllPolicyCenter(),
     ): DefaultUpgradeManager {
-        val apkFile = File(workDir, "test.apk").apply { parentFile?.mkdirs() }
+        File(workDir, "test.apk").apply { parentFile?.mkdirs() }
         val packageInstaller = object : com.nio.appstore.core.installer.PackageInstaller {
             override suspend fun install(
                 request: InstallRequest,
@@ -211,19 +212,31 @@ class DefaultUpgradeManagerTest {
     }
 
     private class AllowAllPolicyCenter : PolicyCenter {
+        /** 测试策略流。 */
+        private val settingsFlow = MutableStateFlow(com.nio.appstore.data.model.PolicySettings())
         override fun canDownload(appId: String) = PolicyResult(true)
         override fun canInstall(appId: String) = PolicyResult(true)
         override fun canUpgrade(appId: String) = PolicyResult(true)
-        override fun getSettings() = com.nio.appstore.data.model.PolicySettings()
-        override fun updateSettings(settings: com.nio.appstore.data.model.PolicySettings) = Unit
+        override fun observeSettings() = settingsFlow
+        override fun getSettings() = settingsFlow.value
+        override fun getStoredSettings() = settingsFlow.value
+        override fun updateSettings(settings: com.nio.appstore.data.model.PolicySettings) {
+            settingsFlow.value = settings
+        }
     }
 
     private class DenyAllPolicyCenter : PolicyCenter {
+        /** 测试策略流。 */
+        private val settingsFlow = MutableStateFlow(com.nio.appstore.data.model.PolicySettings())
         override fun canDownload(appId: String) = PolicyResult(false, "禁止")
         override fun canInstall(appId: String) = PolicyResult(false, "禁止")
         override fun canUpgrade(appId: String) = PolicyResult(false, "禁止")
-        override fun getSettings() = com.nio.appstore.data.model.PolicySettings()
-        override fun updateSettings(settings: com.nio.appstore.data.model.PolicySettings) = Unit
+        override fun observeSettings() = settingsFlow
+        override fun getSettings() = settingsFlow.value
+        override fun getStoredSettings() = settingsFlow.value
+        override fun updateSettings(settings: com.nio.appstore.data.model.PolicySettings) {
+            settingsFlow.value = settings
+        }
     }
 
     private class QuietLogger : AppLogger() {
