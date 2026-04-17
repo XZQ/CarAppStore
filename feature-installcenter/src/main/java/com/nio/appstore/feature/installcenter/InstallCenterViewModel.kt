@@ -48,7 +48,7 @@ class InstallCenterViewModel(
     /** 初始化页面并开始观察安装状态变化。 */
     fun load() {
         viewModelScope.launch {
-            refresh()
+            refresh(showLoading = true)
             observeStateChanges()
         }
     }
@@ -158,34 +158,51 @@ class InstallCenterViewModel(
     }
 
     /** 重新计算安装中心页面状态。 */
-    private suspend fun refresh() {
-        val allTasks = appManager.getInstallTasks()
-        val visible = allTasks
-            .filter { selectedFilter.matches(it.overallStatus) }
-            .filter { selectedSessionFilter.matches(it.sessionBucket) }
+    private suspend fun refresh(showLoading: Boolean = false) {
+        if (showLoading) {
+            _uiState.value = _uiState.value.copy(screenState = InstallCenterScreenState.Loading)
+        }
+        runCatching {
+            val allTasks = appManager.getInstallTasks()
+            val visible = allTasks
+                .filter { selectedFilter.matches(it.overallStatus) }
+                .filter { selectedSessionFilter.matches(it.sessionBucket) }
 
-        // 基于全部任务和当前可见任务分别计算失败数、可执行数和会话分桶摘要。
-        val summary = summarize(allTasks, visible)
+            // 基于全部任务和当前可见任务分别计算失败数、可执行数和会话分桶摘要。
+            val summary = summarize(allTasks, visible)
 
-        _uiState.value = InstallCenterUiState(
-            tasks = visible,
-            allTaskCount = allTasks.size,
-            failedCount = summary.failedCount,
-            stats = appManager.getInstallTaskStats(),
-            selectedFilter = selectedFilter,
-            selectedSessionFilter = selectedSessionFilter,
-            batchRunnableCount = summary.runnableCount,
-            clearFailedCount = summary.failedCount,
-            activeSessionCount = visible.count { it.sessionBucket == SessionBucket.ACTIVE },
-            failedSessionCount = visible.count { it.sessionBucket == SessionBucket.FAILED },
-            recoveredSessionCount = visible.count { it.sessionBucket == SessionBucket.RECOVERED },
-            showFailurePanel = summary.failedCount > 0,
-            controlsUiState = InstallCenterControlsUiState(
-                runnableCount = summary.runnableCount,
-                failedCount = summary.failedCount + summary.recoveredSessionCount,
-                retryableSessionCount = summary.retryableSessionCount,
-                recoveredSessionCount = summary.recoveredSessionCount,
-            ),
-        )
+            InstallCenterUiState(
+                tasks = visible,
+                allTaskCount = allTasks.size,
+                failedCount = summary.failedCount,
+                stats = appManager.getInstallTaskStats(),
+                selectedFilter = selectedFilter,
+                selectedSessionFilter = selectedSessionFilter,
+                batchRunnableCount = summary.runnableCount,
+                clearFailedCount = summary.failedCount,
+                activeSessionCount = visible.count { it.sessionBucket == SessionBucket.ACTIVE },
+                failedSessionCount = visible.count { it.sessionBucket == SessionBucket.FAILED },
+                recoveredSessionCount = visible.count { it.sessionBucket == SessionBucket.RECOVERED },
+                showFailurePanel = summary.failedCount > 0,
+                controlsUiState = InstallCenterControlsUiState(
+                    runnableCount = summary.runnableCount,
+                    failedCount = summary.failedCount + summary.recoveredSessionCount,
+                    retryableSessionCount = summary.retryableSessionCount,
+                    recoveredSessionCount = summary.recoveredSessionCount,
+                ),
+                screenState = if (visible.isEmpty()) {
+                    InstallCenterScreenState.Empty
+                } else {
+                    InstallCenterScreenState.Content
+                },
+            )
+        }.onSuccess { _uiState.value = it }
+            .onFailure { throwable ->
+                _uiState.value = InstallCenterUiState(
+                    selectedFilter = selectedFilter,
+                    selectedSessionFilter = selectedSessionFilter,
+                    screenState = InstallCenterScreenState.Error(throwable.message.orEmpty()),
+                )
+            }
     }
 }

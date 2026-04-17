@@ -32,4 +32,30 @@ data class DownloadManagerUiState(
     val visibleTaskCount: Int = 0,
     /** 下载中心页面头部展示用的合并统计数据。 */
     val combinedStats: TaskCenterStats = TaskCenterStats(),
+    /** 当前显式页面状态机。 */
+    val screenState: DownloadManagerScreenState = DownloadManagerScreenState.Loading,
 )
+
+/**
+ * DownloadManagerScreenState 描述下载中心当前页面状态。
+ */
+sealed interface DownloadManagerScreenState {
+    /** 页面正在同步下载中心数据。 */
+    data object Loading : DownloadManagerScreenState
+
+    /** 页面已有可展示内容。 */
+    data object Content : DownloadManagerScreenState
+
+    /** 页面暂无可展示内容。 */
+    data object Empty : DownloadManagerScreenState
+
+    /**
+     * 页面加载失败。
+     *
+     * @property message 当前需要展示给用户的失败原因。
+     */
+    data class Error(
+        /** 当前需要展示给用户的失败原因。 */
+        val message: String,
+    ) : DownloadManagerScreenState
+}

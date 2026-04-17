@@ -21,6 +21,7 @@ import com.nio.appstore.domain.policy.PolicyCenter
 import com.nio.appstore.domain.policy.PolicyResult
 import com.nio.appstore.domain.state.DefaultStateCenter
 import com.nio.appstore.domain.state.DownloadStatus
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -371,15 +372,24 @@ class DefaultDownloadManagerTest {
 
     /** 允许所有下载动作通过的策略中心替身。 */
     private class AllowAllPolicyCenter : PolicyCenter {
+        /** 测试策略流。 */
+        private val settingsFlow = MutableStateFlow(PolicySettings())
+
         override fun canDownload(appId: String): PolicyResult = PolicyResult(allow = true)
 
         override fun canInstall(appId: String): PolicyResult = PolicyResult(allow = true)
 
         override fun canUpgrade(appId: String): PolicyResult = PolicyResult(allow = true)
 
-        override fun getSettings(): PolicySettings = PolicySettings()
+        override fun observeSettings() = settingsFlow
 
-        override fun updateSettings(settings: PolicySettings) = Unit
+        override fun getSettings(): PolicySettings = settingsFlow.value
+
+        override fun getStoredSettings(): PolicySettings = settingsFlow.value
+
+        override fun updateSettings(settings: PolicySettings) {
+            settingsFlow.value = settings
+        }
     }
 
     /** 静默日志器，避免 JVM 单测中触发 Android Log。 */

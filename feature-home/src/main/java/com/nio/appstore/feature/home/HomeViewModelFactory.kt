@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.download.DownloadManager
 import com.nio.appstore.domain.install.InstallManager
+import com.nio.appstore.domain.policy.PolicyCenter
 import com.nio.appstore.domain.state.StateCenter
 import com.nio.appstore.domain.upgrade.UpgradeManager
 
@@ -19,6 +20,8 @@ class HomeViewModelFactory(
     private val installManager: InstallManager,
     /** 提供首页卡片主动作的升级入口。 */
     private val upgradeManager: UpgradeManager,
+    /** 提供首页策略观察能力。 */
+    private val policyCenter: PolicyCenter,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     /** 创建首页 ViewModel。 */
@@ -29,6 +32,7 @@ class HomeViewModelFactory(
             downloadManager = downloadManager,
             installManager = installManager,
             upgradeManager = upgradeManager,
+            policyCenter = policyCenter,
         ) as T
     }
 }

@@ -50,6 +50,14 @@
                 android:text="@string/ui_download_environment_hint_dev"
                 android:textSize="14sp" />
 
+            <TextView
+                android:id="@+id/tvCatalogSource"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/ui_catalog_source_current_format"
+                android:textSize="14sp" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

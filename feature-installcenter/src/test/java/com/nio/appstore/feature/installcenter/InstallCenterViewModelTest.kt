@@ -37,6 +37,23 @@ class InstallCenterViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
+    fun `load 有任务时会进入内容态`() = runTest {
+        val viewModel = InstallCenterViewModel(
+            appManager = FakeAppManager(),
+            stateCenter = DefaultStateCenter(),
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            installSessionStore = InstallSessionStore(Files.createTempFile("install-center-load", ".json").toFile()),
+        )
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(InstallCenterScreenState.Content, viewModel.uiState.value.screenState)
+        assertEquals(1, viewModel.uiState.value.tasks.size)
+    }
+
+    @Test
     fun `onPrimaryClick 为重试安装动作时会发起安装`() = runTest {
         val installManager = RecordingInstallManager()
         val viewModel = InstallCenterViewModel(
@@ -53,7 +70,26 @@ class InstallCenterViewModelTest {
         assertEquals(TEST_RETRY_INSTALL_TASK.appId, installManager.installedAppId)
     }
 
-    private class FakeAppManager : AppManager {
+    @Test
+    fun `load 失败时会进入错误态`() = runTest {
+        val viewModel = InstallCenterViewModel(
+            appManager = FailingAppManager(),
+            stateCenter = DefaultStateCenter(),
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            installSessionStore = InstallSessionStore(Files.createTempFile("install-center-fail", ".json").toFile()),
+        )
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(
+            InstallCenterScreenState.Error("install tasks unavailable"),
+            viewModel.uiState.value.screenState,
+        )
+    }
+
+    private open class FakeAppManager : AppManager {
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
 
         override suspend fun getAppDetail(appId: String): AppDetail = TEST_APP_DETAIL
@@ -83,6 +119,10 @@ class InstallCenterViewModelTest {
         override fun getPolicyPrompt(): String = ""
 
         override fun openApp(packageName: String): Boolean = true
+    }
+
+    private class FailingAppManager : FakeAppManager() {
+        override suspend fun getInstallTasks(): List<InstallTaskViewData> = error("install tasks unavailable")
     }
 
     private class RecordingInstallManager : InstallManager {

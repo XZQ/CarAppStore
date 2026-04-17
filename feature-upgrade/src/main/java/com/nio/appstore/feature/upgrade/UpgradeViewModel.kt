@@ -38,7 +38,7 @@ class UpgradeViewModel(
     /** 初始化升级中心并开始监听状态变化。 */
     fun load() {
         viewModelScope.launch {
-            refresh()
+            refresh(showLoading = true)
             observeStateChanges()
         }
     }
@@ -95,23 +95,39 @@ class UpgradeViewModel(
     }
 
     /** 重新计算升级中心页面状态。 */
-    private suspend fun refresh() {
-        val allTasks = appManager.getUpgradeTasks()
-        val visible = allTasks.filter { selectedFilter.matches(it.overallStatus) }
-        val failedCount = allTasks.count { !it.reasonText.isNullOrBlank() }
-        val runnableCount = visible.count { it.primaryAction == PrimaryAction.UPGRADE }
-        _uiState.value = UpgradeUiState(
-            tasks = visible,
-            availableCount = allTasks.size,
-            failedCount = failedCount,
-            stats = appManager.getUpgradeTaskStats(),
-            selectedFilter = selectedFilter,
-            batchRunnableCount = runnableCount,
-            showFailurePanel = failedCount > 0,
-            controlsUiState = UpgradeCenterControlsUiState(
-                runnableCount = runnableCount,
+    private suspend fun refresh(showLoading: Boolean = false) {
+        if (showLoading) {
+            _uiState.value = _uiState.value.copy(screenState = UpgradeScreenState.Loading)
+        }
+        runCatching {
+            val allTasks = appManager.getUpgradeTasks()
+            val visible = allTasks.filter { selectedFilter.matches(it.overallStatus) }
+            val failedCount = allTasks.count { !it.reasonText.isNullOrBlank() }
+            val runnableCount = visible.count { it.primaryAction == PrimaryAction.UPGRADE }
+            UpgradeUiState(
+                tasks = visible,
+                availableCount = allTasks.size,
                 failedCount = failedCount,
-            ),
-        )
+                stats = appManager.getUpgradeTaskStats(),
+                selectedFilter = selectedFilter,
+                batchRunnableCount = runnableCount,
+                showFailurePanel = failedCount > 0,
+                controlsUiState = UpgradeCenterControlsUiState(
+                    runnableCount = runnableCount,
+                    failedCount = failedCount,
+                ),
+                screenState = if (visible.isEmpty()) {
+                    UpgradeScreenState.Empty
+                } else {
+                    UpgradeScreenState.Content
+                },
+            )
+        }.onSuccess { _uiState.value = it }
+            .onFailure { throwable ->
+                _uiState.value = UpgradeUiState(
+                    selectedFilter = selectedFilter,
+                    screenState = UpgradeScreenState.Error(throwable.message.orEmpty()),
+                )
+            }
     }
 }
