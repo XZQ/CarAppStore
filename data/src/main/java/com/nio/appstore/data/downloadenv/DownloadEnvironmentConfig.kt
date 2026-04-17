@@ -22,6 +22,8 @@ data class DownloadEnvironmentConfig(
     val allowDirectHttp: Boolean = true,
     /** 当前环境下商店目录接口地址。 */
     val catalogEndpointUrl: String? = null,
+    /** 当前环境下商店目录附加请求头。 */
+    val catalogRequestHeaders: Map<String, String> = emptyMap(),
 ) {
     companion object {
         /** 根据下载环境生成对应的能力配置。 */
@@ -33,6 +35,7 @@ data class DownloadEnvironmentConfig(
                     allowMockSource = true,
                     allowDirectHttp = true,
                     catalogEndpointUrl = null,
+                    catalogRequestHeaders = emptyMap(),
                 )
                 DownloadEnvironment.TEST -> DownloadEnvironmentConfig(
                     environment = environment,
@@ -40,6 +43,10 @@ data class DownloadEnvironmentConfig(
                     allowMockSource = true,
                     allowDirectHttp = true,
                     catalogEndpointUrl = "https://test.example.org/carappstore/catalog.json",
+                    catalogRequestHeaders = mapOf(
+                        "X-Client-Channel" to "carappstore-test",
+                        "X-Client-Platform" to "android-car",
+                    ),
                 )
                 DownloadEnvironment.PROD -> DownloadEnvironmentConfig(
                     environment = environment,
@@ -47,6 +54,10 @@ data class DownloadEnvironmentConfig(
                     allowMockSource = false,
                     allowDirectHttp = true,
                     catalogEndpointUrl = "https://cdn.example.com/carappstore/catalog.json",
+                    catalogRequestHeaders = mapOf(
+                        "X-Client-Channel" to "carappstore-prod",
+                        "X-Client-Platform" to "android-car",
+                    ),
                 )
             }
         }

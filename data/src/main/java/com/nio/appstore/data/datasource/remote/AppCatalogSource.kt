@@ -32,10 +32,14 @@ class ResilientAppCatalogSource(
     private val loader: AppCatalogLoader,
     /** 目录接口地址。 */
     private val endpointUrl: String?,
+    /** 目录请求头配置。 */
+    private val requestHeaders: Map<String, String>,
     /** 目录 HTTP 客户端。 */
     private val httpClient: AppCatalogHttpClient,
     /** 目录缓存文件。 */
     private val cacheFile: File?,
+    /** 目录缓存元数据文件。 */
+    private val cacheMetadataFile: File?,
     /** 资源目录兜底源。 */
     private val fallbackSource: AppCatalogSource,
     /** 日志入口。 */
@@ -57,10 +61,34 @@ class ResilientAppCatalogSource(
     private suspend fun loadFromHttp(): List<RemoteCatalogItem>? {
         if (endpointUrl.isNullOrBlank()) return null
         return runCatching {
-            val responseText = httpClient.fetch(requireNotNull(endpointUrl))
+            val cachedMetadata = cacheMetadataFile?.let(AppCatalogCacheMetadataStore::read)
+            val response = httpClient.fetch(
+                AppCatalogHttpRequest(
+                    endpointUrl = requireNotNull(endpointUrl),
+                    headers = requestHeaders,
+                    eTag = cachedMetadata?.eTag,
+                    lastModified = cachedMetadata?.lastModified,
+                )
+            )
+            if (response.notModified) {
+                return@runCatching loadFromCache()
+            }
+            val responseText = requireNotNull(response.body) { "catalog response body is empty" }
             val catalog = loader.parse(responseText)
             withContext(Dispatchers.IO) {
-                cacheFile?.writeText(responseText, Charsets.UTF_8)
+                cacheFile?.apply {
+                    parentFile?.mkdirs()
+                    writeText(responseText, Charsets.UTF_8)
+                }
+                cacheMetadataFile?.let {
+                    AppCatalogCacheMetadataStore.write(
+                        it,
+                        AppCatalogCacheMetadata(
+                            eTag = response.eTag,
+                            lastModified = response.lastModified,
+                        )
+                    )
+                }
             }
             catalog
         }.onFailure {

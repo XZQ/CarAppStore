@@ -28,4 +28,8 @@ class AppStoragePaths(context: Context) {
     /** 远端商店目录缓存文件。 */
     val remoteCatalogCacheFile: File =
         appContext.filesDir.resolve("remote_catalog_cache.json")
+
+    /** 远端商店目录缓存元数据文件。 */
+    val remoteCatalogCacheMetadataFile: File =
+        appContext.filesDir.resolve("remote_catalog_cache.meta.json")
 }

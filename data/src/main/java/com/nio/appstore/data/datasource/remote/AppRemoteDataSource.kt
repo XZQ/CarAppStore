@@ -13,10 +13,14 @@ class AppRemoteDataSource(
     private val sourceCatalog: DownloadSourceCatalog,
     /** 当前环境下商店目录接口地址。 */
     catalogEndpointUrl: String? = null,
+    /** 当前环境下商店目录附加请求头。 */
+    catalogRequestHeaders: Map<String, String> = emptyMap(),
     /** 目录 HTTP 客户端。 */
     httpClient: AppCatalogHttpClient = HttpUrlConnectionAppCatalogHttpClient(),
     /** 商店目录缓存文件。 */
     catalogCacheFile: File? = null,
+    /** 商店目录缓存元数据文件。 */
+    catalogCacheMetadataFile: File? = null,
 ) {
     /** 远端目录读取器。 */
     private val catalogLoader = AppRemoteCatalogLoader(context)
@@ -24,8 +28,10 @@ class AppRemoteDataSource(
     private val catalogSource: AppCatalogSource = ResilientAppCatalogSource(
         loader = catalogLoader,
         endpointUrl = catalogEndpointUrl,
+        requestHeaders = catalogRequestHeaders,
         httpClient = httpClient,
         cacheFile = catalogCacheFile,
+        cacheMetadataFile = catalogCacheMetadataFile,
         fallbackSource = ResourceAppCatalogSource(catalogLoader),
         logger = AppLogger(),
     )
