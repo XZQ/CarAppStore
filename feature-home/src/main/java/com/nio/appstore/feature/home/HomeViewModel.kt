@@ -7,6 +7,7 @@ import com.nio.appstore.domain.action.AppPrimaryActionExecutor
 import com.nio.appstore.domain.appmanager.AppManager
 import com.nio.appstore.domain.download.DownloadManager
 import com.nio.appstore.domain.install.InstallManager
+import com.nio.appstore.domain.policy.PolicyCenter
 import com.nio.appstore.domain.state.StateCenter
 import com.nio.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Job
@@ -25,11 +26,15 @@ class HomeViewModel(
     private val installManager: InstallManager,
     /** 首页卡片发起升级时复用的升级入口。 */
     private val upgradeManager: UpgradeManager,
+    /** 用于监听页面策略变化并刷新提示。 */
+    private val policyCenter: PolicyCenter,
 ) :
     BaseViewModel<HomeUiState>(HomeUiState()) {
 
     /** 首页状态订阅任务，避免重复注册观察。 */
     private var observeJob: Job? = null
+    /** 首页策略订阅任务。 */
+    private var observePolicyJob: Job? = null
 
     /** 首页卡片和详情共用的主动作分发器。 */
     private val primaryActionExecutor = AppPrimaryActionExecutor(
@@ -42,8 +47,10 @@ class HomeViewModel(
     /** 初始化首页数据并开始监听状态变化。 */
     fun load() {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(screenState = HomeScreenState.Loading)
             refreshApps()
             observeStateChanges()
+            observePolicyChanges()
         }
     }
 
@@ -51,9 +58,15 @@ class HomeViewModel(
     private fun observeStateChanges() {
         if (observeJob != null) return
         observeJob = stateCenter.observeAll()
-            .onEach {
-                refreshApps()
-            }
+            .onEach { refreshApps() }
+            .launchIn(viewModelScope)
+    }
+
+    /** 监听页面策略变化，并在变化时刷新首页列表。 */
+    private fun observePolicyChanges() {
+        if (observePolicyJob != null) return
+        observePolicyJob = policyCenter.observeSettings()
+            .onEach { refreshApps() }
             .launchIn(viewModelScope)
     }
 
@@ -70,10 +83,20 @@ class HomeViewModel(
 
     /** 重新加载首页应用列表和策略提示。 */
     private suspend fun refreshApps() {
-        _uiState.value = HomeUiState(
-            loading = false,
-            apps = appManager.getHomeApps(),
-            policyPrompt = appManager.getPolicyPrompt(),
-        )
+        runCatching {
+            val apps = appManager.getHomeApps()
+            HomeUiState(
+                loading = false,
+                apps = apps,
+                policyPrompt = appManager.getPolicyPrompt(),
+                screenState = if (apps.isEmpty()) HomeScreenState.Empty else HomeScreenState.Content,
+            )
+        }.onSuccess { _uiState.value = it }
+            .onFailure { throwable ->
+                _uiState.value = HomeUiState(
+                    loading = false,
+                    screenState = HomeScreenState.Error(throwable.message.orEmpty()),
+                )
+            }
     }
 }

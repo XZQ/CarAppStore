@@ -23,7 +23,7 @@ class MyAppViewModel(
     /** 初始化页面数据并开始监听状态变化。 */
     fun load() {
         viewModelScope.launch {
-            refreshApps()
+            refreshApps(showLoading = true)
             observeStateChanges()
         }
     }
@@ -39,7 +39,21 @@ class MyAppViewModel(
     }
 
     /** 重新加载“我的应用”列表。 */
-    private suspend fun refreshApps() {
-        _uiState.value = MyAppUiState(appManager.getMyApps())
+    private suspend fun refreshApps(showLoading: Boolean = false) {
+        if (showLoading) {
+            _uiState.value = _uiState.value.copy(screenState = MyAppScreenState.Loading)
+        }
+        runCatching {
+            val apps = appManager.getMyApps()
+            MyAppUiState(
+                apps = apps,
+                screenState = if (apps.isEmpty()) MyAppScreenState.Empty else MyAppScreenState.Content,
+            )
+        }.onSuccess { _uiState.value = it }
+            .onFailure { throwable ->
+                _uiState.value = MyAppUiState(
+                    screenState = MyAppScreenState.Error(throwable.message.orEmpty()),
+                )
+            }
     }
 }
