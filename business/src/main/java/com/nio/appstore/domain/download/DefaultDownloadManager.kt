@@ -71,6 +71,7 @@ class DefaultDownloadManager(
      * 当前实现会先注册活动任务，再在后台协程中执行真正的下载流程。
      */
     override suspend fun startDownload(appId: String) {
+        require(appId.isNotBlank()) { "appId 不能为空" }
         val control = DownloadExecutionControl()
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
@@ -100,6 +101,7 @@ class DefaultDownloadManager(
 
     /** 将指定下载任务切换为暂停状态。 */
     override suspend fun pauseDownload(appId: String) {
+        require(appId.isNotBlank()) { "appId 不能为空" }
         val execution = getActiveExecution(appId)
         if (execution != null) {
             execution.control.requestPause()
@@ -121,6 +123,7 @@ class DefaultDownloadManager(
 
     /** 恢复处于暂停、失败或取消状态的下载任务。 */
     override suspend fun resumeDownload(appId: String) {
+        require(appId.isNotBlank()) { "appId 不能为空" }
         val execution = getActiveExecution(appId)
         if (execution != null) {
             // 用户在暂停刚落盘后立即恢复时，先等待旧协程彻底收尾，避免被活动任务注册表误判为重复启动。
@@ -138,6 +141,7 @@ class DefaultDownloadManager(
 
     /** 取消下载任务，并清理 APK 路径与分片信息。 */
     override suspend fun cancelDownload(appId: String) {
+        require(appId.isNotBlank()) { "appId 不能为空" }
         val execution = getActiveExecution(appId)
         if (execution != null) {
             execution.control.requestCancel()
@@ -179,6 +183,7 @@ class DefaultDownloadManager(
 
     /** 删除下载任务，并根据参数决定是否一起删除本地文件。 */
     override suspend fun removeTask(appId: String, clearFile: Boolean) {
+        require(appId.isNotBlank()) { "appId 不能为空" }
         val snapshot = stateCenter.snapshot(appId)
         if (clearFile) {
             repository.clearDownloadedApk(appId)

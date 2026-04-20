@@ -5,31 +5,28 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.fragment.app.Fragment
+import android.widget.Toast
 import com.nio.appstore.common.R
+import com.nio.appstore.common.base.BaseFragment
 import com.nio.appstore.data.downloadenv.DownloadEnvironmentConfig
 import com.nio.appstore.data.downloadenv.DownloadEnvironment
 import com.nio.appstore.data.downloadenv.DownloadEnvironmentEntry
 import com.nio.appstore.data.downloadenv.LocalDownloadEnvironmentProvider
-import com.nio.appstore.common.navigation.MainNavigator
 import com.nio.appstore.feature.debug.databinding.FragmentDeveloperSettingsBinding
 
-class DeveloperSettingsFragment : Fragment() {
+class DeveloperSettingsFragment : BaseFragment() {
 
     /** 当前页面的 ViewBinding。 */
     private var _binding: FragmentDeveloperSettingsBinding? = null
     /** 对外暴露的非空 Binding 访问入口。 */
     private val binding get() = _binding!!
 
-    /** 顶部导航控制器。 */
-    private lateinit var navigator: MainNavigator
     /** 下载环境配置读写入口。 */
     private lateinit var environmentProvider: LocalDownloadEnvironmentProvider
 
-    /** 在附着到 Activity 时初始化导航器和环境配置入口。 */
+    /** 在附着到 Activity 时初始化环境配置入口。 */
     override fun onAttach(context: Context) {
         super.onAttach(context)
-        navigator = context as MainNavigator
         environmentProvider = LocalDownloadEnvironmentProvider(context.applicationContext)
     }
 
@@ -39,11 +36,14 @@ class DeveloperSettingsFragment : Fragment() {
         return binding.root
     }
 
-    /** 初始化页面标题和环境切换区。 */
+    /** 初始化页面标题和所有面板。 */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         navigator.updateTitle(getString(R.string.ui_developer_settings))
         bindEnvironmentSection()
+        bindPolicySignalsSection()
+        bindVersionInfoSection()
+        bindCacheManagementSection()
     }
 
     /** 绑定下载环境切换按钮。 */
@@ -78,6 +78,10 @@ class DeveloperSettingsFragment : Fragment() {
             R.string.ui_catalog_source_current_format,
             resolveCatalogSourceText(config),
         )
+        binding.tvDownloadBaseUrl.text = getString(
+            R.string.ui_debug_download_base_url_format,
+            config.downloadBaseUrl,
+        )
     }
 
     /** 根据当前环境配置生成目录来源说明。 */
@@ -88,6 +92,70 @@ class DeveloperSettingsFragment : Fragment() {
         } else {
             getString(R.string.ui_catalog_source_http_with_fallback, endpoint)
         }
+    }
+
+    /** 绑定策略信号面板，展示当前 Wi‑Fi、存储和驻车状态。 */
+    private fun bindPolicySignalsSection() {
+        renderPolicySignals()
+
+        binding.btnRefreshSignals.setOnClickListener {
+            renderPolicySignals()
+        }
+    }
+
+    /** 读取当前策略信号并刷新面板文案。 */
+    private fun renderPolicySignals() {
+        val policyCenter = appServices.policyCenter
+        val settings = policyCenter.getSettings()
+
+        binding.tvWifiStatus.text = getString(
+            R.string.ui_debug_wifi_status_format,
+            booleanText(settings.wifiConnected),
+        )
+        binding.tvStorageStatus.text = getString(
+            R.string.ui_debug_storage_status_format,
+            booleanText(settings.lowStorageMode),
+        )
+        binding.tvParkingStatus.text = getString(
+            R.string.ui_debug_parking_status_format,
+            booleanText(settings.parkingMode),
+        )
+    }
+
+    /** 绑定版本信息面板，展示应用版本号和包名。 */
+    private fun bindVersionInfoSection() {
+        val context = context ?: return
+        val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        binding.tvVersionInfo.text = getString(
+            R.string.ui_debug_version_format,
+            packageInfo.versionName,
+            packageInfo.longVersionCode.toInt(),
+        )
+        binding.tvPackageName.text = getString(
+            R.string.ui_debug_package_format,
+            context.packageName,
+        )
+    }
+
+    /** 绑定缓存管理面板，提供清除本地缓存入口。 */
+    private fun bindCacheManagementSection() {
+        binding.btnClearCache.setOnClickListener {
+            val context = context ?: return@setOnClickListener
+            clearCache(context)
+            Toast.makeText(context, getString(R.string.ui_debug_cache_cleared), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 清除应用缓存目录。 */
+    private fun clearCache(context: Context) {
+        val cacheDir = context.cacheDir
+        cacheDir?.deleteRecursively()
+        context.externalCacheDir?.deleteRecursively()
+    }
+
+    /** 将布尔值转换为可读文案。 */
+    private fun booleanText(value: Boolean): String {
+        return if (value) getString(R.string.ui_debug_yes) else getString(R.string.ui_debug_no)
     }
 
     /** 释放页面 Binding。 */

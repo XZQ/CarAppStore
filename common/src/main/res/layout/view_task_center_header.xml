@@ -9,7 +9,7 @@
         android:layout_height="wrap_content"
         android:background="@drawable/bg_panel"
         android:orientation="vertical"
-        android:padding="18dp"
+        android:padding="@dimen/spacing_18dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -21,108 +21,108 @@
         android:layout_height="wrap_content"
         android:text="@string/ui_task_center"
         android:textColor="@color/car_text_primary"
-        android:textSize="24sp"
+        android:textSize="@dimen/text_2xl"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/tvCenterSubtitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="@dimen/spacing_12dp"
         android:text="@string/ui_empty_tasks"
         android:textColor="@color/car_text_secondary"
-        android:textSize="14sp" />
+        android:textSize="@dimen/text_sm" />
 
     <TextView
         android:id="@+id/tvCenterHint"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="@dimen/spacing_8dp"
         android:text="@string/ui_task_center_header_hint"
         android:textColor="@color/car_text_hint"
-        android:textSize="12sp" />
+        android:textSize="@dimen/text_xs" />
 
     <TextView
         android:id="@+id/tvCenterSummary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:background="@drawable/bg_panel"
-        android:padding="10dp"
+        android:padding="@dimen/spacing_10dp"
         android:text="@string/ui_task_center_header_summary_zero"
         android:textColor="@color/car_text_primary"
-        android:textSize="12sp" />
+        android:textSize="@dimen/text_xs" />
 
     <TextView
         android:id="@+id/tvStatsSectionTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="@dimen/spacing_14dp"
         android:text="@string/ui_task_summary"
         android:textColor="@color/car_text_primary"
-        android:textSize="13sp"
+        android:textSize="@dimen/text_sm_13"
         android:textStyle="bold" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:orientation="horizontal">
 
         <TextView
             android:id="@+id/tvStatActive"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="6dp"
+            android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
             android:background="@drawable/bg_task_card_active"
             android:gravity="center"
-            android:padding="10dp"
+            android:padding="@dimen/spacing_10dp"
             android:text="@string/ui_task_running_zero"
             android:textColor="@color/car_text_primary"
-            android:textSize="12sp"
+            android:textSize="@dimen/text_xs"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvStatPending"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="2dp"
+            android:layout_marginHorizontal="@dimen/spacing_2dp"
             android:layout_weight="1"
             android:background="@drawable/bg_task_card_pending"
             android:gravity="center"
-            android:padding="10dp"
+            android:padding="@dimen/spacing_10dp"
             android:text="@string/ui_task_pending_zero"
             android:textColor="@color/car_text_primary"
-            android:textSize="12sp"
+            android:textSize="@dimen/text_xs"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvStatFailed"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="2dp"
+            android:layout_marginHorizontal="@dimen/spacing_2dp"
             android:layout_weight="1"
             android:background="@drawable/bg_task_card_failed"
             android:gravity="center"
-            android:padding="10dp"
+            android:padding="@dimen/spacing_10dp"
             android:text="@string/ui_task_failed_zero"
             android:textColor="@color/car_text_primary"
-            android:textSize="12sp"
+            android:textSize="@dimen/text_xs"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvStatCompleted"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
             android:background="@drawable/bg_task_card_completed"
             android:gravity="center"
-            android:padding="10dp"
+            android:padding="@dimen/spacing_10dp"
             android:text="@string/ui_task_completed_zero"
             android:textColor="@color/car_text_primary"
-            android:textSize="12sp"
+            android:textSize="@dimen/text_xs"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -130,10 +130,10 @@
         android:id="@+id/tvStatSummary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:text="@string/ui_task_overview_zero"
         android:textColor="@color/car_text_secondary"
-        android:textSize="12sp" />
+        android:textSize="@dimen/text_xs" />
 
     </LinearLayout>
 

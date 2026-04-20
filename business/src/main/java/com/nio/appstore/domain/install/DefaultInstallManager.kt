@@ -35,6 +35,7 @@ class DefaultInstallManager(
      * 该方法负责策略校验、APK 校验以及消费底层安装事件。
      */
     override suspend fun install(appId: String) {
+        require(appId.isNotBlank()) { "appId 不能为空" }
         // 安装前先做策略判断，避免在不允许安装时继续进入系统会话。
         val policy = policyCenter.canInstall(appId)
         if (!policy.allow) {
@@ -145,6 +146,7 @@ class DefaultInstallManager(
 
     /** 清理指定应用的安装失败态，并恢复到可继续操作的状态。 */
     override suspend fun clearFailed(appId: String) {
+        require(appId.isNotBlank()) { "appId 不能为空" }
         val apkPath = repository.getDownloadedApk(appId)
         val apkFile = apkPath?.let { File(it) }
         val hasValidApk = apkFile?.exists() == true && apkFile.length() > 0

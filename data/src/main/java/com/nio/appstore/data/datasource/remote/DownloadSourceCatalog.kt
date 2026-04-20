@@ -1,6 +1,6 @@
 package com.nio.appstore.data.datasource.remote
 
-import com.nio.appstore.data.downloadenv.DownloadEnvironment
+import com.nio.appstore.data.downloadenv.DownloadEnvironmentConfig
 import com.nio.appstore.core.downloader.DownloadSourcePolicy
 
 data class DownloadSourceEntry(
@@ -17,106 +17,46 @@ data class DownloadSourceEntry(
 )
 
 class DownloadSourceCatalog(
-    /** 当前生效的下载环境。 */
-    private val environment: DownloadEnvironment,
+    /** 当前生效的环境配置，包含下载基地址和环境标识。 */
+    private val config: DownloadEnvironmentConfig,
 ) {
     /** 读取指定应用在当前环境下的下载源配置。 */
     fun get(appId: String): DownloadSourceEntry {
-        val table = when (environment) {
-            DownloadEnvironment.DEV -> devSources()
-            DownloadEnvironment.TEST -> testSources()
-            DownloadEnvironment.PROD -> prodSources()
-        }
+        val table = envSources()
         return table[appId] ?: defaultEntry(appId)
     }
 
-    /** 开发环境下载源目录。 */
-    private fun devSources(): Map<String, DownloadSourceEntry> = mapOf(
-        "gaode_map" to DownloadSourceEntry(
-            appId = "gaode_map",
-            apkUrl = "https://example.com/gaode_map.apk",
-            checksumType = "SHA-256",
-            checksumValue = null,
-            sourcePolicy = DownloadSourcePolicy.FALLBACK_SIMULATED,
-        ),
-        "qq_music" to DownloadSourceEntry(
-            appId = "qq_music",
-            apkUrl = "https://example.com/qq_music.apk",
-            checksumType = "SHA-256",
-            checksumValue = null,
-            sourcePolicy = DownloadSourcePolicy.MOCK,
-        ),
-        "ximalaya" to DownloadSourceEntry(
-            appId = "ximalaya",
-            apkUrl = "https://download.example.org/ximalaya.apk",
-            checksumType = "SHA-256",
-            checksumValue = null,
-            sourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
-        ),
-    )
+    /** 当前环境下已知应用的下载源目录，策略和 URL 全部从配置读取。 */
+    private fun envSources(): Map<String, DownloadSourceEntry> {
+        return mapOf(
+            "gaode_map" to DownloadSourceEntry(
+                appId = "gaode_map",
+                apkUrl = "${config.downloadBaseUrl}/gaode_map.apk",
+                checksumType = "SHA-256",
+                sourcePolicy = config.defaultSourcePolicy,
+            ),
+            "qq_music" to DownloadSourceEntry(
+                appId = "qq_music",
+                apkUrl = "${config.downloadBaseUrl}/qq_music.apk",
+                checksumType = "SHA-256",
+                sourcePolicy = if (config.allowMockSource) DownloadSourcePolicy.MOCK else config.defaultSourcePolicy,
+            ),
+            "ximalaya" to DownloadSourceEntry(
+                appId = "ximalaya",
+                apkUrl = "${config.downloadBaseUrl}/ximalaya.apk",
+                checksumType = "SHA-256",
+                sourcePolicy = config.defaultSourcePolicy,
+            ),
+        )
+    }
 
-    /** 测试环境下载源目录。 */
-    private fun testSources(): Map<String, DownloadSourceEntry> = mapOf(
-        "gaode_map" to DownloadSourceEntry(
-            appId = "gaode_map",
-            apkUrl = "https://test-download.example.org/gaode_map.apk",
-            checksumType = "SHA-256",
-            checksumValue = null,
-            sourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
-        ),
-        "qq_music" to DownloadSourceEntry(
-            appId = "qq_music",
-            apkUrl = "https://test-download.example.org/qq_music.apk",
-            checksumType = "SHA-256",
-            checksumValue = null,
-            sourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
-        ),
-        "ximalaya" to DownloadSourceEntry(
-            appId = "ximalaya",
-            apkUrl = "https://test-download.example.org/ximalaya.apk",
-            checksumType = "SHA-256",
-            checksumValue = null,
-            sourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
-        ),
-    )
-
-    /** 生产环境下载源目录。 */
-    private fun prodSources(): Map<String, DownloadSourceEntry> = mapOf(
-        "gaode_map" to DownloadSourceEntry(
-            appId = "gaode_map",
-            apkUrl = "https://cdn.example.com/carapps/gaode_map.apk",
-            checksumType = "SHA-256",
-            checksumValue = null,
-            sourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
-        ),
-        "qq_music" to DownloadSourceEntry(
-            appId = "qq_music",
-            apkUrl = "https://cdn.example.com/carapps/qq_music.apk",
-            checksumType = "SHA-256",
-            checksumValue = null,
-            sourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
-        ),
-        "ximalaya" to DownloadSourceEntry(
-            appId = "ximalaya",
-            apkUrl = "https://cdn.example.com/carapps/ximalaya.apk",
-            checksumType = "SHA-256",
-            checksumValue = null,
-            sourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
-        ),
-    )
-
-    /** 未显式配置应用时的默认下载源配置。 */
+    /** 未显式配置应用时的默认下载源配置，策略从配置读取。 */
     private fun defaultEntry(appId: String): DownloadSourceEntry {
         return DownloadSourceEntry(
             appId = appId,
-            apkUrl = "https://example.com/$appId.apk",
+            apkUrl = "${config.downloadBaseUrl}/$appId.apk",
             checksumType = "SHA-256",
-            checksumValue = null,
-            sourcePolicy = if (environment == DownloadEnvironment.DEV) {
-                DownloadSourcePolicy.FALLBACK_SIMULATED
-            } else {
-                DownloadSourcePolicy.DIRECT_HTTP
-            },
+            sourcePolicy = config.defaultSourcePolicy,
         )
     }
 }

@@ -24,6 +24,8 @@ data class DownloadEnvironmentConfig(
     val catalogEndpointUrl: String? = null,
     /** 当前环境下商店目录附加请求头。 */
     val catalogRequestHeaders: Map<String, String> = emptyMap(),
+    /** 当前环境下 APK 下载基地址，用于构造未显式配置应用的默认下载 URL。 */
+    val downloadBaseUrl: String = "https://example.com",
 ) {
     companion object {
         /** 根据下载环境生成对应的能力配置。 */
@@ -36,6 +38,7 @@ data class DownloadEnvironmentConfig(
                     allowDirectHttp = true,
                     catalogEndpointUrl = null,
                     catalogRequestHeaders = emptyMap(),
+                    downloadBaseUrl = "https://example.com",
                 )
                 DownloadEnvironment.TEST -> DownloadEnvironmentConfig(
                     environment = environment,
@@ -47,6 +50,7 @@ data class DownloadEnvironmentConfig(
                         "X-Client-Channel" to "carappstore-test",
                         "X-Client-Platform" to "android-car",
                     ),
+                    downloadBaseUrl = "https://test-download.example.org",
                 )
                 DownloadEnvironment.PROD -> DownloadEnvironmentConfig(
                     environment = environment,
@@ -58,6 +62,7 @@ data class DownloadEnvironmentConfig(
                         "X-Client-Channel" to "carappstore-prod",
                         "X-Client-Platform" to "android-car",
                     ),
+                    downloadBaseUrl = "https://cdn.example.com/carapps",
                 )
             }
         }
