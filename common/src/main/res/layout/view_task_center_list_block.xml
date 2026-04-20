@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="16dp">
+    android:layout_marginTop="@dimen/spacing_16dp">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -20,23 +20,23 @@
         android:layout_height="wrap_content"
         android:text="@string/ui_task_section"
         android:textColor="@color/car_text_primary"
-        android:textSize="16sp"
+        android:textSize="@dimen/text_md"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/tvSectionHint"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="@dimen/spacing_4dp"
         android:text="@string/ui_task_section_hint"
         android:textColor="@color/car_text_secondary"
-        android:textSize="12sp" />
+        android:textSize="@dimen/text_xs" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerTaskList"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:nestedScrollingEnabled="false" />
     </LinearLayout>
 

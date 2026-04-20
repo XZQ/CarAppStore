@@ -3,14 +3,14 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="14dp">
+    android:layout_marginBottom="@dimen/spacing_14dp">
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_card"
         android:orientation="vertical"
-        android:padding="18dp"
+        android:padding="@dimen/spacing_18dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -33,28 +33,28 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/car_text_primary"
-                android:textSize="20sp"
+                android:textSize="@dimen/text_xl_20"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tvAppVersion"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="@dimen/spacing_6dp"
                 android:textColor="@color/car_text_muted"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_sm_13" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/tvAppState"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="12dp"
-            android:paddingTop="6dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="6dp"
+            android:paddingStart="@dimen/spacing_12dp"
+            android:paddingTop="@dimen/spacing_6dp"
+            android:paddingEnd="@dimen/spacing_12dp"
+            android:paddingBottom="@dimen/spacing_6dp"
             android:textColor="@color/car_text_primary"
-            android:textSize="12sp"
+            android:textSize="@dimen/text_xs"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -62,49 +62,49 @@
         android:id="@+id/tvAppDesc"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="@dimen/spacing_12dp"
         android:textColor="@color/car_text_secondary"
-        android:textSize="15sp" />
+        android:textSize="@dimen/text_sm_15" />
 
     <TextView
         android:id="@+id/tvProgress"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="@dimen/spacing_12dp"
         android:textColor="@color/car_text_secondary"
-        android:textSize="14sp" />
+        android:textSize="@dimen/text_sm" />
 
     <ProgressBar
         android:id="@+id/progressDownload"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="@dimen/spacing_8dp"
         android:max="100" />
 
     <TextView
         android:id="@+id/tvPrimaryAction"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:paddingStart="12dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="8dp"
+        android:layout_marginTop="@dimen/spacing_14dp"
+        android:paddingStart="@dimen/spacing_12dp"
+        android:paddingTop="@dimen/spacing_8dp"
+        android:paddingEnd="@dimen/spacing_12dp"
+        android:paddingBottom="@dimen/spacing_8dp"
         android:textColor="@color/car_text_primary"
-        android:textSize="13sp"
+        android:textSize="@dimen/text_sm_13"
         android:textStyle="bold" />
 
     <Button
         android:id="@+id/btnDetail"
         android:layout_width="match_parent"
         android:layout_height="54dp"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="@dimen/spacing_14dp"
         android:background="@drawable/bg_secondary_button"
         android:text="@string/ui_enter_detail"
         android:textAllCaps="false"
         android:textColor="@color/car_text_primary"
-        android:textSize="17sp"
+        android:textSize="@dimen/text_md_17"
         android:textStyle="bold" />
     </LinearLayout>
 

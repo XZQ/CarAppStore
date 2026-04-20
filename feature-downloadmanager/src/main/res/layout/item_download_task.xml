@@ -4,16 +4,16 @@
     android:id="@+id/layoutTaskCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginStart="14dp"
-    android:layout_marginEnd="14dp"
-    android:layout_marginBottom="14dp">
+    android:layout_marginStart="@dimen/spacing_14dp"
+    android:layout_marginEnd="@dimen/spacing_14dp"
+    android:layout_marginBottom="@dimen/spacing_14dp">
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_task_card_pending"
         android:orientation="vertical"
-        android:padding="16dp"
+        android:padding="@dimen/spacing_16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -36,81 +36,81 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/car_text_primary"
-                android:textSize="20sp"
+                android:textSize="@dimen/text_xl_20"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tvTaskVersion"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="@dimen/spacing_6dp"
                 android:textColor="@color/car_text_secondary"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_sm_13" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/tvTaskState"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="12dp"
-            android:paddingTop="6dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="6dp"
+            android:paddingStart="@dimen/spacing_12dp"
+            android:paddingTop="@dimen/spacing_6dp"
+            android:paddingEnd="@dimen/spacing_12dp"
+            android:paddingBottom="@dimen/spacing_6dp"
             android:textColor="@android:color/white"
-            android:textSize="12sp" />
+            android:textSize="@dimen/text_xs" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/tvTaskBucket"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:paddingStart="10dp"
-        android:paddingTop="5dp"
-        android:paddingEnd="10dp"
-        android:paddingBottom="5dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
+        android:paddingStart="@dimen/spacing_10dp"
+        android:paddingTop="@dimen/spacing_5dp"
+        android:paddingEnd="@dimen/spacing_10dp"
+        android:paddingBottom="@dimen/spacing_5dp"
         android:textColor="@android:color/white"
-        android:textSize="11sp" />
+        android:textSize="@dimen/text_2xs" />
 
     <TextView
         android:id="@+id/tvTaskSummary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:textColor="@color/car_text_secondary"
-        android:textSize="13sp" />
+        android:textSize="@dimen/text_sm_13" />
 
     <TextView
         android:id="@+id/tvTaskReason"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:background="@drawable/bg_card_alt"
-        android:padding="10dp"
+        android:padding="@dimen/spacing_10dp"
         android:textColor="@color/car_warning"
-        android:textSize="13sp"
+        android:textSize="@dimen/text_sm_13"
         android:visibility="gone" />
 
     <TextView
         android:id="@+id/tvTaskProgress"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="@dimen/spacing_12dp"
         android:textColor="@color/car_text_primary"
-        android:textSize="14sp" />
+        android:textSize="@dimen/text_sm" />
 
     <ProgressBar
         android:id="@+id/progressTask"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="@dimen/spacing_8dp"
         android:max="100" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="@dimen/spacing_12dp"
         android:orientation="horizontal">
 
         <TextView
@@ -119,37 +119,37 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="@color/car_text_secondary"
-            android:textSize="13sp" />
+            android:textSize="@dimen/text_sm_13" />
 
         <TextView
             android:id="@+id/tvTaskSpeed"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/car_text_secondary"
-            android:textSize="13sp" />
+            android:textSize="@dimen/text_sm_13" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/tvTaskTime"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="@dimen/spacing_8dp"
         android:textColor="@color/car_text_secondary"
-        android:textSize="13sp" />
+        android:textSize="@dimen/text_sm_13" />
 
     <TextView
         android:id="@+id/tvTaskPath"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="@dimen/spacing_8dp"
         android:maxLines="2"
         android:textColor="@color/car_text_hint"
-        android:textSize="12sp" />
+        android:textSize="@dimen/text_xs" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="@dimen/spacing_16dp"
         android:orientation="horizontal">
 
         <Button
@@ -163,7 +163,7 @@
             android:id="@+id/btnTaskSecondary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
+            android:layout_marginStart="@dimen/spacing_10dp"
             android:layout_weight="1"
             android:background="@drawable/bg_secondary_button"
             android:text="@string/ui_delete_task"
@@ -175,7 +175,7 @@
         android:id="@+id/btnTaskDetail"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:background="@drawable/bg_secondary_button"
         android:text="@string/ui_view_detail"
         android:textAllCaps="false"

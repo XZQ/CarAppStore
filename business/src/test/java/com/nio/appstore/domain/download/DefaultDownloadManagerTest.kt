@@ -588,6 +588,36 @@ class DefaultDownloadManagerTest {
         override fun openApp(packageName: String): Boolean = false
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `startDownload 空白 appId 抛异常`() = runBlocking {
+        val harness = TestHarness()
+        harness.manager.startDownload("")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `pauseDownload 空白 appId 抛异常`() = runBlocking {
+        val harness = TestHarness()
+        harness.manager.pauseDownload("")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `resumeDownload 空白 appId 抛异常`() = runBlocking {
+        val harness = TestHarness()
+        harness.manager.resumeDownload("")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `cancelDownload 空白 appId 抛异常`() = runBlocking {
+        val harness = TestHarness()
+        harness.manager.cancelDownload("")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `removeTask 空白 appId 抛异常`() = runBlocking {
+        val harness = TestHarness()
+        harness.manager.removeTask("", clearFile = false)
+    }
+
     private companion object {
         /** 测试应用统一使用的 appId。 */
         const val TEST_APP_ID = "demo.app"
