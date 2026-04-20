@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_activity"
-    android:padding="16dp">
+    android:padding="@dimen/spacing_16dp">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -21,7 +21,7 @@
         android:background="@drawable/bg_panel"
         android:gravity="center_vertical"
         android:orientation="vertical"
-        android:padding="18dp">
+        android:padding="@dimen/spacing_18dp">
 
         <TextView
             android:id="@+id/tvTitle"
@@ -29,23 +29,23 @@
             android:layout_height="wrap_content"
             android:text="@string/ui_carappstore"
             android:textColor="@color/car_text_primary"
-            android:textSize="26sp"
+            android:textSize="@dimen/text_3xl"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvSubtitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="@dimen/spacing_6dp"
             android:text="@string/ui_service_center_subtitle"
             android:textColor="@color/car_text_secondary"
-            android:textSize="14sp" />
+            android:textSize="@dimen/text_sm" />
     </LinearLayout>
 
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="@dimen/spacing_12dp"
         android:fillViewport="true"
         android:scrollbars="none">
 
@@ -61,89 +61,89 @@
                 android:layout_height="48dp"
                 android:background="@drawable/bg_nav_button"
                 android:minWidth="90dp"
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp"
+                android:paddingStart="@dimen/spacing_18dp"
+                android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_home"
                 android:textColor="@color/car_text_primary"
-                android:textSize="16sp" />
+                android:textSize="@dimen/text_md" />
 
             <Button
                 android:id="@+id/btnNavSearch"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="@dimen/spacing_10dp"
                 android:background="@drawable/bg_nav_button"
                 android:minWidth="90dp"
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp"
+                android:paddingStart="@dimen/spacing_18dp"
+                android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_search"
                 android:textColor="@color/car_text_primary"
-                android:textSize="16sp" />
+                android:textSize="@dimen/text_md" />
 
             <Button
                 android:id="@+id/btnNavDownload"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="@dimen/spacing_10dp"
                 android:background="@drawable/bg_nav_button"
                 android:minWidth="108dp"
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp"
+                android:paddingStart="@dimen/spacing_18dp"
+                android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_download_manager"
                 android:textColor="@color/car_text_primary"
-                android:textSize="16sp" />
+                android:textSize="@dimen/text_md" />
 
             <Button
                 android:id="@+id/btnNavUpgrade"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="@dimen/spacing_10dp"
                 android:background="@drawable/bg_nav_button"
                 android:minWidth="108dp"
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp"
+                android:paddingStart="@dimen/spacing_18dp"
+                android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_upgrade_manager"
                 android:textColor="@color/car_text_primary"
-                android:textSize="16sp" />
+                android:textSize="@dimen/text_md" />
 
             <Button
                 android:id="@+id/btnNavInstall"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="@dimen/spacing_10dp"
                 android:background="@drawable/bg_nav_button"
                 android:minWidth="108dp"
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp"
+                android:paddingStart="@dimen/spacing_18dp"
+                android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_install_manager"
                 android:textColor="@color/car_text_primary"
-                android:textSize="16sp" />
+                android:textSize="@dimen/text_md" />
 
             <Button
                 android:id="@+id/btnNavMyApps"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="@dimen/spacing_10dp"
                 android:background="@drawable/bg_nav_button"
                 android:minWidth="108dp"
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp"
+                android:paddingStart="@dimen/spacing_18dp"
+                android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_my_apps"
                 android:textColor="@color/car_text_primary"
-                android:textSize="16sp" />
+                android:textSize="@dimen/text_md" />
 
             <Button
                 android:id="@+id/btnNavDebug"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="@dimen/spacing_10dp"
                 android:background="@drawable/bg_nav_button"
                 android:minWidth="108dp"
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp"
+                android:paddingStart="@dimen/spacing_18dp"
+                android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_developer_settings"
                 android:textColor="@color/car_text_primary"
-                android:textSize="16sp" />
+                android:textSize="@dimen/text_md" />
         </LinearLayout>
     </HorizontalScrollView>
 
@@ -151,7 +151,7 @@
         android:id="@+id/fragmentContainer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="@dimen/spacing_12dp"
         android:layout_weight="1" />
     </LinearLayout>
 

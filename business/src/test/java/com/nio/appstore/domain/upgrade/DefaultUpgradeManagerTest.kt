@@ -147,6 +147,30 @@ class DefaultUpgradeManagerTest {
         assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot("app.b").installStatus)
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `checkUpgrade 空白 appId 抛异常`() {
+        runBlocking {
+            val manager = createManager()
+            manager.checkUpgrade("")
+        }
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `startUpgrade 空白 appId 抛异常`() {
+        runBlocking {
+            val manager = createManager()
+            manager.startUpgrade("")
+        }
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `startBatchUpgrade 空列表抛异常`() {
+        runBlocking {
+            val manager = createManager()
+            manager.startBatchUpgrade(emptyList())
+        }
+    }
+
     private fun createManager(
         policyCenter: PolicyCenter = AllowAllPolicyCenter(),
     ): DefaultUpgradeManager {

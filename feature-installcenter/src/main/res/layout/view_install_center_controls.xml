@@ -17,9 +17,9 @@
         android:id="@+id/tvInstallControlSummary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="10dp"
+        android:layout_marginBottom="@dimen/spacing_10dp"
         android:text="@string/ui_install_controls_summary_zero"
-        android:textSize="13sp" />
+        android:textSize="@dimen/text_sm_13" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -30,7 +30,7 @@
             android:id="@+id/btnInstallPrimary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="6dp"
+            android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
             android:text="@string/ui_install_start_batch_zero" />
 
@@ -38,7 +38,7 @@
             android:id="@+id/btnInstallSecondary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
             android:text="@string/ui_clear_failed_state_zero" />
     </LinearLayout>
@@ -47,7 +47,7 @@
         android:id="@+id/btnInstallTertiary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:text="@string/ui_go_download_manager" />
     </LinearLayout>
 

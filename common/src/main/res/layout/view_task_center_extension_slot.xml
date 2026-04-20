@@ -3,14 +3,14 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="14dp">
+    android:layout_marginTop="@dimen/spacing_14dp">
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_panel"
         android:orientation="vertical"
-        android:padding="16dp"
+        android:padding="@dimen/spacing_16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -22,23 +22,23 @@
         android:layout_height="wrap_content"
         android:text="@string/ui_exclusive_controls"
         android:textColor="@color/car_text_primary"
-        android:textSize="14sp"
+        android:textSize="@dimen/text_sm"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/tvExtensionHint"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="@dimen/spacing_6dp"
         android:text="@string/ui_task_extension_hint"
         android:textColor="@color/car_text_secondary"
-        android:textSize="12sp" />
+        android:textSize="@dimen/text_xs" />
 
     <FrameLayout
         android:id="@+id/extensionContentContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp" />
+        android:layout_marginTop="@dimen/spacing_12dp" />
 
     </LinearLayout>
 

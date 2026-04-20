@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="16dp">
+    android:layout_marginTop="@dimen/spacing_16dp">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -11,7 +11,7 @@
         android:background="@drawable/bg_panel"
         android:gravity="center_horizontal"
         android:orientation="vertical"
-        android:padding="24dp"
+        android:padding="@dimen/spacing_24dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -23,34 +23,34 @@
         android:layout_height="wrap_content"
         android:text="@string/ui_empty_tasks"
         android:textColor="@color/car_text_primary"
-        android:textSize="18sp"
+        android:textSize="@dimen/text_lg"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/tvEmptyDesc"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:gravity="center"
         android:text="@string/ui_task_empty_hint"
         android:textColor="@color/car_text_secondary"
-        android:textSize="13sp" />
+        android:textSize="@dimen/text_sm_13" />
 
     <TextView
         android:id="@+id/tvEmptyHint"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="@dimen/spacing_8dp"
         android:gravity="center"
         android:text="@string/ui_task_empty_refresh_hint"
         android:textColor="@color/car_text_hint"
-        android:textSize="12sp" />
+        android:textSize="@dimen/text_xs" />
 
     <LinearLayout
         android:id="@+id/layoutEmptyActions"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="@dimen/spacing_16dp"
         android:gravity="center"
         android:orientation="horizontal">
 
@@ -58,7 +58,7 @@
             android:id="@+id/btnEmptyPrimary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="6dp"
+            android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
             android:text="@string/ui_primary_action" />
 
@@ -66,7 +66,7 @@
             android:id="@+id/btnEmptySecondary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
             android:text="@string/ui_secondary_action" />
     </LinearLayout>

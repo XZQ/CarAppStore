@@ -88,7 +88,7 @@ class AppContainer(context: Context) : AppServices {
     private val remoteDataSource: AppRemoteDataSource by lazy {
         AppRemoteDataSource(
             context = appContext,
-            sourceCatalog = DownloadSourceCatalog(downloadEnvConfig.environment),
+            sourceCatalog = DownloadSourceCatalog(downloadEnvConfig),
             catalogEndpointUrl = downloadEnvConfig.catalogEndpointUrl,
             catalogRequestHeaders = downloadEnvConfig.catalogRequestHeaders,
             httpClient = HttpUrlConnectionAppCatalogHttpClient(),

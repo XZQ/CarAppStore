@@ -164,6 +164,18 @@ class DefaultInstallManagerTest {
         assertNull(state.errorMessage)
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `install 空白 appId 抛异常`() = runBlocking {
+        val manager = createManager()
+        manager.install("")
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `clearFailed 空白 appId 抛异常`() = runBlocking {
+        val manager = createManager()
+        manager.clearFailed("")
+    }
+
     private companion object {
         const val TEST_APP_ID = "test.app"
     }

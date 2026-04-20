@@ -4,16 +4,16 @@
     android:id="@+id/layoutUpgradeTaskCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginStart="14dp"
-    android:layout_marginEnd="14dp"
-    android:layout_marginBottom="14dp">
+    android:layout_marginStart="@dimen/spacing_14dp"
+    android:layout_marginEnd="@dimen/spacing_14dp"
+    android:layout_marginBottom="@dimen/spacing_14dp">
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_task_card_pending"
         android:orientation="vertical"
-        android:padding="16dp"
+        android:padding="@dimen/spacing_16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -36,73 +36,73 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/car_text_primary"
-                android:textSize="20sp"
+                android:textSize="@dimen/text_xl_20"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tvUpgradeTaskVersion"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="@dimen/spacing_6dp"
                 android:textColor="@color/car_text_secondary"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_sm_13" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/tvUpgradeTaskState"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="12dp"
-            android:paddingTop="6dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="6dp"
+            android:paddingStart="@dimen/spacing_12dp"
+            android:paddingTop="@dimen/spacing_6dp"
+            android:paddingEnd="@dimen/spacing_12dp"
+            android:paddingBottom="@dimen/spacing_6dp"
             android:textColor="@android:color/white"
-            android:textSize="12sp" />
+            android:textSize="@dimen/text_xs" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/tvUpgradeTaskBucket"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:paddingStart="10dp"
-        android:paddingTop="5dp"
-        android:paddingEnd="10dp"
-        android:paddingBottom="5dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
+        android:paddingStart="@dimen/spacing_10dp"
+        android:paddingTop="@dimen/spacing_5dp"
+        android:paddingEnd="@dimen/spacing_10dp"
+        android:paddingBottom="@dimen/spacing_5dp"
         android:textColor="@android:color/white"
-        android:textSize="11sp" />
+        android:textSize="@dimen/text_2xs" />
 
     <TextView
         android:id="@+id/tvUpgradeTaskSummary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:textColor="@color/car_text_secondary"
-        android:textSize="13sp" />
+        android:textSize="@dimen/text_sm_13" />
 
     <TextView
         android:id="@+id/tvUpgradeTaskReason"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:background="@drawable/bg_card_alt"
-        android:padding="10dp"
+        android:padding="@dimen/spacing_10dp"
         android:textColor="@color/car_warning"
-        android:textSize="13sp"
+        android:textSize="@dimen/text_sm_13"
         android:visibility="gone" />
 
     <TextView
         android:id="@+id/tvUpgradeTaskTime"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:textColor="@color/car_text_secondary"
-        android:textSize="13sp" />
+        android:textSize="@dimen/text_sm_13" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="@dimen/spacing_16dp"
         android:orientation="horizontal">
 
         <Button
@@ -116,7 +116,7 @@
             android:id="@+id/btnUpgradeDetail"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
+            android:layout_marginStart="@dimen/spacing_10dp"
             android:layout_weight="1"
             android:background="@drawable/bg_secondary_button"
             android:text="@string/ui_view_detail"

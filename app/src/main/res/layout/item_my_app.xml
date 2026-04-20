@@ -3,14 +3,14 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="12dp">
+    android:layout_marginBottom="@dimen/spacing_12dp">
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_card_alt"
         android:orientation="vertical"
-        android:padding="16dp"
+        android:padding="@dimen/spacing_16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -28,19 +28,19 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="@color/car_text_primary"
-            android:textSize="19sp"
+            android:textSize="@dimen/text_lg_19"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvState"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="12dp"
-            android:paddingTop="6dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="6dp"
+            android:paddingStart="@dimen/spacing_12dp"
+            android:paddingTop="@dimen/spacing_6dp"
+            android:paddingEnd="@dimen/spacing_12dp"
+            android:paddingBottom="@dimen/spacing_6dp"
             android:textColor="@color/car_text_primary"
-            android:textSize="12sp"
+            android:textSize="@dimen/text_xs"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -48,21 +48,21 @@
         android:id="@+id/tvDesc"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:textColor="@color/car_text_secondary"
-        android:textSize="15sp" />
+        android:textSize="@dimen/text_sm_15" />
 
     <TextView
         android:id="@+id/tvAction"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:paddingStart="12dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="8dp"
+        android:layout_marginTop="@dimen/spacing_12dp"
+        android:paddingStart="@dimen/spacing_12dp"
+        android:paddingTop="@dimen/spacing_8dp"
+        android:paddingEnd="@dimen/spacing_12dp"
+        android:paddingBottom="@dimen/spacing_8dp"
         android:textColor="@color/car_text_primary"
-        android:textSize="13sp"
+        android:textSize="@dimen/text_sm_13"
         android:textStyle="bold" />
     </LinearLayout>
 
