@@ -10,7 +10,6 @@ import com.nio.appstore.core.downloader.SimulatedFileDownloader
 import com.nio.appstore.core.installer.InstallSessionStore
 import com.nio.appstore.core.installer.InstallUserActionDispatcher
 import com.nio.appstore.core.installer.RealPackageInstaller
-import com.nio.appstore.core.installer.SimulatedPackageInstaller
 import com.nio.appstore.core.installer.SystemPackageInstallerSessionAdapter
 import com.nio.appstore.core.logger.AppLogger
 import com.nio.appstore.core.policy.AndroidPolicyRuntimeSignalProvider
@@ -88,7 +87,7 @@ class AppContainer(context: Context) : AppServices {
     private val remoteDataSource: AppRemoteDataSource by lazy {
         AppRemoteDataSource(
             context = appContext,
-            sourceCatalog = DownloadSourceCatalog(downloadEnvConfig.environment),
+            sourceCatalog = DownloadSourceCatalog(downloadEnvConfig),
             catalogEndpointUrl = downloadEnvConfig.catalogEndpointUrl,
             catalogRequestHeaders = downloadEnvConfig.catalogRequestHeaders,
             httpClient = HttpUrlConnectionAppCatalogHttpClient(),
@@ -162,7 +161,6 @@ class AppContainer(context: Context) : AppServices {
         RealPackageInstaller(
             sessionAdapter = SystemPackageInstallerSessionAdapter(appContext, installUserActionDispatcher),
             sessionStore = installSessionStore,
-            fallbackInstaller = SimulatedPackageInstaller(),
         )
     }
 

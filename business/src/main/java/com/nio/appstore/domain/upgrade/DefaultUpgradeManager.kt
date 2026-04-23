@@ -33,6 +33,7 @@ class DefaultUpgradeManager(
 
     /** 检查当前应用是否存在可升级版本，并同步升级状态。 */
     override suspend fun checkUpgrade(appId: String): Boolean {
+        require(appId.isNotBlank()) { "appId 不能为空" }
         val installedVersion = stateCenter.snapshot(appId).installedVersion ?: return false
         val info = repository.getUpgradeInfo(appId)
         val available = info.hasUpgrade && VersionUtils.isNewerVersion(installedVersion, info.latestVersion)
@@ -51,7 +52,9 @@ class DefaultUpgradeManager(
 
     /** 批量启动升级流程，逐个串行执行，遇到失败时停止后续。 */
     override suspend fun startBatchUpgrade(appIds: List<String>) {
+        require(appIds.isNotEmpty()) { "升级列表不能为空" }
         for (appId in appIds) {
+            require(appId.isNotBlank()) { "升级列表中的 appId 不能为空" }
             val policy = policyCenter.canUpgrade(appId)
             if (!policy.allow) {
                 stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.upgradeRestricted(policy.reason))
@@ -77,6 +80,7 @@ class DefaultUpgradeManager(
      * 当前实现本质上是一个编排器：先下载，再安装，并通过轮询状态中心等待阶段完成。
      */
     override suspend fun startUpgrade(appId: String) {
+        require(appId.isNotBlank()) { "appId 不能为空" }
         // 升级前先做策略判断，避免在不允许升级时继续消耗下载和安装资源。
         val policy = policyCenter.canUpgrade(appId)
         if (!policy.allow) {

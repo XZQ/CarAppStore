@@ -17,9 +17,9 @@
         android:id="@+id/tvPreferenceSummary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="10dp"
+        android:layout_marginBottom="@dimen/spacing_10dp"
         android:text="@string/ui_download_preferences_summary"
-        android:textSize="13sp" />
+        android:textSize="@dimen/text_sm_13" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -30,7 +30,7 @@
             android:id="@+id/btnAutoResume"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="6dp"
+            android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
             android:text="@string/ui_download_auto_resume_off" />
 
@@ -38,7 +38,7 @@
             android:id="@+id/btnAutoRetry"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
             android:text="@string/ui_download_auto_retry_on" />
     </LinearLayout>
@@ -46,14 +46,14 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:orientation="horizontal">
 
         <Button
             android:id="@+id/btnPolicyWifi"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="6dp"
+            android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
             android:text="@string/ui_network_wifi" />
 
@@ -61,7 +61,7 @@
             android:id="@+id/btnPolicyParking"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
             android:text="@string/ui_vehicle_parked" />
     </LinearLayout>
@@ -70,7 +70,7 @@
         android:id="@+id/btnPolicyStorage"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="@dimen/spacing_10dp"
         android:text="@string/ui_storage_normal" />
     </LinearLayout>
 

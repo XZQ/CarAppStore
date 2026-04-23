@@ -18,7 +18,7 @@
         android:layout_height="wrap_content"
         android:background="@drawable/bg_panel"
         android:orientation="vertical"
-        android:padding="18dp">
+        android:padding="@dimen/spacing_18dp">
 
         <TextView
             android:id="@+id/tvHomeTitle"
@@ -26,59 +26,59 @@
             android:layout_height="wrap_content"
             android:text="@string/ui_home"
             android:textColor="@color/car_text_primary"
-            android:textSize="24sp"
+            android:textSize="@dimen/text_2xl"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvHomeSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="@dimen/spacing_8dp"
             android:text="@string/ui_home_recommend_recent_quick_entry"
             android:textColor="@color/car_text_secondary"
-            android:textSize="14sp" />
+            android:textSize="@dimen/text_sm" />
 
         <TextView
             android:id="@+id/tvPolicyPrompt"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="@dimen/spacing_10dp"
             android:background="@drawable/bg_tag_warning"
-            android:padding="10dp"
+            android:padding="@dimen/spacing_10dp"
             android:textColor="@color/car_text_primary"
-            android:textSize="13sp"
+            android:textSize="@dimen/text_sm_13"
             android:visibility="gone" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="@dimen/spacing_14dp"
             android:orientation="horizontal">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_tag"
-                android:paddingStart="12dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="12dp"
-                android:paddingBottom="8dp"
+                android:paddingStart="@dimen/spacing_12dp"
+                android:paddingTop="@dimen/spacing_8dp"
+                android:paddingEnd="@dimen/spacing_12dp"
+                android:paddingBottom="@dimen/spacing_8dp"
                 android:text="@string/ui_home_recommend_section"
                 android:textColor="@color/car_text_primary"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_sm_13" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="@dimen/spacing_8dp"
                 android:background="@drawable/bg_tag"
-                android:paddingStart="12dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="12dp"
-                android:paddingBottom="8dp"
+                android:paddingStart="@dimen/spacing_12dp"
+                android:paddingTop="@dimen/spacing_8dp"
+                android:paddingEnd="@dimen/spacing_12dp"
+                android:paddingBottom="@dimen/spacing_8dp"
                 android:text="@string/ui_home_recently_used"
                 android:textColor="@color/car_text_primary"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_sm_13" />
         </LinearLayout>
     </LinearLayout>
 
@@ -86,20 +86,20 @@
         android:id="@+id/recyclerHome"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="@dimen/spacing_14dp"
         android:layout_weight="1"
         android:clipToPadding="false"
-        android:paddingBottom="10dp" />
+        android:paddingBottom="@dimen/spacing_10dp" />
 
     <Button
         android:id="@+id/btnMyApps"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="@dimen/spacing_8dp"
         android:background="@drawable/bg_primary_button"
         android:text="@string/ui_enter_my_apps"
         android:textColor="@color/car_text_primary"
-        android:textSize="18sp"
+        android:textSize="@dimen/text_lg"
         android:textStyle="bold" />
     </LinearLayout>
 

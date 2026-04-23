@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageInstaller
 import android.os.Build
 import androidx.core.content.ContextCompat
+import com.nio.appstore.core.logger.AppLogger
 import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -39,6 +40,8 @@ class SystemPackageInstallerSessionAdapter(
     context: Context,
     /** 系统要求用户确认时，用于把 intent 派发给壳层。 */
     private val installUserActionDispatcher: InstallUserActionDispatcher,
+    /** 安装会话诊断日志入口。 */
+    private val logger: AppLogger = AppLogger(),
 ) : PackageInstallerSessionAdapter {
 
     /** 应用级上下文，避免广播注册和安装调用依赖页面生命周期。 */
@@ -54,7 +57,8 @@ class SystemPackageInstallerSessionAdapter(
                 setAppPackageName(request.packageName)
                 setSize(request.apkFile.length())
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                    // 首次安装必须走系统确认页，避免平台因请求免确认而直接拒绝会话提交。
+                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
                 }
             }
             systemPackageInstaller.createSession(params)
@@ -102,6 +106,7 @@ class SystemPackageInstallerSessionAdapter(
                 val message = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                     ?.ifBlank { null }
                     ?: defaultStatusMessage(status)
+                logger.d(TAG, LOG_COMMIT_CALLBACK_FORMAT.format(status, message))
                 resultQueue.offer(
                     CommitCallbackPayload(
                         status = status,
@@ -125,7 +130,7 @@ class SystemPackageInstallerSessionAdapter(
                 appContext,
                 sessionId,
                 callbackIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                buildCommitPendingIntentFlags(),
             )
             val session = systemPackageInstaller.openSession(sessionId)
             try {
@@ -134,10 +139,12 @@ class SystemPackageInstallerSessionAdapter(
                 session.close()
             }
             waitForCommitResult(resultQueue, onPendingUserAction)
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
+            val message = buildCommitThrowableMessage(t)
+            logger.d(TAG, message)
             InstallCommitResult(
                 success = false,
-                message = InstallerText.FAILURE_SESSION_COMMIT_FAILED,
+                message = message,
                 installedPackageName = null,
             )
         } finally {
@@ -154,8 +161,26 @@ class SystemPackageInstallerSessionAdapter(
     private fun defaultStatusMessage(status: Int): String {
         return when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> InstallerText.SESSION_PENDING_USER_ACTION
-            else -> InstallerText.FAILURE_SESSION_COMMIT_FAILED
+            else -> InstallerText.sessionCommitFailureWithStatus(status)
         }
+    }
+
+    /** 将提交阶段异常转换为可持久化的失败详情。 */
+    private fun buildCommitThrowableMessage(throwable: Throwable): String {
+        val detail = throwable.message
+            ?.ifBlank { null }
+            ?: throwable.javaClass.simpleName
+        return InstallerText.sessionCommitFailureWithDetail(detail)
+    }
+
+    /** 构建安装回调 PendingIntent 标记，Android S+ 需要可变回调承载平台填充的状态。 */
+    private fun buildCommitPendingIntentFlags(): Int {
+        val mutabilityFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE
+        } else {
+            NO_ADDITIONAL_PENDING_INTENT_FLAGS
+        }
+        return PendingIntent.FLAG_UPDATE_CURRENT or mutabilityFlag
     }
 
     /** 从平台广播中解析出系统确认 intent。 */
@@ -237,6 +262,15 @@ class SystemPackageInstallerSessionAdapter(
     )
 
     private companion object {
+        /** 安装会话诊断日志标签。 */
+        const val TAG = "PkgSessionAdapter"
+
+        /** 平台提交回调诊断日志格式。 */
+        const val LOG_COMMIT_CALLBACK_FORMAT = "install commit callback status=%d message=%s"
+
+        /** 低版本无需额外 PendingIntent 可变性标记。 */
+        const val NO_ADDITIONAL_PENDING_INTENT_FLAGS = 0
+
         /** 安装会话写入时使用的基础安装包条目名。 */
         const val APK_ENTRY_NAME = "base.apk"
 
