@@ -106,13 +106,23 @@ class AndroidPolicyRuntimeSignalProvider(
     /** 读取当前系统实时信号。 */
     private fun readSignals(): PolicyRuntimeSignals {
         val connectivityManager = appContext.getSystemService(ConnectivityManager::class.java)
-        val activeNetwork = connectivityManager?.activeNetwork
-        val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
         return PolicyRuntimeSignals(
-            wifiConnected = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true,
+            wifiConnected = readWifiConnected(connectivityManager),
             parkingMode = vehicleStateSignalProvider.currentVehicleState().parkingMode,
             lowStorageMode = appContext.filesDir.usableSpace < MIN_REQUIRED_SPACE_BYTES,
         )
+    }
+
+    /** 安全读取 Wi-Fi 状态，避免系统权限或 OEM 服务异常导致应用启动崩溃。 */
+    private fun readWifiConnected(connectivityManager: ConnectivityManager?): Boolean {
+        return runCatching {
+            val activeNetwork = connectivityManager?.activeNetwork
+            val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+        }.getOrElse {
+            logger.d(TAG, "read wifi state failed: ${it.message}")
+            false
+        }
     }
 
     private companion object {
