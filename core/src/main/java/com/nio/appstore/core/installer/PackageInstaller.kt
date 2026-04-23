@@ -35,6 +35,8 @@ enum class InstallFailureCode(val displayText: String) {
     SESSION_WRITE_FAILED(InstallerText.FAILURE_SESSION_WRITE_FAILED),
     /** 提交系统安装会话失败。 */
     SESSION_COMMIT_FAILED(InstallerText.FAILURE_SESSION_COMMIT_FAILED),
+    /** 当前环境不支持系统安装会话。 */
+    SESSION_NOT_SUPPORTED(InstallerText.FAILURE_SESSION_NOT_SUPPORTED),
     /** 安装过程中发生中断。 */
     INSTALL_INTERRUPTED(InstallerText.FAILURE_INSTALL_INTERRUPTED),
     /** 未归类的未知安装失败。 */

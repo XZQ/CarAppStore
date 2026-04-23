@@ -32,10 +32,15 @@ class RealPackageInstaller(
             return@withContext
         }
 
-        // 平台不支持真实会话时，统一回退到兜底安装器。
+        // 平台不支持真实会话时，只在显式注入兜底安装器的测试场景回退。
         if (!sessionAdapter.supportsRealSession()) {
             fallbackInstaller?.install(request, onEvent)
-                ?: onEvent(InstallEvent.Failed(InstallFailureCode.UNKNOWN, InstallerText.NO_AVAILABLE_INSTALLER))
+                ?: onEvent(
+                    InstallEvent.Failed(
+                        InstallFailureCode.SESSION_NOT_SUPPORTED,
+                        InstallFailureCode.SESSION_NOT_SUPPORTED.displayText,
+                    )
+                )
             return@withContext
         }
 
