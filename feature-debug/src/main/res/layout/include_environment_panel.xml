@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 环境切换面板 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_panel"
+    android:orientation="vertical"
+    android:padding="@dimen/spacing_18dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/ui_download_environment_switch"
+        android:textSize="@dimen/text_xl"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvCurrentEnvironment"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_12dp"
+        android:text="@string/ui_download_environment_current_format"
+        android:textSize="@dimen/text_md"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvEnvironmentHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_8dp"
+        android:text="@string/ui_download_environment_hint_dev"
+        android:textSize="@dimen/text_sm" />
+
+    <TextView
+        android:id="@+id/tvCatalogSource"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_10dp"
+        android:text="@string/ui_catalog_source_current_format"
+        android:textSize="@dimen/text_sm" />
+
+    <TextView
+        android:id="@+id/tvDownloadBaseUrl"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_6dp"
+        android:text="@string/ui_debug_download_base_url_format"
+        android:textSize="@dimen/text_sm" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_14dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnEnvDev"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/spacing_6dp"
+            android:layout_weight="1"
+            android:text="@string/ui_download_environment_switch_dev" />
+
+        <Button
+            android:id="@+id/btnEnvTest"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_6dp"
+            android:layout_marginEnd="@dimen/spacing_6dp"
+            android:layout_weight="1"
+            android:text="@string/ui_download_environment_switch_test" />
+
+        <Button
+            android:id="@+id/btnEnvProd"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_6dp"
+            android:layout_weight="1"
+            android:text="@string/ui_download_environment_switch_prod" />
+    </LinearLayout>
+</LinearLayout>

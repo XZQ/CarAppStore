@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 应用信息面板 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_panel"
+    android:orientation="vertical"
+    android:padding="@dimen/spacing_18dp">
+
+    <TextView
+        android:id="@+id/tvDetailName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/car_text_primary"
+        android:textSize="@dimen/text_3xl"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvDetailVersion"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_8dp"
+        android:textColor="@color/car_text_muted"
+        android:textSize="@dimen/text_sm" />
+
+    <TextView
+        android:id="@+id/tvDetailDesc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_14dp"
+        android:textColor="@color/car_text_secondary"
+        android:textSize="@dimen/text_md" />
+
+    <TextView
+        android:id="@+id/tvPolicyPrompt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_14dp"
+        android:background="@drawable/bg_tag_warning"
+        android:padding="@dimen/spacing_10dp"
+        android:textColor="@color/car_text_primary"
+        android:textSize="@dimen/text_sm_13"
+        android:visibility="gone" />
+</LinearLayout>

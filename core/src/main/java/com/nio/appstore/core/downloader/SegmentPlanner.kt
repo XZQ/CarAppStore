@@ -5,9 +5,9 @@ import java.util.UUID
 
 class SegmentPlanner(
     /** 期望的默认分片大小，当前主要作为规划参考值。 */
-    private val defaultChunkSizeBytes: Long = 2L * 1024L * 1024L,
+    private val defaultChunkSizeBytes: Long = DEFAULT_CHUNK_SIZE_BYTES,
     /** 允许的最小分片大小，避免把文件切得过碎。 */
-    private val minSegmentSizeBytes: Long = 512L * 1024L,
+    private val minSegmentSizeBytes: Long = DEFAULT_MIN_SEGMENT_SIZE_BYTES,
 ) {
     /** 根据文件大小、期望并发度和已有分片信息生成分片计划。 */
     fun plan(
@@ -41,9 +41,9 @@ class SegmentPlanner(
 
         val suggestedCount = when {
             requestedSegmentCount > 1 -> requestedSegmentCount
-            totalBytes >= 16L * 1024L * 1024L -> 4
-            totalBytes >= 8L * 1024L * 1024L -> 3
-            totalBytes >= 4L * 1024L * 1024L -> 2
+            totalBytes >= LARGE_FILE_THRESHOLD -> SEGMENT_COUNT_FOR_LARGE
+            totalBytes >= MEDIUM_FILE_THRESHOLD -> SEGMENT_COUNT_FOR_MEDIUM
+            totalBytes >= SMALL_FILE_THRESHOLD -> SEGMENT_COUNT_FOR_SMALL
             else -> 1
         }
         // 结合最小分片大小约束，避免切出过多无意义的小分片。
@@ -73,5 +73,24 @@ class SegmentPlanner(
             index++
         }
         return result
+    }
+
+    private companion object {
+        /** 大文件阈值：16MB，超过此值拆成 4 分片。 */
+        private const val LARGE_FILE_THRESHOLD = 16L * 1024L * 1024L
+        /** 中等文件阈值：8MB，超过此值拆成 3 分片。 */
+        private const val MEDIUM_FILE_THRESHOLD = 8L * 1024L * 1024L
+        /** 小文件阈值：4MB，超过此值拆成 2 分片。 */
+        private const val SMALL_FILE_THRESHOLD = 4L * 1024L * 1024L
+        /** 默认分片大小：2MB。 */
+        private const val DEFAULT_CHUNK_SIZE_BYTES = 2L * 1024L * 1024L
+        /** 默认最小分片大小：512KB。 */
+        private const val DEFAULT_MIN_SEGMENT_SIZE_BYTES = 512L * 1024L
+        /** 大文件分片数。 */
+        private const val SEGMENT_COUNT_FOR_LARGE = 4
+        /** 中等文件分片数。 */
+        private const val SEGMENT_COUNT_FOR_MEDIUM = 3
+        /** 小文件分片数。 */
+        private const val SEGMENT_COUNT_FOR_SMALL = 2
     }
 }

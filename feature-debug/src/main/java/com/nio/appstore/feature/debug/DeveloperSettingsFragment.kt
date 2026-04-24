@@ -50,15 +50,15 @@ class DeveloperSettingsFragment : BaseFragment() {
     private fun bindEnvironmentSection() {
         renderCurrentEnvironment()
 
-        binding.btnEnvDev.setOnClickListener {
+        binding.includeEnvironmentPanel.btnEnvDev.setOnClickListener {
             environmentProvider.setCurrentEnvironment(DownloadEnvironment.DEV)
             renderCurrentEnvironment()
         }
-        binding.btnEnvTest.setOnClickListener {
+        binding.includeEnvironmentPanel.btnEnvTest.setOnClickListener {
             environmentProvider.setCurrentEnvironment(DownloadEnvironment.TEST)
             renderCurrentEnvironment()
         }
-        binding.btnEnvProd.setOnClickListener {
+        binding.includeEnvironmentPanel.btnEnvProd.setOnClickListener {
             environmentProvider.setCurrentEnvironment(DownloadEnvironment.PROD)
             renderCurrentEnvironment()
         }
@@ -68,17 +68,18 @@ class DeveloperSettingsFragment : BaseFragment() {
     private fun renderCurrentEnvironment() {
         val current = environmentProvider.getCurrentEnvironment()
         val config = DownloadEnvironmentEntry(environmentProvider).currentConfig()
-        binding.tvCurrentEnvironment.text = getString(R.string.ui_download_environment_current_format, current.name)
-        binding.tvEnvironmentHint.text = when (current) {
+        val envBinding = binding.includeEnvironmentPanel
+        envBinding.tvCurrentEnvironment.text = getString(R.string.ui_download_environment_current_format, current.name)
+        envBinding.tvEnvironmentHint.text = when (current) {
             DownloadEnvironment.DEV -> getString(R.string.ui_download_environment_hint_dev)
             DownloadEnvironment.TEST -> getString(R.string.ui_download_environment_hint_test)
             DownloadEnvironment.PROD -> getString(R.string.ui_download_environment_hint_prod)
         }
-        binding.tvCatalogSource.text = getString(
+        envBinding.tvCatalogSource.text = getString(
             R.string.ui_catalog_source_current_format,
             resolveCatalogSourceText(config),
         )
-        binding.tvDownloadBaseUrl.text = getString(
+        envBinding.tvDownloadBaseUrl.text = getString(
             R.string.ui_debug_download_base_url_format,
             config.downloadBaseUrl,
         )
@@ -98,7 +99,7 @@ class DeveloperSettingsFragment : BaseFragment() {
     private fun bindPolicySignalsSection() {
         renderPolicySignals()
 
-        binding.btnRefreshSignals.setOnClickListener {
+        binding.includePolicySignalsPanel.btnRefreshSignals.setOnClickListener {
             renderPolicySignals()
         }
     }
@@ -107,16 +108,17 @@ class DeveloperSettingsFragment : BaseFragment() {
     private fun renderPolicySignals() {
         val policyCenter = appServices.policyCenter
         val settings = policyCenter.getSettings()
+        val signalsBinding = binding.includePolicySignalsPanel
 
-        binding.tvWifiStatus.text = getString(
+        signalsBinding.tvWifiStatus.text = getString(
             R.string.ui_debug_wifi_status_format,
             booleanText(settings.wifiConnected),
         )
-        binding.tvStorageStatus.text = getString(
+        signalsBinding.tvStorageStatus.text = getString(
             R.string.ui_debug_storage_status_format,
             booleanText(settings.lowStorageMode),
         )
-        binding.tvParkingStatus.text = getString(
+        signalsBinding.tvParkingStatus.text = getString(
             R.string.ui_debug_parking_status_format,
             booleanText(settings.parkingMode),
         )
@@ -126,12 +128,13 @@ class DeveloperSettingsFragment : BaseFragment() {
     private fun bindVersionInfoSection() {
         val context = context ?: return
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-        binding.tvVersionInfo.text = getString(
+        val versionBinding = binding.includeVersionInfoPanel
+        versionBinding.tvVersionInfo.text = getString(
             R.string.ui_debug_version_format,
             packageInfo.versionName,
             packageInfo.longVersionCode.toInt(),
         )
-        binding.tvPackageName.text = getString(
+        versionBinding.tvPackageName.text = getString(
             R.string.ui_debug_package_format,
             context.packageName,
         )
@@ -139,7 +142,7 @@ class DeveloperSettingsFragment : BaseFragment() {
 
     /** 绑定缓存管理面板，提供清除本地缓存入口。 */
     private fun bindCacheManagementSection() {
-        binding.btnClearCache.setOnClickListener {
+        binding.includeCachePanel.btnClearCache.setOnClickListener {
             val context = context ?: return@setOnClickListener
             clearCache(context)
             Toast.makeText(context, getString(R.string.ui_debug_cache_cleared), Toast.LENGTH_SHORT).show()

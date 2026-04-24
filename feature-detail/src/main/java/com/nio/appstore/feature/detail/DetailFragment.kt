@@ -62,19 +62,21 @@ class DetailFragment : BaseFragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    binding.tvDetailName.text = state.appDetail?.name ?: getString(R.string.screen_detail_empty_name)
-                    binding.tvDetailVersion.text = buildVersionText(state)
-                    binding.tvDetailDesc.text = buildDetailText(state)
-                    binding.tvState.applyTagStyle(CarUiStyle.tagStyle(state.stateText, state.statusTone))
+                    val appInfoBinding = binding.includeDetailAppInfo
+                    val taskStatusBinding = binding.includeDetailTaskStatus
+                    appInfoBinding.tvDetailName.text = state.appDetail?.name ?: getString(R.string.screen_detail_empty_name)
+                    appInfoBinding.tvDetailVersion.text = buildVersionText(state)
+                    appInfoBinding.tvDetailDesc.text = buildDetailText(state)
+                    taskStatusBinding.tvState.applyTagStyle(CarUiStyle.tagStyle(state.stateText, state.statusTone))
                     // 进度和主动作始终跟随状态中心与业务编排结果刷新。
-                    binding.progressDownload.progress = state.progress
-                    binding.tvProgress.text = if (state.progress > 0) {
+                    taskStatusBinding.progressDownload.progress = state.progress
+                    taskStatusBinding.tvProgress.text = if (state.progress > 0) {
                         getString(R.string.screen_detail_progress_format, state.progress)
                     } else {
                         getString(R.string.screen_detail_no_progress)
                     }
-                    binding.tvPolicyPrompt.text = state.policyPrompt
-                    binding.tvPolicyPrompt.visibility = if (state.policyPrompt.isBlank()) View.GONE else View.VISIBLE
+                    appInfoBinding.tvPolicyPrompt.text = state.policyPrompt
+                    appInfoBinding.tvPolicyPrompt.visibility = if (state.policyPrompt.isBlank()) View.GONE else View.VISIBLE
                     binding.btnPrimaryAction.applyActionStyle(CarUiStyle.actionStyle(state.primaryAction))
                 }
             }
