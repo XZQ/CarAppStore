@@ -237,9 +237,31 @@ class DefaultDownloadManager(
         repository.saveDownloadPreferences(preferences)
     }
 
-    /** 在后台协程中真正执行一次下载流程。 */
+    /** 在后台协程中真正执行一次下载流程，编排准备、请求构建和事件消费三个阶段。 */
     private suspend fun executeDownload(appId: String, control: DownloadExecutionControl) {
-        // 在真正开始下载前先做策略判断，避免不允许下载时还创建无效任务。
+        val (detail, targetFile, prepared) = prepareDownloadRecord(appId) ?: return
+        val request = buildDownloadRequest(prepared, detail, targetFile)
+        try {
+            fileDownloader.download(request, control) { event ->
+                handleDownloadEvent(appId, prepared, control, event)
+            }
+        } catch (t: Throwable) {
+            if (control.isStopRequested()) return
+            // 兜底处理下载器未归一化的异常，避免任务停留在中间状态。
+            logger.d("DownloadManager", "download failed: $appId, ${t.message}")
+            markFailed(
+                appId = appId,
+                record = repository.getDownloadTask(appId) ?: prepared,
+                errorCode = DownloadFailureCode.UNKNOWN.name,
+                errorMessage = t.message ?: DownloadFailureCode.UNKNOWN.displayText,
+            )
+        }
+    }
+
+    /** 策略判断 + 读取详情 + 准备下载记录 + 保存初始状态。策略拒绝时返回 null。 */
+    private suspend fun prepareDownloadRecord(
+        appId: String,
+    ): Triple<AppDetail, File, DownloadTaskRecord>? {
         val policy = policyCenter.canDownload(appId)
         if (!policy.allow) {
             markFailed(
@@ -248,9 +270,8 @@ class DefaultDownloadManager(
                 errorCode = DownloadFailureCode.UNKNOWN.name,
                 errorMessage = BusinessText.downloadRestricted(policy.reason),
             )
-            return
+            return null
         }
-
         // 读取应用详情和目标文件路径，并基于历史任务记录准备新的下载快照。
         val detail = repository.getAppDetail(appId)
         val targetFile = repository.getOrCreateDownloadFile(appId)
@@ -266,7 +287,6 @@ class DefaultDownloadManager(
             failureCode = null,
             failureMessage = null,
         )
-
         // 下载器启动前先把等待态写入持久化和状态中心，保证页面立即看到任务。
         repository.saveDownloadTask(prepared)
         stateCenter.resetError(appId)
@@ -279,156 +299,179 @@ class DefaultDownloadManager(
             errorCode = null,
         )
         tracker.track("download_start_$appId")
+        return Triple(detail, targetFile, prepared)
+    }
 
-        try {
-            // 将业务层任务记录转换为底层下载请求，并逐个消费下载事件。
-            fileDownloader.download(
-                request = DownloadRequest(
-                    taskId = prepared.taskId,
-                    appId = appId,
-                    url = detail.apkUrl,
-                    targetFile = targetFile,
-                    downloadedBytes = prepared.downloadedBytes,
-                    totalBytes = prepared.totalBytes,
-                    attempt = prepared.retryCount,
-                    eTag = prepared.eTag,
-                    lastModified = prepared.lastModified,
-                    supportsRange = prepared.supportsRange,
-                    checksumType = detail.checksumType,
-                    checksumValue = detail.checksumValue,
-                    sourcePolicy = detail.sourcePolicy,
-                ),
-                control = control,
-            ) { event ->
-                when (event) {
-                    DownloadEvent.Waiting -> {
-                        if (control.isStopRequested()) return@download
-                        // 进入等待态时刷新更新时间，避免列表里继续展示旧状态。
-                        saveRecord(prepared.copy(status = DownloadStatus.WAITING, updatedAt = System.currentTimeMillis()))
-                        stateCenter.updateDownload(appId, DownloadStatus.WAITING, progress = prepared.progress)
-                    }
+    /** 将业务层下载记录转换为底层下载请求。 */
+    private fun buildDownloadRequest(
+        prepared: DownloadTaskRecord,
+        detail: AppDetail,
+        targetFile: File,
+    ): DownloadRequest {
+        return DownloadRequest(
+            taskId = prepared.taskId,
+            appId = prepared.appId,
+            url = detail.apkUrl,
+            targetFile = targetFile,
+            downloadedBytes = prepared.downloadedBytes,
+            totalBytes = prepared.totalBytes,
+            attempt = prepared.retryCount,
+            eTag = prepared.eTag,
+            lastModified = prepared.lastModified,
+            supportsRange = prepared.supportsRange,
+            checksumType = detail.checksumType,
+            checksumValue = detail.checksumValue,
+            sourcePolicy = detail.sourcePolicy,
+        )
+    }
 
-                    is DownloadEvent.MetaReady -> {
-                        if (control.isStopRequested()) return@download
-                        // 元数据就绪后记录总大小、ETag 和 Range 能力，供恢复和校验使用。
-                        val updated = repository.getDownloadTask(appId)?.copy(
-                            totalBytes = event.meta.contentLength.takeIf { it > 0L } ?: prepared.totalBytes,
-                            eTag = event.meta.eTag,
-                            lastModified = event.meta.lastModified,
-                            supportsRange = event.meta.supportsRange,
-                            updatedAt = System.currentTimeMillis(),
-                        ) ?: prepared
-                        saveRecord(updated)
-                    }
-
-                    is DownloadEvent.Running -> {
-                        if (control.isStopRequested()) return@download
-                        // 下载过程中把字节进度映射成页面进度，并同步速度等运行态信息。
-                        val progress = calculateProgress(event.downloadedBytes, event.totalBytes)
-                        val updated = repository.getDownloadTask(appId)?.copy(
-                            status = DownloadStatus.RUNNING,
-                            progress = progress,
-                            downloadedBytes = event.downloadedBytes,
-                            totalBytes = event.totalBytes,
-                            speedBytesPerSec = event.speedBytesPerSec,
-                            updatedAt = System.currentTimeMillis(),
-                            failureCode = null,
-                            failureMessage = null,
-                        ) ?: prepared.copy(
-                            status = DownloadStatus.RUNNING,
-                            progress = progress,
-                            downloadedBytes = event.downloadedBytes,
-                            totalBytes = event.totalBytes,
-                            speedBytesPerSec = event.speedBytesPerSec,
-                            updatedAt = System.currentTimeMillis(),
-                        )
-                        saveRecord(updated)
-                        stateCenter.updateDownload(
-                            appId = appId,
-                            status = DownloadStatus.RUNNING,
-                            progress = progress,
-                            localApkPath = null,
-                            errorMessage = null,
-                            errorCode = null,
-                        )
-                    }
-
-                    is DownloadEvent.Stopped -> {
-                        // 底层已经按请求停下时，再统一回写暂停或取消状态，避免只停留在 UI 假状态。
-                        when (event.reason) {
-                            DownloadStopReason.PAUSED -> markPaused(
-                                appId = appId,
-                                record = repository.getDownloadTask(appId) ?: prepared,
-                                downloadedBytes = event.downloadedBytes,
-                                totalBytes = event.totalBytes,
-                            )
-
-                            DownloadStopReason.CANCELED -> markCanceled(
-                                appId = appId,
-                                record = repository.getDownloadTask(appId) ?: prepared,
-                            )
-                        }
-                    }
-
-                    is DownloadEvent.Completed -> {
-                        if (control.isStopRequested()) return@download
-                        // 下载完成后同时收口 APK 路径、清空分片记录，并把任务切换到完成态。
-                        repository.saveDownloadedApk(appId, event.file.absolutePath)
-                        repository.saveDownloadSegments(appId, emptyList())
-                        val updated = repository.getDownloadTask(appId)?.copy(
-                            status = DownloadStatus.COMPLETED,
-                            progress = 100,
-                            downloadedBytes = event.totalBytes,
-                            totalBytes = event.totalBytes,
-                            speedBytesPerSec = 0L,
-                            targetFilePath = event.file.absolutePath,
-                            updatedAt = System.currentTimeMillis(),
-                            failureCode = null,
-                            failureMessage = null,
-                        ) ?: prepared.copy(
-                            status = DownloadStatus.COMPLETED,
-                            progress = 100,
-                            downloadedBytes = event.totalBytes,
-                            totalBytes = event.totalBytes,
-                            speedBytesPerSec = 0L,
-                            targetFilePath = event.file.absolutePath,
-                            updatedAt = System.currentTimeMillis(),
-                        )
-                        saveRecord(updated)
-                        stateCenter.updateDownload(
-                            appId = appId,
-                            status = DownloadStatus.COMPLETED,
-                            progress = 100,
-                            localApkPath = event.file.absolutePath,
-                            errorMessage = null,
-                            errorCode = null,
-                        )
-                        tracker.track("download_success_$appId")
-                    }
-
-                    is DownloadEvent.Failed -> {
-                        if (control.isStopRequested()) return@download
-                        // 底层失败统一在这里归一化，避免页面直接感知下载器内部细节。
-                        markFailed(
-                            appId = appId,
-                            record = repository.getDownloadTask(appId) ?: prepared,
-                            errorCode = event.code.name,
-                            errorMessage = event.message,
-                        )
-                    }
-                }
+    /** 消费单个下载事件，根据事件类型更新持久化和状态中心。 */
+    private suspend fun handleDownloadEvent(
+        appId: String,
+        prepared: DownloadTaskRecord,
+        control: DownloadExecutionControl,
+        event: DownloadEvent,
+    ) {
+        when (event) {
+            DownloadEvent.Waiting -> {
+                if (control.isStopRequested()) return
+                // 进入等待态时刷新更新时间，避免列表里继续展示旧状态。
+                saveRecord(prepared.copy(status = DownloadStatus.WAITING, updatedAt = System.currentTimeMillis()))
+                stateCenter.updateDownload(appId, DownloadStatus.WAITING, progress = prepared.progress)
             }
-        } catch (t: Throwable) {
-            if (control.isStopRequested()) return
-            // 兜底处理下载器未归一化的异常，避免任务停留在中间状态。
-            logger.d("DownloadManager", "download failed: $appId, ${t.message}")
-            markFailed(
+
+            is DownloadEvent.MetaReady -> {
+                if (control.isStopRequested()) return
+                // 元数据就绪后记录总大小、ETag 和 Range 能力，供恢复和校验使用。
+                val updated = repository.getDownloadTask(appId)?.copy(
+                    totalBytes = event.meta.contentLength.takeIf { it > 0L } ?: prepared.totalBytes,
+                    eTag = event.meta.eTag,
+                    lastModified = event.meta.lastModified,
+                    supportsRange = event.meta.supportsRange,
+                    updatedAt = System.currentTimeMillis(),
+                ) ?: prepared
+                saveRecord(updated)
+            }
+
+            is DownloadEvent.Running -> handleRunningEvent(appId, prepared, event, control)
+
+            is DownloadEvent.Stopped -> handleStoppedEvent(appId, prepared, event)
+
+            is DownloadEvent.Completed -> handleCompletedEvent(appId, prepared, event, control)
+
+            is DownloadEvent.Failed -> {
+                if (control.isStopRequested()) return
+                // 底层失败统一在这里归一化，避免页面直接感知下载器内部细节。
+                markFailed(
+                    appId = appId,
+                    record = repository.getDownloadTask(appId) ?: prepared,
+                    errorCode = event.code.name,
+                    errorMessage = event.message,
+                )
+            }
+        }
+    }
+
+    /** 处理下载运行中事件，同步字节进度和速度到持久化与状态中心。 */
+    private suspend fun handleRunningEvent(
+        appId: String,
+        prepared: DownloadTaskRecord,
+        event: DownloadEvent.Running,
+        control: DownloadExecutionControl,
+    ) {
+        if (control.isStopRequested()) return
+        // 下载过程中把字节进度映射成页面进度，并同步速度等运行态信息。
+        val progress = calculateProgress(event.downloadedBytes, event.totalBytes)
+        val updated = repository.getDownloadTask(appId)?.copy(
+            status = DownloadStatus.RUNNING,
+            progress = progress,
+            downloadedBytes = event.downloadedBytes,
+            totalBytes = event.totalBytes,
+            speedBytesPerSec = event.speedBytesPerSec,
+            updatedAt = System.currentTimeMillis(),
+            failureCode = null,
+            failureMessage = null,
+        ) ?: prepared.copy(
+            status = DownloadStatus.RUNNING,
+            progress = progress,
+            downloadedBytes = event.downloadedBytes,
+            totalBytes = event.totalBytes,
+            speedBytesPerSec = event.speedBytesPerSec,
+            updatedAt = System.currentTimeMillis(),
+        )
+        saveRecord(updated)
+        stateCenter.updateDownload(
+            appId = appId,
+            status = DownloadStatus.RUNNING,
+            progress = progress,
+            localApkPath = null,
+            errorMessage = null,
+            errorCode = null,
+        )
+    }
+
+    /** 处理下载停止事件，根据停止原因回写暂停或取消状态。 */
+    private suspend fun handleStoppedEvent(
+        appId: String,
+        prepared: DownloadTaskRecord,
+        event: DownloadEvent.Stopped,
+    ) {
+        // 底层已经按请求停下时，再统一回写暂停或取消状态，避免只停留在 UI 假状态。
+        when (event.reason) {
+            DownloadStopReason.PAUSED -> markPaused(
                 appId = appId,
                 record = repository.getDownloadTask(appId) ?: prepared,
-                errorCode = DownloadFailureCode.UNKNOWN.name,
-                errorMessage = t.message ?: DownloadFailureCode.UNKNOWN.displayText,
+                downloadedBytes = event.downloadedBytes,
+                totalBytes = event.totalBytes,
+            )
+
+            DownloadStopReason.CANCELED -> markCanceled(
+                appId = appId,
+                record = repository.getDownloadTask(appId) ?: prepared,
             )
         }
+    }
+
+    /** 处理下载完成事件，收口 APK 路径、清空分片并切换到完成态。 */
+    private suspend fun handleCompletedEvent(
+        appId: String,
+        prepared: DownloadTaskRecord,
+        event: DownloadEvent.Completed,
+        control: DownloadExecutionControl,
+    ) {
+        if (control.isStopRequested()) return
+        // 下载完成后同时收口 APK 路径、清空分片记录，并把任务切换到完成态。
+        repository.saveDownloadedApk(appId, event.file.absolutePath)
+        repository.saveDownloadSegments(appId, emptyList())
+        val updated = repository.getDownloadTask(appId)?.copy(
+            status = DownloadStatus.COMPLETED,
+            progress = 100,
+            downloadedBytes = event.totalBytes,
+            totalBytes = event.totalBytes,
+            speedBytesPerSec = 0L,
+            targetFilePath = event.file.absolutePath,
+            updatedAt = System.currentTimeMillis(),
+            failureCode = null,
+            failureMessage = null,
+        ) ?: prepared.copy(
+            status = DownloadStatus.COMPLETED,
+            progress = 100,
+            downloadedBytes = event.totalBytes,
+            totalBytes = event.totalBytes,
+            speedBytesPerSec = 0L,
+            targetFilePath = event.file.absolutePath,
+            updatedAt = System.currentTimeMillis(),
+        )
+        saveRecord(updated)
+        stateCenter.updateDownload(
+            appId = appId,
+            status = DownloadStatus.COMPLETED,
+            progress = 100,
+            localApkPath = event.file.absolutePath,
+            errorMessage = null,
+            errorCode = null,
+        )
+        tracker.track("download_success_$appId")
     }
 
     /** 冷启动时恢复持久化任务，并根据用户偏好决定是否自动恢复或自动重试。 */
@@ -626,19 +669,35 @@ class DefaultDownloadManager(
     private suspend fun normalizeRecoveredTask(record: DownloadTaskRecord): DownloadTaskRecord {
         val now = System.currentTimeMillis()
         val apkPath = resolveDownloadedApkPath(record)
-        val targetFile = File(record.targetFilePath)
-        val downloadedBytes = when {
-            targetFile.exists() -> targetFile.length()
-            record.downloadedBytes > 0L -> record.downloadedBytes
-            else -> 0L
-        }
+        val downloadedBytes = resolveDownloadBytes(record)
         val totalBytes = record.totalBytes.takeIf { it > 0L } ?: downloadedBytes
         val progress = when {
             totalBytes > 0L -> calculateProgress(downloadedBytes, totalBytes)
             record.progress > 0 -> record.progress
             else -> 0
         }
+        return buildNormalizedRecord(record, apkPath, downloadedBytes, totalBytes, progress, now)
+    }
 
+    /** 计算实际已下载字节数，优先以磁盘文件大小为准。 */
+    private fun resolveDownloadBytes(record: DownloadTaskRecord): Long {
+        val targetFile = File(record.targetFilePath)
+        return when {
+            targetFile.exists() -> targetFile.length()
+            record.downloadedBytes > 0L -> record.downloadedBytes
+            else -> 0L
+        }
+    }
+
+    /** 根据状态构建规范化记录，处理失真、中间态和数据不一致三种情况。 */
+    private fun buildNormalizedRecord(
+        record: DownloadTaskRecord,
+        apkPath: String?,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        progress: Int,
+        now: Long,
+    ): DownloadTaskRecord {
         return when {
             // 已完成任务如果找不到 APK，说明持久化记录已失真，需要直接转成失败态。
             record.status == DownloadStatus.COMPLETED && apkPath == null -> record.copy(

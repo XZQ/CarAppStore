@@ -99,7 +99,32 @@ class SystemPackageInstallerSessionAdapter(
         val resultAction = ACTION_INSTALL_COMMIT_PREFIX + sessionId + "." + System.currentTimeMillis()
         /** 安装提交广播结果队列，用于串行消费系统返回的多阶段结果。 */
         val resultQueue = LinkedBlockingQueue<CommitCallbackPayload>()
-        val resultReceiver = object : BroadcastReceiver() {
+        val resultReceiver = createResultReceiver(resultQueue)
+        ContextCompat.registerReceiver(
+            appContext, resultReceiver, IntentFilter(resultAction), ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        return try {
+            submitSession(sessionId, resultAction)
+            waitForCommitResult(resultQueue, onPendingUserAction)
+        } catch (t: Throwable) {
+            val message = buildCommitThrowableMessage(t)
+            logger.d(TAG, message)
+            InstallCommitResult(success = false, message = message, installedPackageName = null)
+        } finally {
+            runCatching { appContext.unregisterReceiver(resultReceiver) }
+        }
+    }
+
+    /** 判断当前设备是否满足真实安装会话能力要求。 */
+    override fun supportsRealSession(): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && appContext.packageManager.canRequestPackageInstalls()
+    }
+
+    /** 创建安装结果广播接收器，将系统回调入队供主流程消费。 */
+    private fun createResultReceiver(
+        resultQueue: LinkedBlockingQueue<CommitCallbackPayload>,
+    ): BroadcastReceiver {
+        return object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 val status = intent?.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
                     ?: PackageInstaller.STATUS_FAILURE
@@ -117,44 +142,97 @@ class SystemPackageInstallerSessionAdapter(
                 )
             }
         }
-        ContextCompat.registerReceiver(
-            appContext,
-            resultReceiver,
-            IntentFilter(resultAction),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
+    }
+
+    /** 构建 PendingIntent 并提交安装会话到系统。 */
+    private fun submitSession(sessionId: Int, resultAction: String) {
+        val callbackIntent = Intent(resultAction).setPackage(appContext.packageName)
+        val pendingIntent = PendingIntent.getBroadcast(
+            appContext, sessionId, callbackIntent, buildCommitPendingIntentFlags(),
         )
-        return try {
-            // 先提交安装会话，再阻塞等待系统通过广播返回结果。
-            val callbackIntent = Intent(resultAction).setPackage(appContext.packageName)
-            val pendingIntent = PendingIntent.getBroadcast(
-                appContext,
-                sessionId,
-                callbackIntent,
-                buildCommitPendingIntentFlags(),
-            )
-            val session = systemPackageInstaller.openSession(sessionId)
-            try {
-                session.commit(pendingIntent.intentSender)
-            } finally {
-                session.close()
-            }
-            waitForCommitResult(resultQueue, onPendingUserAction)
-        } catch (t: Throwable) {
-            val message = buildCommitThrowableMessage(t)
-            logger.d(TAG, message)
-            InstallCommitResult(
-                success = false,
-                message = message,
-                installedPackageName = null,
-            )
+        val session = systemPackageInstaller.openSession(sessionId)
+        try {
+            session.commit(pendingIntent.intentSender)
         } finally {
-            runCatching { appContext.unregisterReceiver(resultReceiver) }
+            session.close()
         }
     }
 
-    /** 判断当前设备是否满足真实安装会话能力要求。 */
-    override fun supportsRealSession(): Boolean {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && appContext.packageManager.canRequestPackageInstalls()
+    /** 串行消费平台回调，直到拿到最终提交结果。 */
+    private suspend fun waitForCommitResult(
+        resultQueue: LinkedBlockingQueue<CommitCallbackPayload>,
+        onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
+    ): InstallCommitResult {
+        /** 是否已经进入系统确认阶段，进入后需要延长最终结果等待时间。 */
+        var pendingUserActionObserved = false
+        while (true) {
+            val timeoutSeconds = if (pendingUserActionObserved) FINAL_RESULT_TIMEOUT_SECONDS else INITIAL_RESULT_TIMEOUT_SECONDS
+            val callback = resultQueue.poll(timeoutSeconds, TimeUnit.SECONDS) ?: return timeoutResult()
+            when (callback.status) {
+                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                    val result = handlePendingUserAction(
+                        callback, pendingUserActionObserved, onPendingUserAction,
+                    )
+                    if (result != null) return result
+                    pendingUserActionObserved = true
+                }
+                PackageInstaller.STATUS_SUCCESS -> return successResult(callback)
+                else -> return failureResult(callback)
+            }
+        }
+    }
+
+    /**
+     * 处理系统用户确认回调。
+     * 返回 InstallCommitResult 表示终止轮询（异常或失败），返回 null 表示继续等待。
+     * 仅在首次进入确认阶段时通知壳层和业务层。
+     */
+    private suspend fun handlePendingUserAction(
+        callback: CommitCallbackPayload,
+        pendingUserActionObserved: Boolean,
+        onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
+    ): InstallCommitResult? {
+        val confirmationIntent = callback.confirmationIntent
+        if (confirmationIntent == null) {
+            return InstallCommitResult(
+                success = false,
+                message = InstallerText.SESSION_PENDING_USER_ACTION_MISSING_INTENT,
+                installedPackageName = callback.installedPackageName,
+            )
+        }
+        if (!pendingUserActionObserved) {
+            // 首次进入系统确认阶段时，同时通知壳层拉起确认页和业务层更新状态。
+            installUserActionDispatcher.dispatch(confirmationIntent)
+            onPendingUserAction(InstallerText.SESSION_PENDING_USER_ACTION, confirmationIntent)
+        }
+        return null
+    }
+
+    /** 构建超时失败结果。 */
+    private fun timeoutResult(): InstallCommitResult {
+        return InstallCommitResult(
+            success = false,
+            message = InstallerText.SESSION_COMMIT_TIMEOUT,
+            installedPackageName = null,
+        )
+    }
+
+    /** 构建安装成功结果。 */
+    private fun successResult(callback: CommitCallbackPayload): InstallCommitResult {
+        return InstallCommitResult(
+            success = true,
+            message = InstallerText.SESSION_COMMIT_SUCCESS,
+            installedPackageName = callback.installedPackageName,
+        )
+    }
+
+    /** 构建安装失败结果。 */
+    private fun failureResult(callback: CommitCallbackPayload): InstallCommitResult {
+        return InstallCommitResult(
+            success = false,
+            message = callback.message,
+            installedPackageName = callback.installedPackageName,
+        )
     }
 
     /** 为平台状态码补齐默认展示文案。 */
@@ -191,62 +269,6 @@ class SystemPackageInstallerSessionAdapter(
         } else {
             @Suppress("DEPRECATION")
             intent.getParcelableExtra(Intent.EXTRA_INTENT)
-        }
-    }
-
-    /** 串行消费平台回调，直到拿到最终提交结果。 */
-    private suspend fun waitForCommitResult(
-        resultQueue: LinkedBlockingQueue<CommitCallbackPayload>,
-        onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
-    ): InstallCommitResult {
-        /** 是否已经进入系统确认阶段，进入后需要延长最终结果等待时间。 */
-        var pendingUserActionObserved = false
-        while (true) {
-            val timeoutSeconds = if (pendingUserActionObserved) {
-                FINAL_RESULT_TIMEOUT_SECONDS
-            } else {
-                INITIAL_RESULT_TIMEOUT_SECONDS
-            }
-            val callback = resultQueue.poll(timeoutSeconds, TimeUnit.SECONDS)
-                ?: return InstallCommitResult(
-                    success = false,
-                    message = InstallerText.SESSION_COMMIT_TIMEOUT,
-                    installedPackageName = null,
-                )
-            when (callback.status) {
-                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                    val confirmationIntent = callback.confirmationIntent
-                    if (confirmationIntent == null) {
-                        return InstallCommitResult(
-                            success = false,
-                            message = InstallerText.SESSION_PENDING_USER_ACTION_MISSING_INTENT,
-                            installedPackageName = callback.installedPackageName,
-                        )
-                    }
-                    if (!pendingUserActionObserved) {
-                        // 首次进入系统确认阶段时，同时通知壳层拉起确认页和业务层更新状态。
-                        pendingUserActionObserved = true
-                        installUserActionDispatcher.dispatch(confirmationIntent)
-                        onPendingUserAction(InstallerText.SESSION_PENDING_USER_ACTION, confirmationIntent)
-                    }
-                }
-
-                PackageInstaller.STATUS_SUCCESS -> {
-                    return InstallCommitResult(
-                        success = true,
-                        message = InstallerText.SESSION_COMMIT_SUCCESS,
-                        installedPackageName = callback.installedPackageName,
-                    )
-                }
-
-                else -> {
-                    return InstallCommitResult(
-                        success = false,
-                        message = callback.message,
-                        installedPackageName = callback.installedPackageName,
-                    )
-                }
-            }
         }
     }
 

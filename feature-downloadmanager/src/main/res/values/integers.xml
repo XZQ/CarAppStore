@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 进度条最大值 -->
+    <integer name="progress_max">100</integer>
+</resources>
