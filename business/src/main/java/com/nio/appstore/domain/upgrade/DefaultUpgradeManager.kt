@@ -114,6 +114,11 @@ class DefaultUpgradeManager(
                     stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_FAILED)
                     return
                 }
+                state.downloadStatus == DownloadStatus.CANCELED || state.downloadStatus == DownloadStatus.PAUSED -> {
+                    // 下载被用户暂停或取消时，升级编排不能继续等待，统一收口为失败待重试。
+                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_INTERRUPTED)
+                    return
+                }
             }
         }
 

@@ -111,7 +111,7 @@ class RealFileDownloaderTest {
     }
 
     @Test
-    fun `download 在网络中断失败时会保留已下载分片进度`() = runBlocking {
+    fun `download 在响应体提前结束时会保留已下载分片进度`() = runBlocking {
         val fixture = TestFixture(
             headDelayMs = 0L,
             bodyChunkDelayMs = 0L,
@@ -127,11 +127,11 @@ class RealFileDownloaderTest {
             }
 
             val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.NETWORK_INTERRUPTED, failed.code)
+            assertEquals(DownloadFailureCode.FILE_INCOMPLETE, failed.code)
             val segments = fixture.store.readSegments(fixture.request.taskId)
             assertTrue(segments.isNotEmpty())
             val segment = segments.first()
-            assertEquals(DownloaderText.STATUS_FAILED_IO, segment.status)
+            assertEquals(DownloaderText.STATUS_FAILED_INCOMPLETE, segment.status)
             assertEquals(SERVER_WRITE_CHUNK_BYTES.toLong(), segment.downloadedBytes)
         }
     }
@@ -558,7 +558,6 @@ class RealFileDownloaderTest {
                             Thread.sleep(stallAfterFirstChunkMs)
                         }
                         if (closeAfterFirstChunk) {
-                            client.setSoLinger(true, 0)
                             return
                         }
                     }

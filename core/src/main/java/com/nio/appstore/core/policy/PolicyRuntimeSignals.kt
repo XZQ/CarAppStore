@@ -7,7 +7,7 @@ data class PolicyRuntimeSignals(
     /** 当前是否连接到 Wi‑Fi。 */
     val wifiConnected: Boolean = true,
     /** 当前车辆是否处于驻车状态。 */
-    val parkingMode: Boolean = true,
+    val parkingMode: Boolean = false,
     /** 当前设备是否处于低存储状态。 */
     val lowStorageMode: Boolean = false,
 )

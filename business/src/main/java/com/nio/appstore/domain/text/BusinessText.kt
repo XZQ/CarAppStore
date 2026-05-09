@@ -62,6 +62,7 @@ object BusinessText {
     const val POLICY_STORAGE_LIMITED = "当前存储不足，下载和安装会受限"
     const val POLICY_ALL_CLEAR = "当前策略正常：可在 Wi‑Fi + 驻车 + 存储正常条件下执行任务"
     const val UPGRADE_DOWNLOAD_FAILED = "升级包下载失败"
+    const val UPGRADE_DOWNLOAD_INTERRUPTED = "升级包下载未完成"
     const val UPGRADE_INSTALL_FAILED = "升级安装失败"
 
     private const val DOWNLOADING_FORMAT = "下载中 %d%%"

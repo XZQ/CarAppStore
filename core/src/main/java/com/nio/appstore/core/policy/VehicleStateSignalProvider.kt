@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
  */
 data class VehicleRuntimeState(
     /** 当前车辆是否处于驻车状态。 */
-    val parkingMode: Boolean = true,
+    val parkingMode: Boolean = false,
     /** 当前车况信号来源名称。 */
     val sourceName: String = "fallback",
 )
@@ -25,7 +25,7 @@ interface VehicleStateSignalProvider {
 }
 
 /**
- * StaticVehicleStateSignalProvider 提供默认的驻车兜底信号。
+ * StaticVehicleStateSignalProvider 提供默认的安全兜底信号。
  */
 class StaticVehicleStateSignalProvider(
     /** 当前固定输出的车况快照。 */

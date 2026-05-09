@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
  * 当前已接入：
  * 1. Wi‑Fi 网络状态
  * 2. 低存储状态
- * 3. 车况信号通过 VehicleStateSignalProvider 注入，默认兜底为驻车 true
+ * 3. 车况信号通过 VehicleStateSignalProvider 注入，默认兜底为非驻车
  */
 class AndroidPolicyRuntimeSignalProvider(
     context: Context,
@@ -108,7 +108,7 @@ class AndroidPolicyRuntimeSignalProvider(
         val connectivityManager = appContext.getSystemService(ConnectivityManager::class.java)
         return PolicyRuntimeSignals(
             wifiConnected = readWifiConnected(connectivityManager),
-            parkingMode = vehicleStateSignalProvider.currentVehicleState().parkingMode,
+            parkingMode = readParkingMode(),
             lowStorageMode = appContext.filesDir.usableSpace < MIN_REQUIRED_SPACE_BYTES,
         )
     }
@@ -121,6 +121,16 @@ class AndroidPolicyRuntimeSignalProvider(
             capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
         }.getOrElse {
             logger.d(TAG, "read wifi state failed: ${it.message}")
+            false
+        }
+    }
+
+    /** 安全读取车况状态，OEM provider 异常时按非驻车处理。 */
+    private fun readParkingMode(): Boolean {
+        return runCatching {
+            vehicleStateSignalProvider.currentVehicleState().parkingMode
+        }.getOrElse {
+            logger.d(TAG, "read vehicle state failed: ${it.message}")
             false
         }
     }

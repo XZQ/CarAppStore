@@ -38,7 +38,7 @@ class DefaultPolicyCenter(
         .stateIn(
             scope = policyScope,
             started = SharingStarted.Eagerly,
-            initialValue = storedSettingsFlow.value,
+            initialValue = mergePolicySettings(storedSettingsFlow.value, runtimeSignalProvider.currentSignals()),
         )
 
     /** 校验下载链路是否满足网络和存储前置条件。 */

@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1200" viewBox="0 0 1700 1200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#07111f"/>
+      <stop offset="55%" stop-color="#0b1c2f"/>
+      <stop offset="100%" stop-color="#102b3f"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#77d7ff"/>
+    </marker>
+    <style>
+      .title { font: 700 34px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #eef8ff; }
+      .subtitle { font: 400 16px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #a9c6d8; }
+      .layer-title { font: 700 22px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #effbff; }
+      .layer-note { font: 400 14px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #abc5d5; }
+      .module { font: 700 17px "Segoe UI", Arial, sans-serif; fill: #f7fbff; }
+      .module-long { font: 700 14px "Segoe UI", Arial, sans-serif; fill: #f7fbff; }
+      .module-cn { font: 400 13px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #b8cfdd; }
+      .pill { font: 700 13px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #072033; }
+      .line { stroke: #77d7ff; stroke-width: 2.2; fill: none; marker-end: url(#arrow); opacity: 0.9; }
+      .soft-line { stroke: #5aa9c8; stroke-width: 1.6; fill: none; marker-end: url(#arrow); opacity: 0.65; }
+      .shell { fill: #112b42; stroke: #62d6ff; stroke-width: 2; }
+      .feature { fill: #163857; stroke: #4fb8ff; stroke-width: 1.6; }
+      .business { fill: #173a34; stroke: #52d6a5; stroke-width: 1.8; }
+      .data { fill: #2c3049; stroke: #b5a7ff; stroke-width: 1.8; }
+      .core { fill: #3a2d28; stroke: #ffbd72; stroke-width: 1.8; }
+      .common { fill: #2f3540; stroke: #c9d5e3; stroke-width: 1.6; }
+      .band { fill: rgba(255,255,255,0.035); stroke: rgba(255,255,255,0.12); stroke-width: 1; }
+    </style>
+  </defs>
+
+  <rect width="1700" height="1200" fill="url(#bg)"/>
+  <text x="72" y="70" class="title">CarAppStore 项目模块架构图</text>
+  <text x="72" y="102" class="subtitle">Android 多模块工程：app 壳层装配 + feature 页面层 + business 七域编排 + data/core 基础能力</text>
+  <rect x="1170" y="48" width="190" height="34" rx="17" fill="#77d7ff"/>
+  <text x="1200" y="70" class="pill">MVVM / AppContainer</text>
+
+  <rect x="56" y="132" width="1328" height="96" rx="14" class="band"/>
+  <rect x="92" y="158" width="210" height="44" rx="8" class="shell" filter="url(#shadow)"/>
+  <text x="124" y="186" class="module">:app</text>
+  <text x="356" y="170" class="layer-title">Shell Layer</text>
+  <text x="356" y="198" class="layer-note">App / MainActivity / MainNavigator / AppContainer；只做入口、导航、依赖装配和系统桥接</text>
+
+  <rect x="56" y="260" width="1328" height="190" rx="14" class="band"/>
+  <text x="92" y="298" class="layer-title">Feature Layer</text>
+  <text x="92" y="326" class="layer-note">Fragment + ViewModel + ViewBinding；订阅业务服务并渲染页面状态，不直接访问数据源或系统能力</text>
+  <g filter="url(#shadow)">
+    <rect x="92" y="350" width="140" height="58" rx="8" class="feature"/>
+    <text x="116" y="374" class="module">feature-home</text>
+    <text x="126" y="394" class="module-cn">首页</text>
+    <rect x="252" y="350" width="150" height="58" rx="8" class="feature"/>
+    <text x="273" y="374" class="module">feature-detail</text>
+    <text x="303" y="394" class="module-cn">详情页</text>
+    <rect x="422" y="350" width="150" height="58" rx="8" class="feature"/>
+    <text x="443" y="374" class="module">feature-search</text>
+    <text x="473" y="394" class="module-cn">搜索页</text>
+    <rect x="592" y="350" width="150" height="58" rx="8" class="feature"/>
+    <text x="614" y="374" class="module">feature-myapp</text>
+    <text x="641" y="394" class="module-cn">我的应用</text>
+    <rect x="762" y="350" width="190" height="58" rx="8" class="feature"/>
+    <text x="792" y="371" class="module-long">feature-download</text>
+    <text x="814" y="389" class="module-long">manager</text>
+    <text x="830" y="403" class="module-cn">下载中心</text>
+    <rect x="972" y="350" width="184" height="58" rx="8" class="feature"/>
+    <text x="1000" y="374" class="module-long">feature-installcenter</text>
+    <text x="1036" y="396" class="module-cn">安装中心</text>
+    <rect x="1176" y="350" width="150" height="58" rx="8" class="feature"/>
+    <text x="1198" y="374" class="module">feature-upgrade</text>
+    <text x="1224" y="394" class="module-cn">升级中心</text>
+    <rect x="1176" y="280" width="150" height="44" rx="8" class="feature"/>
+    <text x="1200" y="307" class="module">feature-debug</text>
+  </g>
+
+  <rect x="56" y="484" width="1328" height="160" rx="14" class="band"/>
+  <text x="92" y="522" class="layer-title">Business Layer</text>
+  <text x="92" y="550" class="layer-note">七个业务模块：流程编排、策略拦截、状态归约、页面聚合；跨模块通过公开接口调用</text>
+  <g filter="url(#shadow)">
+    <rect x="112" y="574" width="150" height="46" rx="8" class="business"/>
+    <text x="135" y="602" class="module">Download</text>
+    <rect x="282" y="574" width="150" height="46" rx="8" class="business"/>
+    <text x="320" y="602" class="module">Install</text>
+    <rect x="452" y="574" width="150" height="46" rx="8" class="business"/>
+    <text x="487" y="602" class="module">Upgrade</text>
+    <rect x="622" y="574" width="150" height="46" rx="8" class="business"/>
+    <text x="646" y="602" class="module">AppManager</text>
+    <rect x="792" y="574" width="150" height="46" rx="8" class="business"/>
+    <text x="819" y="602" class="module">StateCenter</text>
+    <rect x="962" y="574" width="150" height="46" rx="8" class="business"/>
+    <text x="984" y="602" class="module">PolicyCenter</text>
+    <rect x="1132" y="574" width="150" height="46" rx="8" class="business"/>
+    <text x="1161" y="602" class="module">Repository</text>
+  </g>
+
+  <rect x="56" y="678" width="638" height="160" rx="14" class="band"/>
+  <text x="92" y="716" class="layer-title">Data Layer</text>
+  <text x="92" y="744" class="layer-note">RealAppRepository 聚合 remote / local / system 三类数据源</text>
+  <g filter="url(#shadow)">
+    <rect x="104" y="770" width="150" height="46" rx="8" class="data"/>
+    <text x="131" y="798" class="module">Remote DS</text>
+    <rect x="274" y="770" width="150" height="46" rx="8" class="data"/>
+    <text x="310" y="798" class="module">Local DS</text>
+    <rect x="444" y="770" width="150" height="46" rx="8" class="data"/>
+    <text x="478" y="798" class="module">System DS</text>
+  </g>
+
+  <rect x="746" y="678" width="638" height="160" rx="14" class="band"/>
+  <text x="782" y="716" class="layer-title">Core Layer</text>
+  <text x="782" y="744" class="layer-note">真实下载器、系统安装会话、JSON 存储、日志和打点等底层能力</text>
+  <g filter="url(#shadow)">
+    <rect x="794" y="770" width="150" height="46" rx="8" class="core"/>
+    <text x="818" y="798" class="module">Downloader</text>
+    <rect x="964" y="770" width="150" height="46" rx="8" class="core"/>
+    <text x="995" y="798" class="module">Installer</text>
+    <rect x="1134" y="770" width="150" height="46" rx="8" class="core"/>
+    <text x="1179" y="798" class="module">Storage</text>
+  </g>
+
+  <rect x="56" y="846" width="1328" height="70" rx="14" class="common"/>
+  <text x="92" y="888" class="layer-title">:common</text>
+  <text x="210" y="888" class="layer-note">BaseViewModel / AppServices / 通用 UI 文案与状态样式 / MainNavigator 接口 / AppResult</text>
+
+  <path d="M 197 202 C 197 238, 550 238, 550 350" class="line"/>
+  <path d="M 720 408 C 720 450, 720 462, 720 574" class="line"/>
+  <path d="M 1207 620 C 1207 660, 375 660, 375 770" class="line"/>
+  <path d="M 187 620 C 187 662, 860 662, 860 770" class="soft-line"/>
+  <path d="M 357 620 C 357 670, 1039 670, 1039 770" class="soft-line"/>
+  <path d="M 720 620 C 720 812, 720 812, 720 846" class="soft-line"/>
+</svg>

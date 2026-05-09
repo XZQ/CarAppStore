@@ -22,6 +22,7 @@ import com.nio.appstore.domain.state.DefaultStateCenter
 import com.nio.appstore.domain.state.DownloadStatus
 import com.nio.appstore.domain.state.InstallStatus
 import com.nio.appstore.domain.state.UpgradeStatus
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -147,6 +148,35 @@ class DefaultUpgradeManagerTest {
         assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot("app.b").installStatus)
     }
 
+    @Test
+    fun `startUpgrade 下载被取消时不会无限等待并标记升级失败`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        val manager = createManager(
+            fileDownloader = object : com.nio.appstore.core.downloader.FileDownloader {
+                override suspend fun download(
+                    request: com.nio.appstore.core.downloader.DownloadRequest,
+                    control: com.nio.appstore.core.downloader.DownloadExecutionControl,
+                    onEvent: suspend (com.nio.appstore.core.downloader.DownloadEvent) -> Unit,
+                ) {
+                    onEvent(
+                        com.nio.appstore.core.downloader.DownloadEvent.Stopped(
+                            reason = com.nio.appstore.core.downloader.DownloadStopReason.CANCELED,
+                            downloadedBytes = 0L,
+                            totalBytes = 1024L,
+                        )
+                    )
+                }
+            }
+        )
+
+        withTimeout(1_000L) {
+            manager.startUpgrade(TEST_APP_ID)
+        }
+
+        assertEquals(DownloadStatus.CANCELED, stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+        assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `checkUpgrade 空白 appId 抛异常`() {
         runBlocking {
@@ -173,9 +203,11 @@ class DefaultUpgradeManagerTest {
 
     private fun createManager(
         policyCenter: PolicyCenter = AllowAllPolicyCenter(),
+        fileDownloader: com.nio.appstore.core.downloader.FileDownloader? = null,
+        packageInstaller: PackageInstaller? = null,
     ): DefaultUpgradeManager {
         File(workDir, "test.apk").apply { parentFile?.mkdirs() }
-        val packageInstaller = object : com.nio.appstore.core.installer.PackageInstaller {
+        val effectivePackageInstaller = packageInstaller ?: object : com.nio.appstore.core.installer.PackageInstaller {
             override suspend fun install(
                 request: InstallRequest,
                 onEvent: suspend (InstallEvent) -> Unit,
@@ -187,7 +219,7 @@ class DefaultUpgradeManagerTest {
             }
         }
 
-        val fileDownloader = object : com.nio.appstore.core.downloader.FileDownloader {
+        val effectiveFileDownloader = fileDownloader ?: object : com.nio.appstore.core.downloader.FileDownloader {
             override suspend fun download(
                 request: com.nio.appstore.core.downloader.DownloadRequest,
                 control: com.nio.appstore.core.downloader.DownloadExecutionControl,
@@ -206,7 +238,7 @@ class DefaultUpgradeManagerTest {
             repository = repository,
             stateCenter = stateCenter,
             policyCenter = policyCenter,
-            fileDownloader = fileDownloader,
+            fileDownloader = effectiveFileDownloader,
             logger = QuietLogger(),
             tracker = QuietTracker(),
         )
@@ -215,7 +247,7 @@ class DefaultUpgradeManagerTest {
             repository = repository,
             stateCenter = stateCenter,
             policyCenter = policyCenter,
-            packageInstaller = packageInstaller,
+            packageInstaller = effectivePackageInstaller,
             logger = QuietLogger(),
             tracker = QuietTracker(),
         )

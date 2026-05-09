@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1200" viewBox="0 0 1700 1200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#07101a"/>
+      <stop offset="100%" stop-color="#122c3a"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7bd7ff"/>
+    </marker>
+    <style>
+      .title { font: 700 34px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #eef8ff; }
+      .subtitle { font: 400 16px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #a9c6d8; }
+      .step-title { font: 700 19px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #f7fbff; }
+      .step-note { font: 400 13px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #c1d7e4; }
+      .lane-title { font: 700 18px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #dff6ff; }
+      .lane { fill: rgba(255,255,255,0.04); stroke: rgba(255,255,255,0.13); stroke-width: 1; }
+      .feature { fill: #173553; stroke: #5bc7ff; stroke-width: 2; }
+      .policy { fill: #173a34; stroke: #6ae2b2; stroke-width: 2; }
+      .state { fill: #1e4054; stroke: #8adfff; stroke-width: 2; }
+      .repo { fill: #2c304d; stroke: #b9a8ff; stroke-width: 2; }
+      .core { fill: #3a3028; stroke: #ffbd72; stroke-width: 2; }
+      .done { fill: #25384a; stroke: #d7e4ef; stroke-width: 2; }
+      .line { stroke: #7bd7ff; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+      .line-soft { stroke: #91acc0; stroke-width: 1.8; fill: none; marker-end: url(#arrow); opacity: 0.72; }
+      .fail { stroke: #ff8b8b; stroke-width: 2.2; fill: none; marker-end: url(#arrow); opacity: 0.9; }
+      .label { font: 700 12px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #102033; }
+      .badge { fill: #7bd7ff; }
+    </style>
+  </defs>
+
+  <rect width="1700" height="1200" fill="url(#bg)"/>
+  <text x="72" y="70" class="title">CarAppStore 主链路流程图</text>
+  <text x="72" y="102" class="subtitle">用户动作进入 ViewModel，经业务模块、策略中心、状态中心、Repository 和 core 执行能力完成下载 / 安装 / 升级闭环</text>
+
+  <rect x="72" y="150" width="1296" height="110" rx="14" class="lane"/>
+  <text x="100" y="186" class="lane-title">页面层</text>
+  <g filter="url(#shadow)">
+    <rect x="215" y="175" width="250" height="62" rx="10" class="feature"/>
+    <text x="265" y="202" class="step-title">用户点击主操作</text>
+    <text x="244" y="224" class="step-note">下载 / 暂停 / 安装 / 升级 / 打开</text>
+
+    <rect x="720" y="175" width="250" height="62" rx="10" class="feature"/>
+    <text x="783" y="202" class="step-title">Feature ViewModel</text>
+    <text x="764" y="224" class="step-note">分发事件，订阅状态流刷新 UI</text>
+  </g>
+  <path d="M 465 206 L 720 206" class="line"/>
+
+  <rect x="72" y="300" width="1296" height="150" rx="14" class="lane"/>
+  <text x="100" y="336" class="lane-title">业务层</text>
+  <g filter="url(#shadow)">
+    <rect x="150" y="350" width="230" height="64" rx="10" class="policy"/>
+    <text x="204" y="377" class="step-title">业务 Manager</text>
+    <text x="176" y="399" class="step-note">Download / Install / Upgrade / AppManager</text>
+
+    <rect x="470" y="350" width="230" height="64" rx="10" class="policy"/>
+    <text x="535" y="377" class="step-title">策略中心</text>
+    <text x="513" y="399" class="step-note">网络、驻车、存储、配置判断</text>
+
+    <rect x="790" y="350" width="230" height="64" rx="10" class="state"/>
+    <text x="855" y="377" class="step-title">状态中心</text>
+    <text x="818" y="399" class="step-note">WAITING / RUNNING / FAILED / DONE</text>
+
+    <rect x="1110" y="350" width="190" height="64" rx="10" class="repo"/>
+    <text x="1150" y="377" class="step-title">Repository</text>
+    <text x="1142" y="399" class="step-note">数据读取与持久化</text>
+  </g>
+  <path d="M 845 237 C 760 290, 410 300, 265 350" class="line"/>
+  <path d="M 380 382 L 470 382" class="line"/>
+  <path d="M 700 382 L 790 382" class="line-soft"/>
+  <path d="M 1020 382 L 1110 382" class="line-soft"/>
+
+  <rect x="72" y="490" width="1296" height="150" rx="14" class="lane"/>
+  <text x="100" y="526" class="lane-title">数据与执行层</text>
+  <g filter="url(#shadow)">
+    <rect x="150" y="540" width="230" height="64" rx="10" class="repo"/>
+    <text x="194" y="567" class="step-title">Remote / Local / System</text>
+    <text x="186" y="589" class="step-note">目录、任务记录、包信息、APK 路径</text>
+
+    <rect x="470" y="540" width="230" height="64" rx="10" class="core"/>
+    <text x="522" y="567" class="step-title">Core 执行能力</text>
+    <text x="507" y="589" class="step-note">RealFileDownloader / PackageInstaller</text>
+
+    <rect x="790" y="540" width="230" height="64" rx="10" class="state"/>
+    <text x="842" y="567" class="step-title">事件回调归一化</text>
+    <text x="824" y="589" class="step-note">进度、成功、暂停、取消、失败</text>
+
+    <rect x="1110" y="540" width="190" height="64" rx="10" class="done"/>
+    <text x="1157" y="567" class="step-title">页面刷新</text>
+    <text x="1130" y="589" class="step-note">primaryAction / statusText</text>
+  </g>
+  <path d="M 1205 414 C 1050 470, 560 482, 265 540" class="line"/>
+  <path d="M 380 572 L 470 572" class="line"/>
+  <path d="M 700 572 L 790 572" class="line"/>
+  <path d="M 1020 572 L 1110 572" class="line"/>
+  <path d="M 1205 540 C 1220 470, 1035 442, 905 414" class="line-soft"/>
+  <path d="M 1110 555 C 980 500, 900 462, 845 237" class="line-soft"/>
+
+  <rect x="124" y="700" width="362" height="120" rx="14" class="lane"/>
+  <text x="154" y="736" class="lane-title">下载链路</text>
+  <text x="154" y="766" class="step-note">策略允许后读取详情与目标文件，</text>
+  <text x="154" y="790" class="step-note">RealFileDownloader 处理 HTTP、Range、校验和续传。</text>
+
+  <rect x="540" y="700" width="362" height="120" rx="14" class="lane"/>
+  <text x="570" y="736" class="lane-title">安装链路</text>
+  <text x="570" y="766" class="step-note">策略允许后校验 APK，创建 PackageInstaller.Session。</text>
+  <text x="570" y="790" class="step-note">壳层通过 dispatcher 拉起系统确认页。</text>
+
+  <rect x="956" y="700" width="362" height="120" rx="14" class="lane"/>
+  <text x="986" y="736" class="lane-title">升级链路</text>
+  <text x="986" y="766" class="step-note">Repository 获取 UpgradeInfo，串行编排下载与安装。</text>
+  <text x="986" y="790" class="step-note">批量升级复用同一策略中心与状态中心。</text>
+
+  <path d="M 585 414 C 585 460, 585 495, 585 540" class="line"/>
+  <path d="M 585 414 C 585 450, 480 450, 365 500" class="fail"/>
+  <rect x="388" y="452" width="98" height="24" rx="12" class="badge"/>
+  <text x="414" y="469" class="label">拒绝执行</text>
+
+  <rect x="72" y="876" width="1296" height="42" rx="10" class="lane"/>
+  <text x="104" y="902" class="step-note">当前阶段：仓库内主链路已完成，下一步重点是后端真实目录 API、OEM 车况信号和真机安装/升级联调。</text>
+</svg>
