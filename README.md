@@ -2,7 +2,7 @@
   <h1 align="center">CarAppStore</h1>
   <p align="center">
     <b>车载应用商店 Android 工程</b><br/>
-    面向车机场景的下载、安装、升级、策略和任务中心主链路样例工程
+    面向车机场景的应用商店 UI、下载、安装、升级、策略和任务中心主链路工程
   </p>
 </p>
 
@@ -16,9 +16,21 @@
 
 ## 简介
 
-CarAppStore 是一个多模块 Android/Kotlin 工程，用来沉淀车载应用商店的核心链路：应用目录、下载、安装、升级、状态归约、策略门控、应用管理和任务中心。
+CarAppStore 是一个多模块 Android/Kotlin 工程，用来沉淀车载应用商店的核心链路：应用目录、首页推荐、搜索、详情、我的应用、下载、安装、升级、状态归约、策略门控、应用管理和任务中心。
 
-项目重点不是营销页面或静态 Demo，而是把下载/安装/升级这些容易受网络、存储、系统安装器和车况策略影响的流程拆成清晰的工程边界，并提供可测试、可替换、可继续联调的实现。
+项目已经完成多端 UI 壳层和主要页面开发，不再只是静态 Demo。当前工程可以生成 APK，页面可以跑通本地目录、状态中心、策略门控、任务中心和安装/升级/下载主链路；真实联网目录、APK 下载源和生产环境验收是下一步接入重点。
+
+## 当前效果
+
+| 多端 UI | 首页与应用卡片 |
+| --- | --- |
+| <img src="docs/设计/01_多设备应用商店界面展示_3x高清.jpg" alt="多端应用商店 UI" width="420"/> | <img src="docs/设计/05_抖音应用商店展示界面合集_3x高清.jpg" alt="应用商店首页与卡片" width="420"/> |
+
+| 下载管理 | 升级管理 |
+| --- | --- |
+| <img src="docs/设计/06_下载管理界面设计合集_3x高清.jpg" alt="下载管理界面" width="420"/> | <img src="docs/设计/07_应用更新界面设计展示_3x高清.jpg" alt="应用升级界面" width="420"/> |
+
+完整设计参考见 [docs/设计](docs/设计)，多端布局说明见 [docs/27-多端UI框架设计.md](docs/27-多端UI框架设计.md)。
 
 ## 架构图
 
@@ -37,6 +49,7 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 - **固定页面导航**：使用 `Activity + FragmentManager`，不引入 Navigation
 - **业务边界清晰**：下载、安装、升级、应用管理、状态中心、策略中心、Repository 各自收口职责
 - **车机安全优先**：策略门控、任务恢复、失败可见性和 OEM 接缝优先于运营功能
+- **多端 UI 适配**：手机、平板、车机/桌面三套壳层，共享同一组页面和业务状态
 
 ## 模块一览
 
@@ -58,6 +71,9 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 - `DefaultStateCenter` 统一维护下载、安装、升级运行态，并推导页面主按钮和状态文案
 - `DefaultPolicyCenter` 统一处理 Wi-Fi、存储、驻车/车况等策略门控
 - 首页、搜索、详情、我的应用、下载中心、安装中心、升级中心和开发者设置页面
+- 手机、平板、车机/桌面响应式壳层，车机/桌面侧边任务摘要栏
+- 应用图标、详情头图和详情截图加载能力，支持 `asset://`、`file://`、`http(s)://`，失败时回退文本兜底
+- 本地事件打点落盘、生产配置自检提示、Release 签名环境变量入口
 
 ## 外部接入状态
 
@@ -65,9 +81,11 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 
 | 接入项 | 当前状态 |
 | --- | --- |
-| 远端目录 API | 客户端链路已完成；默认配置仍使用示例地址，需要替换为真实后端地址、鉴权头和协议 |
-| OEM 车况信号 | 已定义 `VehicleStateSignalProvider` 接口；未接 OEM SDK 时按安全默认值处理 |
+| 远端目录 API | 客户端链路、缓存回退、鉴权头和 Gradle/环境变量注入已完成；默认配置仍使用示例地址，需要替换为真实后端地址和协议 |
+| APK 联网下载源 | 下载器、任务状态、断点续传和校验链路已具备；真实 APK CDN、checksum 和灰度策略下一步接入 |
+| OEM 车况信号 | 已定义 `VehicleStateSignalProvider` 接口，并支持广播型 OEM 接入；未接真实协议时按安全默认值处理 |
 | 真机安装行为 | 已接 Android `PackageInstaller`；不同车机 ROM 的确认页、回调码和权限行为需要实机验证 |
+| 运营观测 | 本地事件落盘已接入；上传服务、告警看板和隐私合规字段需要接生产平台 |
 
 ## 环境要求
 
@@ -86,6 +104,7 @@ $env:JAVA_HOME="<your-jdk-17-path>"
 .\gradlew.bat testDebugUnitTest --no-daemon
 .\gradlew.bat compileDebugKotlin --no-daemon
 .\gradlew.bat :app:assembleDebug --no-daemon
+.\gradlew.bat :app:assembleRelease --no-daemon
 ```
 
 macOS / Linux / Git Bash:
@@ -94,6 +113,7 @@ macOS / Linux / Git Bash:
 ./gradlew testDebugUnitTest --no-daemon
 ./gradlew compileDebugKotlin --no-daemon
 ./gradlew :app:assembleDebug --no-daemon
+./gradlew :app:assembleRelease --no-daemon
 ```
 
 ## 项目结构
@@ -131,7 +151,9 @@ CarAppStore/
 | [远端目录与车况信号接入约定](docs/23-远端目录与车况信号接入约定.md) | 后端和 OEM 接入约定 |
 | [真机回归测试清单](docs/25-真机回归测试清单.md) | 设备验证清单 |
 | [后端与 OEM 验收标准](docs/26-后端与OEM验收标准.md) | 对接验收标准 |
+| [多端 UI 框架设计](docs/27-多端UI框架设计.md) | 手机、平板、车机/桌面 UI 壳层与页面改造顺序 |
+| [商用化剩余事项](docs/28-商用化剩余事项.md) | 已补齐能力、外部配置入口和下一步验收顺序 |
 
 ## 发布说明
 
-本仓库适合作为车载应用商店主链路的工程样例和联调底座。默认后端地址、下载源和 OEM 车况 provider 均为示例或接缝实现；接入真实生产环境前，应替换外部配置并完成真机回归。
+本仓库已经具备车载应用商店的主体 UI、工程分层和下载/安装/升级主链路底座。下一步重点是接入真实联网目录和 APK 下载源，并在目标车机上完成 OEM 车况、安装权限、Release 签名、埋点上传和真机回归。
