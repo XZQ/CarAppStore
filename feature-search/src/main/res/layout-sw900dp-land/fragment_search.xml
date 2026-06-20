@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/car_bg"
+    android:orientation="vertical"
+    android:padding="@dimen/spacing_18dp">
+
+    <LinearLayout
+        android:id="@+id/catalogHeader"
+        android:layout_width="match_parent"
+        android:layout_height="92dp"
+        android:background="@drawable/bg_home_hero"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/spacing_20dp"
+        android:paddingEnd="@dimen/spacing_20dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvCatalogTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/car_text_primary"
+                android:textSize="@dimen/text_3xl"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_6dp"
+                android:text="车端内容按左侧入口独立组织，适合横屏快速浏览"
+                android:textColor="@color/car_text_secondary"
+                android:textSize="@dimen/text_sm" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="360dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="@dimen/spacing_20dp"
+            android:background="@drawable/bg_search_input"
+            android:paddingStart="@dimen/spacing_16dp"
+            android:paddingEnd="@dimen/spacing_16dp"
+            android:singleLine="true"
+            android:textColor="@color/car_text_primary"
+            android:textColorHint="@color/car_text_muted"
+            android:textSize="@dimen/text_md" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="@dimen/spacing_18dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="330dp"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:fillViewport="true"
+            android:paddingBottom="@dimen/spacing_12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/heroPanel"
+                    android:layout_width="match_parent"
+                    android:layout_height="160dp"
+                    android:background="@drawable/bg_home_banner"
+                    android:orientation="vertical"
+                    android:padding="@dimen/spacing_18dp">
+
+                    <TextView
+                        android:id="@+id/tvHeroTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/car_text_primary"
+                        android:textSize="@dimen/text_2xl"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvSearchSubtitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/spacing_10dp"
+                        android:textColor="@color/car_text_secondary"
+                        android:textSize="@dimen/text_sm" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvHistoryTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_18dp"
+                    android:text="入口筛选"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_lg"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/historyChips"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:orientation="horizontal" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_18dp"
+                    android:text="车端热词"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_lg"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/hotSearchChips"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:orientation="vertical" />
+
+                <TextView
+                    android:id="@+id/tvPolicyPrompt"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_16dp"
+                    android:background="@drawable/bg_home_chip"
+                    android:padding="@dimen/spacing_12dp"
+                    android:textColor="@color/car_text_secondary"
+                    android:textSize="@dimen/text_sm_13"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="@dimen/spacing_18dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:fillViewport="true"
+            android:paddingBottom="@dimen/spacing_12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="92dp"
+                    android:background="@drawable/bg_home_app_card"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="@dimen/spacing_18dp">
+
+                    <TextView
+                        android:id="@+id/tvResultTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textColor="@color/car_text_primary"
+                        android:textSize="@dimen/text_xl"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:background="@drawable/bg_home_chip"
+                        android:gravity="center"
+                        android:paddingStart="@dimen/spacing_16dp"
+                        android:paddingEnd="@dimen/spacing_16dp"
+                        android:text="横屏精选"
+                        android:textColor="@color/car_text_secondary"
+                        android:textSize="@dimen/text_sm_13"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/listCatalogResults"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_12dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+    </LinearLayout>
+</LinearLayout>
