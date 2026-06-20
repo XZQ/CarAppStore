@@ -77,7 +77,7 @@
             android:layout_marginStart="@dimen/spacing_8dp"
             android:layout_weight="1"
             android:background="@drawable/bg_nav_button"
-            android:text="@string/ui_search"
+            android:text="@string/ui_game"
             android:textAllCaps="false"
             android:textColor="@color/car_text_primary"
             android:textSize="@dimen/text_sm" />
@@ -89,7 +89,7 @@
             android:layout_marginStart="@dimen/spacing_8dp"
             android:layout_weight="1"
             android:background="@drawable/bg_nav_button"
-            android:text="@string/ui_download_manager"
+            android:text="@string/ui_software"
             android:textAllCaps="false"
             android:textColor="@color/car_text_primary"
             android:textSize="@dimen/text_sm" />
@@ -121,6 +121,18 @@
 
     <Button
         android:id="@+id/btnNavDebug"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/btnNavEssential"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/btnNavDesktopDownload"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:visibility="gone" />

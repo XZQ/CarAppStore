@@ -45,6 +45,9 @@ class MyAppFragment : BaseFragment() {
         observeState()
         viewModel.load()
         binding.btnBackHome.setOnClickListener { navigator.openHome() }
+        binding.btnInstallManager.setOnClickListener { navigator.openInstallManager() }
+        binding.btnDownloadManager.setOnClickListener { navigator.openDownloadManager() }
+        binding.btnUpgradeManager.setOnClickListener { navigator.openUpgradeManager() }
     }
 
     /** 根据当前屏幕宽度切换列表列数。 */

@@ -1,62 +1,187 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:fillViewport="true"
+    android:paddingBottom="@dimen/spacing_12dp">
 
     <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:orientation="vertical"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/profileHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_card_alt"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="@dimen/spacing_18dp">
+
+            <TextView
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_tag_info"
+                android:gravity="center"
+                android:text="XZQ"
+                android:textColor="@color/car_text_primary"
+                android:textSize="@dimen/text_lg"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/spacing_14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvMyAppTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="清风徐来"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_2xl"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvMyAppSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_6dp"
+                    android:text="VIP 会员  ·  L5 旅途音等级"
+                    android:textColor="@color/car_text_secondary"
+                    android:textSize="@dimen/text_sm" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="86dp"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_primary_button"
+                android:gravity="center"
+                android:text="编辑资料"
+                android:textColor="@color/car_text_primary"
+                android:textSize="@dimen/text_sm"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_home_hero"
-            android:orientation="vertical"
-            android:padding="@dimen/spacing_18dp">
+            android:layout_marginTop="@dimen/spacing_14dp"
+            android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/tvMyAppTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/ui_my_apps"
-                android:textColor="@color/car_text_primary"
-                android:textSize="@dimen/text_2xl"
-                android:textStyle="bold" />
+                android:id="@+id/tvStatDownloads"
+                style="@style/MyProfileStat"
+                android:text="我的下载\n32" />
 
             <TextView
-                android:id="@+id/tvMyAppSubtitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_8dp"
-                android:text="@string/ui_my_apps_task_summary"
-                android:textColor="@color/car_text_secondary"
-                android:textSize="@dimen/text_sm" />
+                android:id="@+id/tvStatFavorites"
+                style="@style/MyProfileStat"
+                android:layout_marginStart="@dimen/spacing_8dp"
+                android:text="我的收藏\n128" />
+
+            <TextView
+                style="@style/MyProfileStat"
+                android:layout_marginStart="@dimen/spacing_8dp"
+                android:text="购买记录\n18" />
+
+            <TextView
+                style="@style/MyProfileStat"
+                android:layout_marginStart="@dimen/spacing_8dp"
+                android:text="优惠券\n6" />
         </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="58dp"
+            android:layout_marginTop="@dimen/spacing_14dp"
+            android:background="@drawable/bg_primary_button"
+            android:gravity="center_vertical"
+            android:paddingStart="@dimen/spacing_18dp"
+            android:paddingEnd="@dimen/spacing_18dp"
+            android:text="超级会员  尊享专属特权"
+            android:textColor="@color/car_text_primary"
+            android:textSize="@dimen/text_lg"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_18dp"
+            android:text="应用管理"
+            android:textColor="@color/car_text_primary"
+            android:textSize="@dimen/text_lg"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/btnInstallManager"
+                style="@style/MyManagerCard"
+                android:text="安装管理\n已安装 56 款应用" />
+
+            <TextView
+                android:id="@+id/btnDownloadManager"
+                style="@style/MyManagerCard"
+                android:layout_marginStart="@dimen/spacing_10dp"
+                android:text="下载管理\n正在下载 2 个任务" />
+
+            <TextView
+                android:id="@+id/btnUpgradeManager"
+                style="@style/MyManagerCard"
+                android:layout_marginStart="@dimen/spacing_10dp"
+                android:text="升级管理\n可更新 8 款应用" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_18dp"
+            android:text="常用服务"
+            android:textColor="@color/car_text_primary"
+            android:textSize="@dimen/text_lg"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_10dp"
+            android:orientation="vertical">
+
+            <TextView style="@style/MyServiceRow" android:text="消息通知                                           >" />
+            <TextView style="@style/MyServiceRow" android:text="设置中心                                           >" />
+            <TextView style="@style/MyServiceRow" android:text="安全中心                                           >" />
+            <TextView style="@style/MyServiceRow" android:text="帮助与反馈                                       >" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_18dp"
+            android:text="最近安装"
+            android:textColor="@color/car_text_primary"
+            android:textSize="@dimen/text_lg"
+            android:textStyle="bold" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerMyApps"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_marginTop="@dimen/spacing_14dp"
-            android:layout_weight="1"
-            android:clipToPadding="false"
-            android:paddingBottom="@dimen/spacing_10dp" />
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_10dp"
+            android:nestedScrollingEnabled="false" />
 
         <Button
             android:id="@+id/btnBackHome"
-            android:layout_width="match_parent"
-            android:layout_height="54dp"
-            android:layout_marginTop="@dimen/spacing_8dp"
-            android:background="@drawable/bg_secondary_button"
-            android:text="@string/ui_back_home"
-            android:textAllCaps="false"
-            android:textColor="@color/car_text_primary"
-            android:textSize="@dimen/text_md_17" />
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
     </LinearLayout>
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.core.widget.NestedScrollView>

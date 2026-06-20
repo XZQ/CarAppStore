@@ -18,6 +18,7 @@ import com.xzq.appstore.feature.downloadmanager.DownloadManagerFragment
 import com.xzq.appstore.feature.home.HomeFragment
 import com.xzq.appstore.feature.installcenter.InstallCenterFragment
 import com.xzq.appstore.feature.myapp.MyAppFragment
+import com.xzq.appstore.feature.search.CatalogPage
 import com.xzq.appstore.feature.search.SearchFragment
 import com.xzq.appstore.feature.upgrade.UpgradeFragment
 import kotlinx.coroutines.launch
@@ -72,10 +73,18 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
 
     /** 打开搜索页。 */
     override fun openSearch() {
+        openCatalog(CatalogPage.Software, binding.btnNavDownload)
+    }
+
+    private fun openGame() {
+        openCatalog(CatalogPage.Game, binding.btnNavSearch)
+    }
+
+    private fun openCatalog(page: CatalogPage, selectedButton: Button?) {
         navigateTo(
-            fragment = SearchFragment.newInstance(),
-            titleRes = R.string.title_search,
-            selectedButton = binding.btnNavSearch,
+            fragment = SearchFragment.newInstance(page),
+            title = page.title,
+            selectedButton = selectedButton,
         )
     }
 
@@ -84,7 +93,7 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
         navigateTo(
             fragment = DownloadManagerFragment.newInstance(),
             titleRes = R.string.title_download_manager,
-            selectedButton = binding.btnNavDownload,
+            selectedButton = binding.btnNavDesktopDownload,
         )
     }
 
@@ -141,12 +150,14 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
      */
     private fun bindNavigationClicks() {
         binding.btnNavHome.setOnClickListener { openHome() }
-        binding.btnNavSearch.setOnClickListener { openSearch() }
-        binding.btnNavDownload.setOnClickListener { openDownloadManager() }
-        binding.btnNavUpgrade.setOnClickListener { openUpgradeManager() }
-        binding.btnNavInstall.setOnClickListener { openInstallManager() }
+        binding.btnNavSearch.setOnClickListener { openGame() }
+        binding.btnNavDownload.setOnClickListener { openSearch() }
+        binding.btnNavUpgrade.setOnClickListener { openCatalog(CatalogPage.Category, binding.btnNavUpgrade) }
+        binding.btnNavInstall.setOnClickListener { openCatalog(CatalogPage.Rank, binding.btnNavInstall) }
+        binding.btnNavEssential.setOnClickListener { openCatalog(CatalogPage.Essential, binding.btnNavEssential) }
         binding.btnNavMyApps.setOnClickListener { openMyApps() }
-        binding.btnNavDebug.setOnClickListener { openDeveloperSettings() }
+        binding.btnNavDebug.setOnClickListener { openCatalog(CatalogPage.Activity, binding.btnNavDebug) }
+        binding.btnNavDesktopDownload.setOnClickListener { openDownloadManager() }
     }
 
     /**
@@ -210,6 +221,20 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
         selectedButton: Button?,
         addToBackStack: Boolean = true,
     ) {
+        navigateTo(
+            fragment = fragment,
+            title = getString(titleRes),
+            selectedButton = selectedButton,
+            addToBackStack = addToBackStack,
+        )
+    }
+
+    private fun navigateTo(
+        fragment: Fragment,
+        title: String,
+        selectedButton: Button?,
+        addToBackStack: Boolean = true,
+    ) {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragmentContainer, fragment)
             .apply {
@@ -219,7 +244,7 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
             }
             .commit()
 
-        updateTitle(getString(titleRes))
+        updateTitle(title)
         selectNav(selectedButton)
     }
 
@@ -235,8 +260,10 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
             binding.btnNavDownload,
             binding.btnNavUpgrade,
             binding.btnNavInstall,
+            binding.btnNavEssential,
             binding.btnNavMyApps,
             binding.btnNavDebug,
+            binding.btnNavDesktopDownload,
         )
         buttons.forEach { button ->
             button.isSelected = button == selected

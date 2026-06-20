@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="MyProfileStat">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">72dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/bg_card</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">@color/car_text_primary</item>
+        <item name="android:textSize">@dimen/text_sm</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="MyManagerCard">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">86dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/bg_card_alt</item>
+        <item name="android:gravity">center</item>
+        <item name="android:padding">@dimen/spacing_10dp</item>
+        <item name="android:textColor">@color/car_text_primary</item>
+        <item name="android:textSize">@dimen/text_sm</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="MyServiceRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">52dp</item>
+        <item name="android:layout_marginBottom">@dimen/spacing_8dp</item>
+        <item name="android:background">@drawable/bg_card</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">@dimen/spacing_16dp</item>
+        <item name="android:paddingEnd">@dimen/spacing_16dp</item>
+        <item name="android:textColor">@color/car_text_primary</item>
+        <item name="android:textSize">@dimen/text_md</item>
+    </style>
+</resources>

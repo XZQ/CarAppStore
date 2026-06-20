@@ -18,6 +18,12 @@
     <string name="ui_carappstore">CarAppStore</string>
     <string name="ui_service_center_subtitle">&#x9a7e;&#x9a76;&#x573a;&#x666f;&#x5e94;&#x7528;&#x670d;&#x52a1;&#x4e2d;&#x5fc3;</string>
     <string name="ui_home">&#x9996;&#x9875;</string>
+    <string name="ui_game">&#x6e38;&#x620f;</string>
+    <string name="ui_software">&#x8f6f;&#x4ef6;</string>
+    <string name="ui_category">&#x5206;&#x7c7b;</string>
+    <string name="ui_rank">&#x6392;&#x884c;</string>
+    <string name="ui_essential">&#x5fc5;&#x5907;</string>
+    <string name="ui_activity">&#x6d3b;&#x52a8;</string>
     <string name="ui_search">&#x641c;&#x7d22;</string>
     <string name="ui_download_manager">&#x4e0b;&#x8f7d;&#x7ba1;&#x7406;</string>
     <string name="ui_upgrade_manager">&#x5347;&#x7ea7;&#x7ba1;&#x7406;</string>
