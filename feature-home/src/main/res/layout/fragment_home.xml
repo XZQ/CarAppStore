@@ -1,32 +1,94 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:fillViewport="true"
+    android:paddingBottom="@dimen/spacing_16dp">
 
     <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:orientation="vertical"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
 
         <LinearLayout
+            android:id="@+id/topImmersivePanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_home_hero"
             android:orientation="vertical"
+            android:padding="@dimen/spacing_16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvHomeTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="青柠应用商店"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_xl"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvHomeNotice"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/bg_home_chip"
+                    android:gravity="center"
+                    android:text="提醒"
+                    android:textColor="@color/car_accent"
+                    android:textSize="@dimen/text_xs"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvHomeSearch"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="@dimen/spacing_12dp"
+                android:background="@drawable/bg_search_input"
+                android:gravity="center_vertical"
+                android:paddingStart="@dimen/spacing_16dp"
+                android:paddingEnd="@dimen/spacing_16dp"
+                android:text="搜索应用或游戏"
+                android:textColor="@color/car_text_hint"
+                android:textSize="@dimen/text_sm" />
+
+            <TextView
+                android:id="@+id/tvPolicyPrompt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_10dp"
+                android:background="@drawable/bg_home_chip"
+                android:paddingStart="@dimen/spacing_12dp"
+                android:paddingTop="@dimen/spacing_8dp"
+                android:paddingEnd="@dimen/spacing_12dp"
+                android:paddingBottom="@dimen/spacing_8dp"
+                android:textColor="@color/car_text_secondary"
+                android:textSize="@dimen/text_xs" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/carouselPanel"
+            android:layout_width="match_parent"
+            android:layout_height="168dp"
+            android:layout_marginTop="@dimen/spacing_14dp"
+            android:background="@drawable/bg_home_banner"
+            android:orientation="vertical"
             android:padding="@dimen/spacing_18dp">
 
             <TextView
-                android:id="@+id/tvHomeTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="&#x9752;&#x67e0;&#x5e94;&#x7528;&#x5546;&#x5e97;"
+                android:text="春日焕新季"
                 android:textColor="@color/car_text_primary"
-                android:textSize="@dimen/text_3xl"
+                android:textSize="@dimen/text_2xl"
                 android:textStyle="bold" />
 
             <TextView
@@ -38,132 +100,98 @@
                 android:textSize="@dimen/text_sm" />
 
             <TextView
-                android:id="@+id/tvPolicyPrompt"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_12dp"
-                android:background="@drawable/bg_home_chip"
-                android:paddingStart="@dimen/spacing_14dp"
-                android:paddingTop="@dimen/spacing_10dp"
-                android:paddingEnd="@dimen/spacing_14dp"
-                android:paddingBottom="@dimen/spacing_10dp"
+                android:layout_width="92dp"
+                android:layout_height="38dp"
+                android:layout_marginTop="@dimen/spacing_18dp"
+                android:background="@drawable/bg_primary_button"
+                android:gravity="center"
+                android:text="立即探索"
                 android:textColor="@color/car_text_primary"
-                android:textSize="@dimen/text_sm_13" />
+                android:textSize="@dimen/text_sm"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/categoryRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_14dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/entryCategory"
+                style="@style/HomeQuickEntry"
+                android:text="分类" />
+
+            <TextView
+                android:id="@+id/entryRank"
+                style="@style/HomeQuickEntry"
+                android:layout_marginStart="@dimen/spacing_10dp"
+                android:text="排行" />
+
+            <TextView
+                android:id="@+id/entryEssential"
+                style="@style/HomeQuickEntry"
+                android:layout_marginStart="@dimen/spacing_10dp"
+                android:text="必备" />
+
+            <TextView
+                android:id="@+id/entryFactory"
+                style="@style/HomeQuickEntry"
+                android:layout_marginStart="@dimen/spacing_10dp"
+                android:text="返厂" />
+        </LinearLayout>
+
+        <include layout="@layout/view_home_section_today" />
+        <include layout="@layout/view_home_section_rank" />
+        <include layout="@layout/view_home_section_games" />
+        <include layout="@layout/view_home_section_reservation" />
+
+        <LinearLayout
+            android:id="@+id/limitedActivitySection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_16dp"
+            android:orientation="vertical">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_14dp"
+                android:gravity="center_vertical"
                 android:orientation="horizontal">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bg_home_chip_active"
-                    android:paddingStart="@dimen/spacing_14dp"
-                    android:paddingTop="@dimen/spacing_8dp"
-                    android:paddingEnd="@dimen/spacing_14dp"
-                    android:paddingBottom="@dimen/spacing_8dp"
-                    android:text="&#x63a8;&#x8350;"
-                    android:textColor="@color/car_bg"
-                    android:textSize="@dimen/text_sm_13"
+                    android:layout_weight="1"
+                    android:text="限时活动"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_lg"
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/tvActivityMore"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/spacing_8dp"
-                    android:background="@drawable/bg_home_chip"
-                    android:paddingStart="@dimen/spacing_14dp"
-                    android:paddingTop="@dimen/spacing_8dp"
-                    android:paddingEnd="@dimen/spacing_14dp"
-                    android:paddingBottom="@dimen/spacing_8dp"
-                    android:text="&#x5f71;&#x97f3;"
-                    android:textColor="@color/car_text_primary"
-                    android:textSize="@dimen/text_sm_13" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="@dimen/spacing_8dp"
-                    android:background="@drawable/bg_home_chip"
-                    android:paddingStart="@dimen/spacing_14dp"
-                    android:paddingTop="@dimen/spacing_8dp"
-                    android:paddingEnd="@dimen/spacing_14dp"
-                    android:paddingBottom="@dimen/spacing_8dp"
-                    android:text="&#x51fa;&#x884c;"
-                    android:textColor="@color/car_text_primary"
-                    android:textSize="@dimen/text_sm_13" />
+                    android:text="查看更多"
+                    android:textColor="@color/car_accent"
+                    android:textSize="@dimen/text_sm" />
             </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/recentSection"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_14dp"
-            android:background="@drawable/bg_card_alt"
-            android:orientation="vertical"
-            android:padding="@dimen/spacing_14dp">
 
             <TextView
-                android:id="@+id/tvRecentTitle"
+                android:id="@+id/tvActivityBanner"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/ui_home_recently_used"
-                android:textColor="@color/car_text_primary"
-                android:textSize="@dimen/text_md"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvRecentApps"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_6dp"
-                android:textColor="@color/car_text_secondary"
-                android:textSize="@dimen/text_sm_13" />
-        </LinearLayout>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerHome"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_marginTop="@dimen/spacing_14dp"
-            android:layout_weight="1"
-            android:clipToPadding="false"
-            android:paddingBottom="@dimen/spacing_10dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_8dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btnSearchApps"
-                android:layout_width="0dp"
-                android:layout_height="56dp"
-                android:layout_marginEnd="@dimen/spacing_6dp"
-                android:layout_weight="1"
-                android:background="@drawable/bg_secondary_button"
-                android:text="@string/ui_search_apps"
-                android:textAllCaps="false"
-                android:textColor="@color/car_text_primary"
-                android:textSize="@dimen/text_lg"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/btnMyApps"
-                android:layout_width="0dp"
-                android:layout_height="56dp"
-                android:layout_marginStart="@dimen/spacing_6dp"
-                android:layout_weight="1"
-                android:background="@drawable/bg_primary_button"
-                android:text="@string/ui_my_apps"
-                android:textAllCaps="false"
+                android:layout_height="128dp"
+                android:layout_marginTop="@dimen/spacing_10dp"
+                android:background="@drawable/bg_home_activity"
+                android:gravity="center_vertical"
+                android:paddingStart="@dimen/spacing_18dp"
+                android:paddingEnd="@dimen/spacing_18dp"
+                android:text="周末狂欢 下载赢好礼\n最高领 100 元优惠券"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_lg"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.core.widget.NestedScrollView>
