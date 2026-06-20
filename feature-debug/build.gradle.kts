@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.nio.appstore.feature.debug"
+    namespace = "com.xzq.appstore.feature.debug"
     compileSdk = 34
 
     defaultConfig {

@@ -1,0 +1,31 @@
+package com.xzq.appstore.feature.downloadmanager
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import com.xzq.appstore.domain.appmanager.AppManager
+import com.xzq.appstore.domain.download.DownloadManager
+import com.xzq.appstore.domain.install.InstallManager
+import com.xzq.appstore.domain.policy.PolicyCenter
+import com.xzq.appstore.domain.state.StateCenter
+import com.xzq.appstore.domain.upgrade.UpgradeManager
+
+class DownloadManagerViewModelFactory(
+    /** 提供下载中心所需的聚合任务数据。 */
+    private val appManager: AppManager,
+    /** 提供任务实时状态。 */
+    private val stateCenter: StateCenter,
+    /** 负责下载中心内的下载动作。 */
+    private val downloadManager: DownloadManager,
+    /** 负责下载中心内的安装动作。 */
+    private val installManager: InstallManager,
+    /** 负责下载中心内安装后的升级校验。 */
+    private val upgradeManager: UpgradeManager,
+    /** 提供策略设置与切换能力。 */
+    private val policyCenter: PolicyCenter,
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    /** 创建下载中心 ViewModel。 */
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return DownloadManagerViewModel(appManager, stateCenter, downloadManager, installManager, upgradeManager, policyCenter) as T
+    }
+}

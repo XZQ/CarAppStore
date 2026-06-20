@@ -11,6 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/ui_download_environment_switch"
+        android:textColor="@color/car_text_primary"
         android:textSize="@dimen/text_xl"
         android:textStyle="bold" />
 
@@ -20,6 +21,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_12dp"
         android:text="@string/ui_download_environment_current_format"
+        android:textColor="@color/car_text_primary"
         android:textSize="@dimen/text_md"
         android:textStyle="bold" />
 
@@ -29,6 +31,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_8dp"
         android:text="@string/ui_download_environment_hint_dev"
+        android:textColor="@color/car_text_secondary"
         android:textSize="@dimen/text_sm" />
 
     <TextView
@@ -37,6 +40,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_10dp"
         android:text="@string/ui_catalog_source_current_format"
+        android:textColor="@color/car_text_secondary"
         android:textSize="@dimen/text_sm" />
 
     <TextView
@@ -45,7 +49,19 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_6dp"
         android:text="@string/ui_debug_download_base_url_format"
+        android:textColor="@color/car_text_hint"
         android:textSize="@dimen/text_sm" />
+
+    <TextView
+        android:id="@+id/tvProductionReadiness"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_10dp"
+        android:background="@drawable/bg_tag_warning"
+        android:lineSpacingExtra="2dp"
+        android:padding="@dimen/spacing_10dp"
+        android:textColor="@color/car_text_primary"
+        android:textSize="@dimen/text_sm_13" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -57,25 +73,34 @@
             android:id="@+id/btnEnvDev"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_primary_button"
             android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_download_environment_switch_dev" />
+            android:text="@string/ui_download_environment_switch_dev"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
 
         <Button
             android:id="@+id/btnEnvTest"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_secondary_button"
             android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_download_environment_switch_test" />
+            android:text="@string/ui_download_environment_switch_test"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
 
         <Button
             android:id="@+id/btnEnvProd"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_secondary_button"
             android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_download_environment_switch_prod" />
+            android:text="@string/ui_download_environment_switch_prod"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
     </LinearLayout>
 </LinearLayout>

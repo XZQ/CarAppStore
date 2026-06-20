@@ -64,6 +64,7 @@
                 android:paddingStart="@dimen/spacing_18dp"
                 android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_home"
+                android:textAllCaps="false"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_md" />
 
@@ -77,6 +78,7 @@
                 android:paddingStart="@dimen/spacing_18dp"
                 android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_search"
+                android:textAllCaps="false"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_md" />
 
@@ -90,6 +92,7 @@
                 android:paddingStart="@dimen/spacing_18dp"
                 android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_download_manager"
+                android:textAllCaps="false"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_md" />
 
@@ -103,6 +106,7 @@
                 android:paddingStart="@dimen/spacing_18dp"
                 android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_upgrade_manager"
+                android:textAllCaps="false"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_md" />
 
@@ -116,6 +120,7 @@
                 android:paddingStart="@dimen/spacing_18dp"
                 android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_install_manager"
+                android:textAllCaps="false"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_md" />
 
@@ -129,6 +134,7 @@
                 android:paddingStart="@dimen/spacing_18dp"
                 android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_my_apps"
+                android:textAllCaps="false"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_md" />
 
@@ -142,6 +148,7 @@
                 android:paddingStart="@dimen/spacing_18dp"
                 android:paddingEnd="@dimen/spacing_18dp"
                 android:text="@string/ui_developer_settings"
+                android:textAllCaps="false"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_md" />
         </LinearLayout>
@@ -153,6 +160,18 @@
         android:layout_height="0dp"
         android:layout_marginTop="@dimen/spacing_12dp"
         android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/tvDesktopSummaryTitle"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/tvDesktopSummaryBody"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

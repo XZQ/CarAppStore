@@ -54,17 +54,23 @@
             android:id="@+id/btnFailurePrimary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_primary_button_warning"
             android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_batch_retry_failed" />
+            android:text="@string/ui_batch_retry_failed"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
 
         <Button
             android:id="@+id/btnFailureSecondary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_secondary_button"
             android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_clear_failed_state" />
+            android:text="@string/ui_clear_failed_state"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
     </LinearLayout>
     </LinearLayout>
 

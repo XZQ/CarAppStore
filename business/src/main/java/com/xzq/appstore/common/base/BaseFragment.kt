@@ -1,0 +1,22 @@
+package com.xzq.appstore.common.base
+
+import androidx.fragment.app.Fragment
+import com.xzq.appstore.common.navigation.MainNavigator
+
+/**
+ * BaseFragment 为所有 feature 页面提供最小公共能力：
+ * 1. 获取全局 AppServices；
+ * 2. 获取导航接口。
+ *
+ * 当前通过 AppContainerProvider 和 MainNavigator 两个接口解耦 app 壳层，
+ * feature module 不再需要直接引用 app 中的具体容器类型。
+ */
+abstract class BaseFragment : Fragment() {
+    /** 当前页面访问业务服务的统一入口。 */
+    protected val appServices: AppServices
+        get() = (requireContext().applicationContext as AppContainerProvider).appServices
+
+    /** 当前页面使用的导航接口，由宿主 Activity 提供。 */
+    protected val navigator: MainNavigator
+        get() = requireActivity() as MainNavigator
+}

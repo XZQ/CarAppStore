@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.nio.appstore.common"
+    namespace = "com.xzq.appstore.common"
     compileSdk = 34
 
     defaultConfig {

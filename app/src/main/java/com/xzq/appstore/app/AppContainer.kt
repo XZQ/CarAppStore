@@ -1,0 +1,230 @@
+package com.xzq.appstore.app
+
+import android.content.Context
+import com.xzq.appstore.BuildConfig
+import com.xzq.appstore.common.base.AppServices
+import com.xzq.appstore.core.downloader.DownloadSourceResolver
+import com.xzq.appstore.core.downloader.DownloadSourceResolverConfig
+import com.xzq.appstore.core.downloader.DownloadStore
+import com.xzq.appstore.core.downloader.RealFileDownloader
+import com.xzq.appstore.core.downloader.SimulatedFileDownloader
+import com.xzq.appstore.core.installer.InstallSessionStore
+import com.xzq.appstore.core.installer.InstallUserActionDispatcher
+import com.xzq.appstore.core.installer.RealPackageInstaller
+import com.xzq.appstore.core.installer.SystemPackageInstallerSessionAdapter
+import com.xzq.appstore.core.logger.AppLogger
+import com.xzq.appstore.core.policy.AndroidPolicyRuntimeSignalProvider
+import com.xzq.appstore.core.policy.BroadcastVehicleStateSignalProvider
+import com.xzq.appstore.core.policy.StaticVehicleStateSignalProvider
+import com.xzq.appstore.core.policy.VehicleStateSignalProvider
+import com.xzq.appstore.core.tracker.EventTracker
+import com.xzq.appstore.core.tracker.FileEventTracker
+import com.xzq.appstore.data.datasource.local.AppLocalDataSource
+import com.xzq.appstore.data.datasource.remote.AppRemoteDataSource
+import com.xzq.appstore.data.datasource.remote.HttpUrlConnectionAppCatalogHttpClient
+import com.xzq.appstore.data.datasource.remote.DownloadSourceCatalog
+import com.xzq.appstore.data.datasource.system.AppSystemDataSource
+import com.xzq.appstore.data.downloadenv.DownloadEnvironmentEntry
+import com.xzq.appstore.data.downloadenv.LocalDownloadEnvironmentProvider
+import com.xzq.appstore.data.local.store.JsonBackedLocalStoreFacade
+import com.xzq.appstore.data.local.store.LocalStoreFacade
+import com.xzq.appstore.data.repository.AppRepository
+import com.xzq.appstore.data.repository.RealAppRepository
+import com.xzq.appstore.domain.appmanager.AppManager
+import com.xzq.appstore.domain.appmanager.DefaultAppManager
+import com.xzq.appstore.domain.download.DefaultDownloadManager
+import com.xzq.appstore.domain.download.DownloadManager
+import com.xzq.appstore.domain.install.DefaultInstallManager
+import com.xzq.appstore.domain.install.InstallManager
+import com.xzq.appstore.domain.policy.DefaultPolicyCenter
+import com.xzq.appstore.domain.policy.PolicyCenter
+import com.xzq.appstore.domain.state.DefaultStateCenter
+import com.xzq.appstore.domain.state.StateCenter
+import com.xzq.appstore.domain.upgrade.DefaultUpgradeManager
+import com.xzq.appstore.domain.upgrade.UpgradeManager
+
+/**
+ * AppContainer 是当前 app 壳层的主装配入口。
+ *
+ * 它的职责是：
+ * 1. 创建跨页面共享的核心依赖；
+ * 2. 把 data / core / business 中的实现装配起来；
+ * 3. 向 UI 壳层提供稳定的对象入口。
+ *
+ * 当前 M4 阶段先不把它继续拆成更细的 bootstrap/assembly 对象，
+ * 但已经把文件路径等细节收敛到 AppStoragePaths，减少壳层中的散乱引用。
+ */
+class AppContainer(context: Context) : AppServices {
+    /** 应用级上下文，避免持有页面级 context 导致泄漏。 */
+    private val appContext = context.applicationContext
+
+    /** 统一管理应用壳层会用到的本地文件路径。 */
+    private val storagePaths: AppStoragePaths by lazy { AppStoragePaths(appContext) }
+
+    /** 日志器，当前作为全局基础能力在壳层统一创建。 */
+    val logger: AppLogger by lazy { AppLogger() }
+
+    /** 打点器，供下载、安装、升级等链路复用。 */
+    val tracker: EventTracker by lazy { FileEventTracker(storagePaths.eventLogFile) }
+
+    /** 统一数据层访问入口，当前默认采用结构化 JSON 落盘实现。 */
+    val localStoreFacade: LocalStoreFacade by lazy {
+        JsonBackedLocalStoreFacade(storagePaths.structuredLocalStoreFile)
+    }
+
+    /** 下载环境配置入口，当前优先从统一数据层读取，并保留兼容兜底逻辑。 */
+    val downloadEnvironmentProvider: LocalDownloadEnvironmentProvider by lazy {
+        LocalDownloadEnvironmentProvider(appContext, localStoreFacade)
+    }
+
+    /** 下载环境入口对象，用来统一读取当前下载环境配置。 */
+    private val downloadEnvironmentEntry by lazy {
+        DownloadEnvironmentEntry(downloadEnvironmentProvider)
+    }
+
+    /** 当前生效的下载环境配置快照。 */
+    private val downloadEnvConfig by lazy {
+        downloadEnvironmentEntry.currentConfig()
+    }
+
+    /** 远端数据源，根据当前下载环境切换下载源目录。 */
+    private val remoteDataSource: AppRemoteDataSource by lazy {
+        AppRemoteDataSource(
+            context = appContext,
+            sourceCatalog = DownloadSourceCatalog(downloadEnvConfig),
+            catalogEndpointUrl = downloadEnvConfig.catalogEndpointUrl,
+            catalogRequestHeaders = downloadEnvConfig.catalogRequestHeaders,
+            httpClient = HttpUrlConnectionAppCatalogHttpClient(),
+            catalogCacheFile = storagePaths.remoteCatalogCacheFile,
+            catalogCacheMetadataFile = storagePaths.remoteCatalogCacheMetadataFile,
+        )
+    }
+
+    /** 本地数据源，当前已开始统一接入结构化访问入口。 */
+    private val localDataSource: AppLocalDataSource by lazy {
+        AppLocalDataSource(appContext, localStoreFacade)
+    }
+
+    /** 系统数据源，封装系统安装应用、包信息等读取能力。 */
+    private val systemDataSource: AppSystemDataSource by lazy {
+        AppSystemDataSource(appContext)
+    }
+
+    /** 仓库层装配入口，负责聚合远端、本地、系统三类数据。 */
+    val repository: AppRepository by lazy {
+        RealAppRepository(remoteDataSource, localDataSource, systemDataSource)
+    }
+
+    /** 全局状态中心。 */
+    override val stateCenter: StateCenter by lazy { DefaultStateCenter() }
+
+    /** 全局策略中心。 */
+    private val vehicleStateSignalProvider: VehicleStateSignalProvider by lazy {
+        val action = BuildConfig.CARAPPSTORE_OEM_VEHICLE_ACTION.trim()
+        val parkingExtra = BuildConfig.CARAPPSTORE_OEM_PARKING_EXTRA.trim()
+        if (action.isNotBlank() && parkingExtra.isNotBlank()) {
+            BroadcastVehicleStateSignalProvider(
+                context = appContext,
+                action = action,
+                parkingExtraName = parkingExtra,
+                powerExtraName = BuildConfig.CARAPPSTORE_OEM_POWER_EXTRA.trim(),
+            )
+        } else {
+            StaticVehicleStateSignalProvider()
+        }
+    }
+
+    /** 全局策略中心。 */
+    private val runtimeSignalProvider by lazy {
+        AndroidPolicyRuntimeSignalProvider(appContext, vehicleStateSignalProvider, logger)
+    }
+
+    /** 全局策略中心。 */
+    override val policyCenter: PolicyCenter by lazy {
+        DefaultPolicyCenter(appContext, localDataSource, runtimeSignalProvider, logger)
+    }
+
+    /** 下载执行器，当前优先走真实下载器，必要时回退模拟实现。 */
+    /** 下载执行器实例，供下载业务编排层复用。 */
+    private val fileDownloader by lazy {
+        RealFileDownloader(
+            store = DownloadStore(storagePaths.downloadsDir),
+            sourceResolver = DownloadSourceResolver(
+                DownloadSourceResolverConfig(
+                    defaultSourcePolicy = downloadEnvConfig.defaultSourcePolicy,
+                    allowMockSource = downloadEnvConfig.allowMockSource,
+                    allowDirectHttp = downloadEnvConfig.allowDirectHttp,
+                )
+            ),
+            fallbackDownloader = SimulatedFileDownloader(),
+        )
+    }
+
+    /** 安装会话存储，当前同时服务安装器与安装中心。 */
+    override val installSessionStore: InstallSessionStore by lazy {
+        InstallSessionStore(storagePaths.installSessionsFile)
+    }
+
+    /** 安装确认动作分发器，供壳层统一拉起系统确认页。 */
+    override val installUserActionDispatcher: InstallUserActionDispatcher by lazy {
+        InstallUserActionDispatcher()
+    }
+
+    /** 安装执行器，当前优先走系统安装会话实现。 */
+    /** 安装执行器实例，供安装业务编排层复用。 */
+    private val packageInstaller by lazy {
+        RealPackageInstaller(
+            sessionAdapter = SystemPackageInstallerSessionAdapter(appContext, installUserActionDispatcher),
+            sessionStore = installSessionStore,
+        )
+    }
+
+    /** 下载业务编排入口。 */
+    override val downloadManager: DownloadManager by lazy {
+        DefaultDownloadManager(
+            repository = repository,
+            stateCenter = stateCenter,
+            policyCenter = policyCenter,
+            fileDownloader = fileDownloader,
+            logger = logger,
+            tracker = tracker,
+        )
+    }
+
+    /** 安装业务编排入口。 */
+    override val installManager: InstallManager by lazy {
+        DefaultInstallManager(
+            repository = repository,
+            stateCenter = stateCenter,
+            policyCenter = policyCenter,
+            packageInstaller = packageInstaller,
+            logger = logger,
+            tracker = tracker,
+        )
+    }
+
+    /** 升级业务编排入口。 */
+    override val upgradeManager: UpgradeManager by lazy {
+        DefaultUpgradeManager(
+            repository = repository,
+            stateCenter = stateCenter,
+            policyCenter = policyCenter,
+            downloadManager = downloadManager,
+            installManager = installManager,
+            logger = logger,
+            tracker = tracker,
+        )
+    }
+
+    /** 应用管理聚合入口，给首页、详情页、我的应用、各任务中心使用。 */
+    override val appManager: AppManager by lazy {
+        DefaultAppManager(repository, stateCenter, installSessionStore, policyCenter)
+    }
+
+    init {
+        // 冷启动时先修正上次可能中断的安装会话，再启动下载链的恢复。
+        installSessionStore.markRecoveredSessionsAsInterrupted()
+        // 访问下载管理器时会触发其初始化逻辑，顺带执行下载任务恢复。
+        downloadManager
+    }
+}

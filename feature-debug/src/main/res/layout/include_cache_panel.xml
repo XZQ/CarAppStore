@@ -12,6 +12,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/ui_debug_cache_management"
+        android:textColor="@color/car_text_primary"
         android:textSize="@dimen/text_xl"
         android:textStyle="bold" />
 
@@ -19,6 +20,9 @@
         android:id="@+id/btnClearCache"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/bg_primary_button_warning"
         android:layout_marginTop="@dimen/spacing_14dp"
-        android:text="@string/ui_debug_clear_cache" />
+        android:text="@string/ui_debug_clear_cache"
+        android:textAllCaps="false"
+        android:textColor="@color/car_text_primary" />
 </LinearLayout>

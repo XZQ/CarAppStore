@@ -1,0 +1,65 @@
+package com.xzq.appstore.feature.installcenter
+
+import com.xzq.appstore.data.model.InstallCenterControlsUiState
+import com.xzq.appstore.data.model.InstallSessionFilter
+import com.xzq.appstore.data.model.InstallTaskViewData
+import com.xzq.appstore.data.model.TaskCenterFilter
+import com.xzq.appstore.data.model.TaskCenterStats
+
+/**
+ * InstallCenterUiState 描述安装中心页面的完整界面状态。
+ */
+data class InstallCenterUiState(
+    /** 当前筛选条件下展示的安装任务列表。 */
+    val tasks: List<InstallTaskViewData> = emptyList(),
+    /** 筛选前的安装任务总数。 */
+    val allTaskCount: Int = 0,
+    /** 筛选前的失败任务总数。 */
+    val failedCount: Int = 0,
+    /** 聚合后的任务统计数据。 */
+    val stats: TaskCenterStats = TaskCenterStats(),
+    /** 当前选中的任务筛选条件。 */
+    val selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL,
+    /** 当前选中的会话筛选条件。 */
+    val selectedSessionFilter: InstallSessionFilter = InstallSessionFilter.ALL,
+    /** 当前筛选范围内可直接执行的任务数。 */
+    val batchRunnableCount: Int = 0,
+    /** 当前可清理的失败任务数。 */
+    val clearFailedCount: Int = 0,
+    /** 当前筛选范围内处于执行中的安装会话数。 */
+    val activeSessionCount: Int = 0,
+    /** 当前筛选范围内处于失败态的安装会话数。 */
+    val failedSessionCount: Int = 0,
+    /** 当前筛选范围内处于中断恢复态的安装会话数。 */
+    val recoveredSessionCount: Int = 0,
+    /** 当前是否需要展示失败面板。 */
+    val showFailurePanel: Boolean = false,
+    /** 安装中心扩展控制区的界面状态。 */
+    val controlsUiState: InstallCenterControlsUiState = InstallCenterControlsUiState(),
+    /** 当前显式页面状态机。 */
+    val screenState: InstallCenterScreenState = InstallCenterScreenState.Loading,
+)
+
+/**
+ * InstallCenterScreenState 描述安装中心当前页面状态。
+ */
+sealed interface InstallCenterScreenState {
+    /** 页面正在同步安装任务。 */
+    data object Loading : InstallCenterScreenState
+
+    /** 页面已有可展示内容。 */
+    data object Content : InstallCenterScreenState
+
+    /** 页面暂无可展示内容。 */
+    data object Empty : InstallCenterScreenState
+
+    /**
+     * 页面加载失败。
+     *
+     * @property message 当前需要展示给用户的失败原因。
+     */
+    data class Error(
+        /** 当前需要展示给用户的失败原因。 */
+        val message: String,
+    ) : InstallCenterScreenState
+}

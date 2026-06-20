@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.nio.appstore.feature.installcenter"
+    namespace = "com.xzq.appstore.feature.installcenter"
     compileSdk = 34
 
     defaultConfig {

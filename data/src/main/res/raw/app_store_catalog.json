@@ -3,6 +3,14 @@
     {
       "appId": "gaode_map",
       "packageName": "com.demo.gaode",
+      "iconText": "MAP",
+      "heroText": "Navigation / Parking / Charging",
+      "iconUrl": "asset://icons/gaode_map.png",
+      "bannerUrl": "asset://banners/gaode_map.png",
+      "screenshotUrls": [
+        "asset://screens/gaode_map_1.png",
+        "asset://screens/gaode_map_2.png"
+      ],
       "name": "高德地图车机版",
       "description": "导航与出行服务",
       "versionName": "1.0.0",
@@ -24,6 +32,14 @@
     {
       "appId": "qq_music",
       "packageName": "com.demo.qqmusic",
+      "iconText": "MUSIC",
+      "heroText": "Music / Radio / Podcast",
+      "iconUrl": "asset://icons/qq_music.png",
+      "bannerUrl": "asset://banners/qq_music.png",
+      "screenshotUrls": [
+        "asset://screens/qq_music_1.png",
+        "asset://screens/qq_music_2.png"
+      ],
       "name": "QQ音乐车机版",
       "description": "在线音乐与电台",
       "versionName": "2.3.0",
@@ -45,6 +61,14 @@
     {
       "appId": "ximalaya",
       "packageName": "com.demo.ximalaya",
+      "iconText": "FM",
+      "heroText": "Podcast / Audiobook / News",
+      "iconUrl": "asset://icons/ximalaya.png",
+      "bannerUrl": "asset://banners/ximalaya.png",
+      "screenshotUrls": [
+        "asset://screens/ximalaya_1.png",
+        "asset://screens/ximalaya_2.png"
+      ],
       "name": "喜马拉雅车机版",
       "description": "有声内容与播客",
       "versionName": "3.1.2",

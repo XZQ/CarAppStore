@@ -13,78 +13,81 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@drawable/bg_panel"
-        android:orientation="vertical"
-        android:padding="@dimen/spacing_18dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/ui_search_apps"
-            android:textColor="@color/car_text_primary"
-            android:textSize="@dimen/text_2xl"
-            android:textStyle="bold" />
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_14dp"
-            android:orientation="horizontal">
+            android:background="@drawable/bg_home_hero"
+            android:orientation="vertical"
+            android:padding="@dimen/spacing_18dp">
 
-            <EditText
-                android:id="@+id/etSearch"
-                android:layout_width="0dp"
-                android:layout_height="54dp"
-                android:layout_weight="1"
-                android:background="@drawable/bg_search_input"
-                android:hint="@string/ui_search_input_hint"
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/ui_search_apps"
                 android:textColor="@color/car_text_primary"
-                android:textColorHint="@color/car_text_muted"
-                android:textSize="@dimen/text_md_17" />
+                android:textSize="@dimen/text_2xl"
+                android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/btnClear"
-                android:layout_width="100dp"
-                android:layout_height="54dp"
-                android:layout_marginStart="@dimen/spacing_10dp"
-                android:background="@drawable/bg_secondary_button"
-                android:text="@string/ui_clear"
+            <TextView
+                android:id="@+id/tvSearchSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_6dp"
+                android:text="@string/ui_search_results_zero"
+                android:textColor="@color/car_text_secondary"
+                android:textSize="@dimen/text_sm" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_14dp"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/etSearch"
+                    android:layout_width="0dp"
+                    android:layout_height="54dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_search_input"
+                    android:hint="@string/ui_search_input_hint"
+                    android:paddingStart="@dimen/spacing_16dp"
+                    android:paddingEnd="@dimen/spacing_16dp"
+                    android:singleLine="true"
+                    android:textColor="@color/car_text_primary"
+                    android:textColorHint="@color/car_text_muted"
+                    android:textSize="@dimen/text_md_17" />
+
+                <Button
+                    android:id="@+id/btnClear"
+                    android:layout_width="100dp"
+                    android:layout_height="54dp"
+                    android:layout_marginStart="@dimen/spacing_10dp"
+                    android:background="@drawable/bg_secondary_button"
+                    android:text="@string/ui_clear"
+                    android:textAllCaps="false"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_md" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvPolicyPrompt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_12dp"
+                android:background="@drawable/bg_home_chip"
+                android:padding="@dimen/spacing_10dp"
                 android:textColor="@color/car_text_primary"
-                android:textSize="@dimen/text_md" />
+                android:textSize="@dimen/text_sm_13"
+                android:visibility="gone" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tvSearchSubtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_12dp"
-            android:text="@string/ui_search_results_zero"
-            android:textColor="@color/car_text_secondary"
-            android:textSize="@dimen/text_sm" />
-
-        <TextView
-            android:id="@+id/tvPolicyPrompt"
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerSearch"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_10dp"
-            android:background="@drawable/bg_tag_warning"
-            android:padding="@dimen/spacing_10dp"
-            android:textColor="@color/car_text_primary"
-            android:textSize="@dimen/text_sm_13"
-            android:visibility="gone" />
+            android:layout_height="0dp"
+            android:layout_marginTop="@dimen/spacing_14dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingBottom="@dimen/spacing_10dp" />
     </LinearLayout>
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerSearch"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="@dimen/spacing_14dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingBottom="@dimen/spacing_10dp" />
-    </LinearLayout>
-
 </androidx.constraintlayout.widget.ConstraintLayout>

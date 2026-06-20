@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.nio.appstore.feature.search"
+    namespace = "com.xzq.appstore.feature.search"
     compileSdk = 34
 
     defaultConfig {

@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.nio.appstore.feature.downloadmanager"
+    namespace = "com.xzq.appstore.feature.downloadmanager"
     compileSdk = 34
 
     defaultConfig {

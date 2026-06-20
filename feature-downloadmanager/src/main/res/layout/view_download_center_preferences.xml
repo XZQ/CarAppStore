@@ -30,17 +30,23 @@
             android:id="@+id/btnAutoResume"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_secondary_button"
             android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_download_auto_resume_off" />
+            android:text="@string/ui_download_auto_resume_off"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
 
         <Button
             android:id="@+id/btnAutoRetry"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_secondary_button"
             android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_download_auto_retry_on" />
+            android:text="@string/ui_download_auto_retry_on"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
     </LinearLayout>
 
     <LinearLayout
@@ -53,25 +59,34 @@
             android:id="@+id/btnPolicyWifi"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_secondary_button"
             android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_network_wifi" />
+            android:text="@string/ui_network_wifi"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
 
         <Button
             android:id="@+id/btnPolicyParking"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_secondary_button"
             android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_vehicle_parked" />
+            android:text="@string/ui_vehicle_parked"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
     </LinearLayout>
 
     <Button
         android:id="@+id/btnPolicyStorage"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/bg_secondary_button"
         android:layout_marginTop="@dimen/spacing_10dp"
-        android:text="@string/ui_storage_normal" />
+        android:text="@string/ui_storage_normal"
+        android:textAllCaps="false"
+        android:textColor="@color/car_text_primary" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

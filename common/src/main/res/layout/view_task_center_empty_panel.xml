@@ -58,17 +58,23 @@
             android:id="@+id/btnEmptyPrimary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_primary_button"
             android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_primary_action" />
+            android:text="@string/ui_primary_action"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
 
         <Button
             android:id="@+id/btnEmptySecondary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_secondary_button"
             android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_secondary_action" />
+            android:text="@string/ui_secondary_action"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
     </LinearLayout>
 
     </LinearLayout>

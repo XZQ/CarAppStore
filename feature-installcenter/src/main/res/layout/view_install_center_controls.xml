@@ -30,25 +30,34 @@
             android:id="@+id/btnInstallPrimary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_primary_button"
             android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_install_start_batch_zero" />
+            android:text="@string/ui_install_start_batch_zero"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
 
         <Button
             android:id="@+id/btnInstallSecondary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_secondary_button"
             android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_clear_failed_state_zero" />
+            android:text="@string/ui_clear_failed_state_zero"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
     </LinearLayout>
 
     <Button
         android:id="@+id/btnInstallTertiary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/bg_secondary_button"
         android:layout_marginTop="@dimen/spacing_10dp"
-        android:text="@string/ui_go_download_manager" />
+        android:text="@string/ui_go_download_manager"
+        android:textAllCaps="false"
+        android:textColor="@color/car_text_primary" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

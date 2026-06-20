@@ -3,12 +3,14 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="@dimen/spacing_12dp">
+    android:layout_marginStart="@dimen/spacing_6dp"
+    android:layout_marginEnd="@dimen/spacing_6dp"
+    android:layout_marginBottom="@dimen/spacing_14dp">
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_card_alt"
+        android:background="@drawable/bg_home_app_card"
         android:orientation="vertical"
         android:padding="@dimen/spacing_16dp"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -16,54 +18,82 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <FrameLayout
+                android:layout_width="54dp"
+                android:layout_height="54dp"
+                android:background="@drawable/bg_home_app_icon">
+
+                <ImageView
+                    android:id="@+id/ivAppIcon"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@string/ui_enter_detail"
+                    android:scaleType="centerCrop"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvAppInitial"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_xl"
+                    android:textStyle="bold" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/spacing_12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvAppName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:singleLine="true"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_lg_19"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDesc"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_4dp"
+                    android:singleLine="true"
+                    android:textColor="@color/car_text_muted"
+                    android:textSize="@dimen/text_xs" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvState"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="@dimen/spacing_10dp"
+                android:paddingTop="@dimen/spacing_6dp"
+                android:paddingEnd="@dimen/spacing_10dp"
+                android:paddingBottom="@dimen/spacing_6dp"
+                android:textColor="@color/car_text_primary"
+                android:textSize="@dimen/text_xs"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/tvAppName"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:id="@+id/tvAction"
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:layout_marginTop="@dimen/spacing_14dp"
+            android:gravity="center"
             android:textColor="@color/car_text_primary"
-            android:textSize="@dimen/text_lg_19"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/tvState"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="@dimen/spacing_12dp"
-            android:paddingTop="@dimen/spacing_6dp"
-            android:paddingEnd="@dimen/spacing_12dp"
-            android:paddingBottom="@dimen/spacing_6dp"
-            android:textColor="@color/car_text_primary"
-            android:textSize="@dimen/text_xs"
+            android:textSize="@dimen/text_sm_13"
             android:textStyle="bold" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/tvDesc"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_10dp"
-        android:textColor="@color/car_text_secondary"
-        android:textSize="@dimen/text_sm_15" />
-
-    <TextView
-        android:id="@+id/tvAction"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_12dp"
-        android:paddingStart="@dimen/spacing_12dp"
-        android:paddingTop="@dimen/spacing_8dp"
-        android:paddingEnd="@dimen/spacing_12dp"
-        android:paddingBottom="@dimen/spacing_8dp"
-        android:textColor="@color/car_text_primary"
-        android:textSize="@dimen/text_sm_13"
-        android:textStyle="bold" />
-    </LinearLayout>
-
 </androidx.constraintlayout.widget.ConstraintLayout>

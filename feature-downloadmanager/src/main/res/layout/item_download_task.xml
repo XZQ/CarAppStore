@@ -157,7 +157,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/ui_continue" />
+            android:text="@string/ui_continue"
+            android:textAllCaps="false" />
 
         <Button
             android:id="@+id/btnTaskSecondary"

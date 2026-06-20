@@ -104,11 +104,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.carappstore"
+    namespace = "com.xzq.appstore"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.carappstore"
+        applicationId = "com.xzq.appstore"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
@@ -390,8 +390,8 @@ add('app/src/main/res/layout/fragment_my_app.xml', '''
 ''')
 
 # app layer
-add('app/src/main/java/com/example/carappstore/app/App.kt', '''
-package com.example.carappstore.app
+add('app/src/main/java/com/xzq/appstore/app/App.kt', '''
+package com.xzq.appstore.app
 
 import android.app.Application
 
@@ -406,29 +406,29 @@ class App : Application() {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/app/AppContainer.kt', '''
-package com.example.carappstore.app
+add('app/src/main/java/com/xzq/appstore/app/AppContainer.kt', '''
+package com.xzq.appstore.app
 
 import android.content.Context
-import com.example.carappstore.core.logger.AppLogger
-import com.example.carappstore.core.tracker.EventTracker
-import com.example.carappstore.data.datasource.local.AppLocalDataSource
-import com.example.carappstore.data.datasource.remote.AppRemoteDataSource
-import com.example.carappstore.data.datasource.system.AppSystemDataSource
-import com.example.carappstore.data.repository.AppRepository
-import com.example.carappstore.data.repository.FakeAppRepository
-import com.example.carappstore.domain.appmanager.AppManager
-import com.example.carappstore.domain.appmanager.DefaultAppManager
-import com.example.carappstore.domain.download.DefaultDownloadManager
-import com.example.carappstore.domain.download.DownloadManager
-import com.example.carappstore.domain.install.DefaultInstallManager
-import com.example.carappstore.domain.install.InstallManager
-import com.example.carappstore.domain.policy.DefaultPolicyCenter
-import com.example.carappstore.domain.policy.PolicyCenter
-import com.example.carappstore.domain.state.DefaultStateCenter
-import com.example.carappstore.domain.state.StateCenter
-import com.example.carappstore.domain.upgrade.DefaultUpgradeManager
-import com.example.carappstore.domain.upgrade.UpgradeManager
+import com.xzq.appstore.core.logger.AppLogger
+import com.xzq.appstore.core.tracker.EventTracker
+import com.xzq.appstore.data.datasource.local.AppLocalDataSource
+import com.xzq.appstore.data.datasource.remote.AppRemoteDataSource
+import com.xzq.appstore.data.datasource.system.AppSystemDataSource
+import com.xzq.appstore.data.repository.AppRepository
+import com.xzq.appstore.data.repository.FakeAppRepository
+import com.xzq.appstore.domain.appmanager.AppManager
+import com.xzq.appstore.domain.appmanager.DefaultAppManager
+import com.xzq.appstore.domain.download.DefaultDownloadManager
+import com.xzq.appstore.domain.download.DownloadManager
+import com.xzq.appstore.domain.install.DefaultInstallManager
+import com.xzq.appstore.domain.install.InstallManager
+import com.xzq.appstore.domain.policy.DefaultPolicyCenter
+import com.xzq.appstore.domain.policy.PolicyCenter
+import com.xzq.appstore.domain.state.DefaultStateCenter
+import com.xzq.appstore.domain.state.StateCenter
+import com.xzq.appstore.domain.upgrade.DefaultUpgradeManager
+import com.xzq.appstore.domain.upgrade.UpgradeManager
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -465,16 +465,16 @@ class AppContainer(context: Context) {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/app/MainActivity.kt', '''
-package com.example.carappstore.app
+add('app/src/main/java/com/xzq/appstore/app/MainActivity.kt', '''
+package com.xzq.appstore.app
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import com.example.carappstore.R
-import com.example.carappstore.databinding.ActivityMainBinding
-import com.example.carappstore.feature.detail.DetailFragment
-import com.example.carappstore.feature.home.HomeFragment
-import com.example.carappstore.feature.myapp.MyAppFragment
+import com.xzq.appstore.R
+import com.xzq.appstore.databinding.ActivityMainBinding
+import com.xzq.appstore.feature.detail.DetailFragment
+import com.xzq.appstore.feature.home.HomeFragment
+import com.xzq.appstore.feature.myapp.MyAppFragment
 
 class MainActivity : AppCompatActivity(), MainNavigator {
 
@@ -519,8 +519,8 @@ class MainActivity : AppCompatActivity(), MainNavigator {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/app/MainNavigator.kt', '''
-package com.example.carappstore.app
+add('app/src/main/java/com/xzq/appstore/app/MainNavigator.kt', '''
+package com.xzq.appstore.app
 
 interface MainNavigator {
     fun openHome()
@@ -531,8 +531,8 @@ interface MainNavigator {
 ''')
 
 # common
-add('app/src/main/java/com/example/carappstore/common/base/BaseViewModel.kt', '''
-package com.example.carappstore.common.base
+add('app/src/main/java/com/xzq/appstore/common/base/BaseViewModel.kt', '''
+package com.xzq.appstore.common.base
 
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -545,13 +545,13 @@ abstract class BaseViewModel<T>(initialState: T) : ViewModel() {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/common/base/BaseFragment.kt', '''
-package com.example.carappstore.common.base
+add('app/src/main/java/com/xzq/appstore/common/base/BaseFragment.kt', '''
+package com.xzq.appstore.common.base
 
 import androidx.fragment.app.Fragment
-import com.example.carappstore.app.App
-import com.example.carappstore.app.AppContainer
-import com.example.carappstore.app.MainNavigator
+import com.xzq.appstore.app.App
+import com.xzq.appstore.app.AppContainer
+import com.xzq.appstore.app.MainNavigator
 
 abstract class BaseFragment : Fragment() {
     protected val appContainer: AppContainer
@@ -562,8 +562,8 @@ abstract class BaseFragment : Fragment() {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/common/result/AppResult.kt', '''
-package com.example.carappstore.common.result
+add('app/src/main/java/com/xzq/appstore/common/result/AppResult.kt', '''
+package com.xzq.appstore.common.result
 
 sealed class AppResult<out T> {
     data class Success<T>(val data: T) : AppResult<T>()
@@ -572,8 +572,8 @@ sealed class AppResult<out T> {
 ''')
 
 # core
-add('app/src/main/java/com/example/carappstore/core/logger/AppLogger.kt', '''
-package com.example.carappstore.core.logger
+add('app/src/main/java/com/xzq/appstore/core/logger/AppLogger.kt', '''
+package com.xzq.appstore.core.logger
 
 import android.util.Log
 
@@ -584,8 +584,8 @@ class AppLogger {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/core/tracker/EventTracker.kt', '''
-package com.example.carappstore.core.tracker
+add('app/src/main/java/com/xzq/appstore/core/tracker/EventTracker.kt', '''
+package com.xzq.appstore.core.tracker
 
 import android.util.Log
 
@@ -597,8 +597,8 @@ class EventTracker {
 ''')
 
 # data models
-add('app/src/main/java/com/example/carappstore/data/model/AppInfo.kt', '''
-package com.example.carappstore.data.model
+add('app/src/main/java/com/xzq/appstore/data/model/AppInfo.kt', '''
+package com.xzq.appstore.data.model
 
 data class AppInfo(
     val appId: String,
@@ -609,8 +609,8 @@ data class AppInfo(
 )
 ''')
 
-add('app/src/main/java/com/example/carappstore/data/model/AppDetail.kt', '''
-package com.example.carappstore.data.model
+add('app/src/main/java/com/xzq/appstore/data/model/AppDetail.kt', '''
+package com.xzq.appstore.data.model
 
 data class AppDetail(
     val appId: String,
@@ -622,8 +622,8 @@ data class AppDetail(
 )
 ''')
 
-add('app/src/main/java/com/example/carappstore/data/model/InstalledApp.kt', '''
-package com.example.carappstore.data.model
+add('app/src/main/java/com/xzq/appstore/data/model/InstalledApp.kt', '''
+package com.xzq.appstore.data.model
 
 data class InstalledApp(
     val appId: String,
@@ -633,8 +633,8 @@ data class InstalledApp(
 )
 ''')
 
-add('app/src/main/java/com/example/carappstore/data/model/UpgradeInfo.kt', '''
-package com.example.carappstore.data.model
+add('app/src/main/java/com/xzq/appstore/data/model/UpgradeInfo.kt', '''
+package com.xzq.appstore.data.model
 
 data class UpgradeInfo(
     val appId: String,
@@ -644,10 +644,10 @@ data class UpgradeInfo(
 )
 ''')
 
-add('app/src/main/java/com/example/carappstore/data/model/AppViewData.kt', '''
-package com.example.carappstore.data.model
+add('app/src/main/java/com/xzq/appstore/data/model/AppViewData.kt', '''
+package com.xzq.appstore.data.model
 
-import com.example.carappstore.domain.state.ButtonState
+import com.xzq.appstore.domain.state.ButtonState
 
 data class AppViewData(
     val appId: String,
@@ -660,12 +660,12 @@ data class AppViewData(
 ''')
 
 # data sources
-add('app/src/main/java/com/example/carappstore/data/datasource/remote/AppRemoteDataSource.kt', '''
-package com.example.carappstore.data.datasource.remote
+add('app/src/main/java/com/xzq/appstore/data/datasource/remote/AppRemoteDataSource.kt', '''
+package com.xzq.appstore.data.datasource.remote
 
-import com.example.carappstore.data.model.AppDetail
-import com.example.carappstore.data.model.AppInfo
-import com.example.carappstore.data.model.UpgradeInfo
+import com.xzq.appstore.data.model.AppDetail
+import com.xzq.appstore.data.model.AppInfo
+import com.xzq.appstore.data.model.UpgradeInfo
 
 class AppRemoteDataSource {
     fun getHomeApps(): List<AppInfo> = listOf(
@@ -696,10 +696,10 @@ class AppRemoteDataSource {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/data/datasource/local/AppLocalDataSource.kt', '''
-package com.example.carappstore.data.datasource.local
+add('app/src/main/java/com/xzq/appstore/data/datasource/local/AppLocalDataSource.kt', '''
+package com.xzq.appstore.data.datasource.local
 
-import com.example.carappstore.data.model.InstalledApp
+import com.xzq.appstore.data.model.InstalledApp
 
 class AppLocalDataSource {
     private val installedApps = mutableListOf<InstalledApp>()
@@ -713,8 +713,8 @@ class AppLocalDataSource {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/data/datasource/system/AppSystemDataSource.kt', '''
-package com.example.carappstore.data.datasource.system
+add('app/src/main/java/com/xzq/appstore/data/datasource/system/AppSystemDataSource.kt', '''
+package com.xzq.appstore.data.datasource.system
 
 import android.content.Context
 
@@ -728,13 +728,13 @@ class AppSystemDataSource(
 ''')
 
 # repository
-add('app/src/main/java/com/example/carappstore/data/repository/AppRepository.kt', '''
-package com.example.carappstore.data.repository
+add('app/src/main/java/com/xzq/appstore/data/repository/AppRepository.kt', '''
+package com.xzq.appstore.data.repository
 
-import com.example.carappstore.data.model.AppDetail
-import com.example.carappstore.data.model.AppInfo
-import com.example.carappstore.data.model.InstalledApp
-import com.example.carappstore.data.model.UpgradeInfo
+import com.xzq.appstore.data.model.AppDetail
+import com.xzq.appstore.data.model.AppInfo
+import com.xzq.appstore.data.model.InstalledApp
+import com.xzq.appstore.data.model.UpgradeInfo
 
 interface AppRepository {
     suspend fun getHomeApps(): List<AppInfo>
@@ -746,16 +746,16 @@ interface AppRepository {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/data/repository/FakeAppRepository.kt', '''
-package com.example.carappstore.data.repository
+add('app/src/main/java/com/xzq/appstore/data/repository/FakeAppRepository.kt', '''
+package com.xzq.appstore.data.repository
 
-import com.example.carappstore.data.datasource.local.AppLocalDataSource
-import com.example.carappstore.data.datasource.remote.AppRemoteDataSource
-import com.example.carappstore.data.datasource.system.AppSystemDataSource
-import com.example.carappstore.data.model.AppDetail
-import com.example.carappstore.data.model.AppInfo
-import com.example.carappstore.data.model.InstalledApp
-import com.example.carappstore.data.model.UpgradeInfo
+import com.xzq.appstore.data.datasource.local.AppLocalDataSource
+import com.xzq.appstore.data.datasource.remote.AppRemoteDataSource
+import com.xzq.appstore.data.datasource.system.AppSystemDataSource
+import com.xzq.appstore.data.model.AppDetail
+import com.xzq.appstore.data.model.AppInfo
+import com.xzq.appstore.data.model.InstalledApp
+import com.xzq.appstore.data.model.UpgradeInfo
 import kotlinx.coroutines.delay
 
 class FakeAppRepository(
@@ -801,8 +801,8 @@ class FakeAppRepository(
 ''')
 
 # domain state
-add('app/src/main/java/com/example/carappstore/domain/state/AppState.kt', '''
-package com.example.carappstore.domain.state
+add('app/src/main/java/com/xzq/appstore/domain/state/AppState.kt', '''
+package com.xzq.appstore.domain.state
 
 data class AppState(
     val appId: String,
@@ -818,8 +818,8 @@ enum class ButtonState {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/domain/state/StateCenter.kt', '''
-package com.example.carappstore.domain.state
+add('app/src/main/java/com/xzq/appstore/domain/state/StateCenter.kt', '''
+package com.xzq.appstore.domain.state
 
 import kotlinx.coroutines.flow.StateFlow
 
@@ -829,8 +829,8 @@ interface StateCenter {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/domain/state/DefaultStateCenter.kt', '''
-package com.example.carappstore.domain.state
+add('app/src/main/java/com/xzq/appstore/domain/state/DefaultStateCenter.kt', '''
+package com.xzq.appstore.domain.state
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -850,8 +850,8 @@ class DefaultStateCenter : StateCenter {
 ''')
 
 # policy
-add('app/src/main/java/com/example/carappstore/domain/policy/PolicyCenter.kt', '''
-package com.example.carappstore.domain.policy
+add('app/src/main/java/com/xzq/appstore/domain/policy/PolicyCenter.kt', '''
+package com.xzq.appstore.domain.policy
 
 interface PolicyCenter {
     fun canDownload(appId: String): PolicyResult
@@ -865,8 +865,8 @@ data class PolicyResult(
 )
 ''')
 
-add('app/src/main/java/com/example/carappstore/domain/policy/DefaultPolicyCenter.kt', '''
-package com.example.carappstore.domain.policy
+add('app/src/main/java/com/xzq/appstore/domain/policy/DefaultPolicyCenter.kt', '''
+package com.xzq.appstore.domain.policy
 
 class DefaultPolicyCenter : PolicyCenter {
     override fun canDownload(appId: String): PolicyResult = PolicyResult(true)
@@ -876,24 +876,24 @@ class DefaultPolicyCenter : PolicyCenter {
 ''')
 
 # download
-add('app/src/main/java/com/example/carappstore/domain/download/DownloadManager.kt', '''
-package com.example.carappstore.domain.download
+add('app/src/main/java/com/xzq/appstore/domain/download/DownloadManager.kt', '''
+package com.xzq.appstore.domain.download
 
 interface DownloadManager {
     suspend fun startDownload(appId: String)
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/domain/download/DefaultDownloadManager.kt', '''
-package com.example.carappstore.domain.download
+add('app/src/main/java/com/xzq/appstore/domain/download/DefaultDownloadManager.kt', '''
+package com.xzq.appstore.domain.download
 
-import com.example.carappstore.core.logger.AppLogger
-import com.example.carappstore.core.tracker.EventTracker
-import com.example.carappstore.data.repository.AppRepository
-import com.example.carappstore.domain.policy.PolicyCenter
-import com.example.carappstore.domain.state.AppState
-import com.example.carappstore.domain.state.ButtonState
-import com.example.carappstore.domain.state.StateCenter
+import com.xzq.appstore.core.logger.AppLogger
+import com.xzq.appstore.core.tracker.EventTracker
+import com.xzq.appstore.data.repository.AppRepository
+import com.xzq.appstore.domain.policy.PolicyCenter
+import com.xzq.appstore.domain.state.AppState
+import com.xzq.appstore.domain.state.ButtonState
+import com.xzq.appstore.domain.state.StateCenter
 import kotlinx.coroutines.delay
 
 class DefaultDownloadManager(
@@ -920,24 +920,24 @@ class DefaultDownloadManager(
 ''')
 
 # install
-add('app/src/main/java/com/example/carappstore/domain/install/InstallManager.kt', '''
-package com.example.carappstore.domain.install
+add('app/src/main/java/com/xzq/appstore/domain/install/InstallManager.kt', '''
+package com.xzq.appstore.domain.install
 
 interface InstallManager {
     suspend fun install(appId: String)
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/domain/install/DefaultInstallManager.kt', '''
-package com.example.carappstore.domain.install
+add('app/src/main/java/com/xzq/appstore/domain/install/DefaultInstallManager.kt', '''
+package com.xzq.appstore.domain.install
 
-import com.example.carappstore.core.logger.AppLogger
-import com.example.carappstore.core.tracker.EventTracker
-import com.example.carappstore.data.repository.AppRepository
-import com.example.carappstore.domain.policy.PolicyCenter
-import com.example.carappstore.domain.state.AppState
-import com.example.carappstore.domain.state.ButtonState
-import com.example.carappstore.domain.state.StateCenter
+import com.xzq.appstore.core.logger.AppLogger
+import com.xzq.appstore.core.tracker.EventTracker
+import com.xzq.appstore.data.repository.AppRepository
+import com.xzq.appstore.domain.policy.PolicyCenter
+import com.xzq.appstore.domain.state.AppState
+import com.xzq.appstore.domain.state.ButtonState
+import com.xzq.appstore.domain.state.StateCenter
 import kotlinx.coroutines.delay
 
 class DefaultInstallManager(
@@ -965,12 +965,12 @@ class DefaultInstallManager(
 ''')
 
 # appmanager
-add('app/src/main/java/com/example/carappstore/domain/appmanager/AppManager.kt', '''
-package com.example.carappstore.domain.appmanager
+add('app/src/main/java/com/xzq/appstore/domain/appmanager/AppManager.kt', '''
+package com.xzq.appstore.domain.appmanager
 
-import com.example.carappstore.data.model.AppDetail
-import com.example.carappstore.data.model.AppInfo
-import com.example.carappstore.data.model.AppViewData
+import com.xzq.appstore.data.model.AppDetail
+import com.xzq.appstore.data.model.AppInfo
+import com.xzq.appstore.data.model.AppViewData
 
 interface AppManager {
     suspend fun getHomeApps(): List<AppInfo>
@@ -980,15 +980,15 @@ interface AppManager {
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/domain/appmanager/DefaultAppManager.kt', '''
-package com.example.carappstore.domain.appmanager
+add('app/src/main/java/com/xzq/appstore/domain/appmanager/DefaultAppManager.kt', '''
+package com.xzq.appstore.domain.appmanager
 
-import com.example.carappstore.data.model.AppDetail
-import com.example.carappstore.data.model.AppInfo
-import com.example.carappstore.data.model.AppViewData
-import com.example.carappstore.data.repository.AppRepository
-import com.example.carappstore.domain.state.ButtonState
-import com.example.carappstore.domain.state.StateCenter
+import com.xzq.appstore.data.model.AppDetail
+import com.xzq.appstore.data.model.AppInfo
+import com.xzq.appstore.data.model.AppViewData
+import com.xzq.appstore.data.repository.AppRepository
+import com.xzq.appstore.domain.state.ButtonState
+import com.xzq.appstore.domain.state.StateCenter
 
 class DefaultAppManager(
     private val repository: AppRepository,
@@ -1017,26 +1017,26 @@ class DefaultAppManager(
 ''')
 
 # upgrade
-add('app/src/main/java/com/example/carappstore/domain/upgrade/UpgradeManager.kt', '''
-package com.example.carappstore.domain.upgrade
+add('app/src/main/java/com/xzq/appstore/domain/upgrade/UpgradeManager.kt', '''
+package com.xzq.appstore.domain.upgrade
 
 interface UpgradeManager {
     suspend fun startUpgrade(appId: String)
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/domain/upgrade/DefaultUpgradeManager.kt', '''
-package com.example.carappstore.domain.upgrade
+add('app/src/main/java/com/xzq/appstore/domain/upgrade/DefaultUpgradeManager.kt', '''
+package com.xzq.appstore.domain.upgrade
 
-import com.example.carappstore.core.logger.AppLogger
-import com.example.carappstore.core.tracker.EventTracker
-import com.example.carappstore.data.repository.AppRepository
-import com.example.carappstore.domain.download.DownloadManager
-import com.example.carappstore.domain.install.InstallManager
-import com.example.carappstore.domain.policy.PolicyCenter
-import com.example.carappstore.domain.state.AppState
-import com.example.carappstore.domain.state.ButtonState
-import com.example.carappstore.domain.state.StateCenter
+import com.xzq.appstore.core.logger.AppLogger
+import com.xzq.appstore.core.tracker.EventTracker
+import com.xzq.appstore.data.repository.AppRepository
+import com.xzq.appstore.domain.download.DownloadManager
+import com.xzq.appstore.domain.install.InstallManager
+import com.xzq.appstore.domain.policy.PolicyCenter
+import com.xzq.appstore.domain.state.AppState
+import com.xzq.appstore.domain.state.ButtonState
+import com.xzq.appstore.domain.state.StateCenter
 
 class DefaultUpgradeManager(
     private val repository: AppRepository,
@@ -1065,10 +1065,10 @@ class DefaultUpgradeManager(
 ''')
 
 # feature home
-add('app/src/main/java/com/example/carappstore/feature/home/HomeUiState.kt', '''
-package com.example.carappstore.feature.home
+add('app/src/main/java/com/xzq/appstore/feature/home/HomeUiState.kt', '''
+package com.xzq.appstore.feature.home
 
-import com.example.carappstore.data.model.AppInfo
+import com.xzq.appstore.data.model.AppInfo
 
 data class HomeUiState(
     val loading: Boolean = true,
@@ -1076,12 +1076,12 @@ data class HomeUiState(
 )
 ''')
 
-add('app/src/main/java/com/example/carappstore/feature/home/HomeViewModel.kt', '''
-package com.example.carappstore.feature.home
+add('app/src/main/java/com/xzq/appstore/feature/home/HomeViewModel.kt', '''
+package com.xzq.appstore.feature.home
 
 import androidx.lifecycle.viewModelScope
-import com.example.carappstore.common.base.BaseViewModel
-import com.example.carappstore.domain.appmanager.AppManager
+import com.xzq.appstore.common.base.BaseViewModel
+import com.xzq.appstore.domain.appmanager.AppManager
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
@@ -1100,12 +1100,12 @@ class HomeViewModel(
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/feature/home/HomeViewModelFactory.kt', '''
-package com.example.carappstore.feature.home
+add('app/src/main/java/com/xzq/appstore/feature/home/HomeViewModelFactory.kt', '''
+package com.xzq.appstore.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.carappstore.domain.appmanager.AppManager
+import com.xzq.appstore.domain.appmanager.AppManager
 
 class HomeViewModelFactory(
     private val appManager: AppManager,
@@ -1116,8 +1116,8 @@ class HomeViewModelFactory(
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/feature/home/HomeFragment.kt', '''
-package com.example.carappstore.feature.home
+add('app/src/main/java/com/xzq/appstore/feature/home/HomeFragment.kt', '''
+package com.xzq.appstore.feature.home
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -1126,8 +1126,8 @@ import android.view.ViewGroup
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.example.carappstore.common.base.BaseFragment
-import com.example.carappstore.databinding.FragmentHomeBinding
+import com.xzq.appstore.common.base.BaseFragment
+import com.xzq.appstore.databinding.FragmentHomeBinding
 import kotlinx.coroutines.launch
 
 class HomeFragment : BaseFragment() {
@@ -1187,11 +1187,11 @@ class HomeFragment : BaseFragment() {
 ''')
 
 # feature detail
-add('app/src/main/java/com/example/carappstore/feature/detail/DetailUiState.kt', '''
-package com.example.carappstore.feature.detail
+add('app/src/main/java/com/xzq/appstore/feature/detail/DetailUiState.kt', '''
+package com.xzq.appstore.feature.detail
 
-import com.example.carappstore.data.model.AppDetail
-import com.example.carappstore.domain.state.ButtonState
+import com.xzq.appstore.data.model.AppDetail
+import com.xzq.appstore.domain.state.ButtonState
 
 data class DetailUiState(
     val appDetail: AppDetail? = null,
@@ -1200,16 +1200,16 @@ data class DetailUiState(
 )
 ''')
 
-add('app/src/main/java/com/example/carappstore/feature/detail/DetailViewModel.kt', '''
-package com.example.carappstore.feature.detail
+add('app/src/main/java/com/xzq/appstore/feature/detail/DetailViewModel.kt', '''
+package com.xzq.appstore.feature.detail
 
 import androidx.lifecycle.viewModelScope
-import com.example.carappstore.common.base.BaseViewModel
-import com.example.carappstore.domain.appmanager.AppManager
-import com.example.carappstore.domain.download.DownloadManager
-import com.example.carappstore.domain.install.InstallManager
-import com.example.carappstore.domain.state.ButtonState
-import com.example.carappstore.domain.state.StateCenter
+import com.xzq.appstore.common.base.BaseViewModel
+import com.xzq.appstore.domain.appmanager.AppManager
+import com.xzq.appstore.domain.download.DownloadManager
+import com.xzq.appstore.domain.install.InstallManager
+import com.xzq.appstore.domain.state.ButtonState
+import com.xzq.appstore.domain.state.StateCenter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -1250,15 +1250,15 @@ class DetailViewModel(
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/feature/detail/DetailViewModelFactory.kt', '''
-package com.example.carappstore.feature.detail
+add('app/src/main/java/com/xzq/appstore/feature/detail/DetailViewModelFactory.kt', '''
+package com.xzq.appstore.feature.detail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.carappstore.domain.appmanager.AppManager
-import com.example.carappstore.domain.download.DownloadManager
-import com.example.carappstore.domain.install.InstallManager
-import com.example.carappstore.domain.state.StateCenter
+import com.xzq.appstore.domain.appmanager.AppManager
+import com.xzq.appstore.domain.download.DownloadManager
+import com.xzq.appstore.domain.install.InstallManager
+import com.xzq.appstore.domain.state.StateCenter
 
 class DetailViewModelFactory(
     private val appManager: AppManager,
@@ -1272,8 +1272,8 @@ class DetailViewModelFactory(
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/feature/detail/DetailFragment.kt', '''
-package com.example.carappstore.feature.detail
+add('app/src/main/java/com/xzq/appstore/feature/detail/DetailFragment.kt', '''
+package com.xzq.appstore.feature.detail
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -1282,9 +1282,9 @@ import android.view.ViewGroup
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.example.carappstore.common.base.BaseFragment
-import com.example.carappstore.databinding.FragmentDetailBinding
-import com.example.carappstore.domain.state.ButtonState
+import com.xzq.appstore.common.base.BaseFragment
+import com.xzq.appstore.databinding.FragmentDetailBinding
+import com.xzq.appstore.domain.state.ButtonState
 import kotlinx.coroutines.launch
 
 class DetailFragment : BaseFragment() {
@@ -1362,22 +1362,22 @@ class DetailFragment : BaseFragment() {
 ''')
 
 # feature myapp
-add('app/src/main/java/com/example/carappstore/feature/myapp/MyAppUiState.kt', '''
-package com.example.carappstore.feature.myapp
+add('app/src/main/java/com/xzq/appstore/feature/myapp/MyAppUiState.kt', '''
+package com.xzq.appstore.feature.myapp
 
-import com.example.carappstore.data.model.AppViewData
+import com.xzq.appstore.data.model.AppViewData
 
 data class MyAppUiState(
     val apps: List<AppViewData> = emptyList(),
 )
 ''')
 
-add('app/src/main/java/com/example/carappstore/feature/myapp/MyAppViewModel.kt', '''
-package com.example.carappstore.feature.myapp
+add('app/src/main/java/com/xzq/appstore/feature/myapp/MyAppViewModel.kt', '''
+package com.xzq.appstore.feature.myapp
 
 import androidx.lifecycle.viewModelScope
-import com.example.carappstore.common.base.BaseViewModel
-import com.example.carappstore.domain.appmanager.AppManager
+import com.xzq.appstore.common.base.BaseViewModel
+import com.xzq.appstore.domain.appmanager.AppManager
 import kotlinx.coroutines.launch
 
 class MyAppViewModel(
@@ -1392,12 +1392,12 @@ class MyAppViewModel(
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/feature/myapp/MyAppViewModelFactory.kt', '''
-package com.example.carappstore.feature.myapp
+add('app/src/main/java/com/xzq/appstore/feature/myapp/MyAppViewModelFactory.kt', '''
+package com.xzq.appstore.feature.myapp
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.carappstore.domain.appmanager.AppManager
+import com.xzq.appstore.domain.appmanager.AppManager
 
 class MyAppViewModelFactory(
     private val appManager: AppManager,
@@ -1408,8 +1408,8 @@ class MyAppViewModelFactory(
 }
 ''')
 
-add('app/src/main/java/com/example/carappstore/feature/myapp/MyAppFragment.kt', '''
-package com.example.carappstore.feature.myapp
+add('app/src/main/java/com/xzq/appstore/feature/myapp/MyAppFragment.kt', '''
+package com.xzq.appstore.feature.myapp
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -1418,8 +1418,8 @@ import android.view.ViewGroup
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.example.carappstore.common.base.BaseFragment
-import com.example.carappstore.databinding.FragmentMyAppBinding
+import com.xzq.appstore.common.base.BaseFragment
+import com.xzq.appstore.databinding.FragmentMyAppBinding
 import kotlinx.coroutines.launch
 
 class MyAppFragment : BaseFragment() {

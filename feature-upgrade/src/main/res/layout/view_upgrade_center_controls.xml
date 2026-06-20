@@ -30,25 +30,34 @@
             android:id="@+id/btnUpgradePrimary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_primary_button"
             android:layout_marginEnd="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_upgrade_start_batch_zero" />
+            android:text="@string/ui_upgrade_start_batch_zero"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
 
         <Button
             android:id="@+id/btnUpgradeSecondary"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_primary_button_warning"
             android:layout_marginStart="@dimen/spacing_6dp"
             android:layout_weight="1"
-            android:text="@string/ui_upgrade_retry_failed_zero" />
+            android:text="@string/ui_upgrade_retry_failed_zero"
+            android:textAllCaps="false"
+            android:textColor="@color/car_text_primary" />
     </LinearLayout>
 
     <Button
         android:id="@+id/btnUpgradeTertiary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/bg_secondary_button"
         android:layout_marginTop="@dimen/spacing_10dp"
-        android:text="@string/ui_go_my_apps" />
+        android:text="@string/ui_go_my_apps"
+        android:textAllCaps="false"
+        android:textColor="@color/car_text_primary" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

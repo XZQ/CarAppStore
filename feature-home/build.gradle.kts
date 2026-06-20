@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.nio.appstore.feature.home"
+    namespace = "com.xzq.appstore.feature.home"
     compileSdk = 34
 
     defaultConfig {

@@ -12,6 +12,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/ui_debug_policy_signals"
+        android:textColor="@color/car_text_primary"
         android:textSize="@dimen/text_xl"
         android:textStyle="bold" />
 
@@ -21,6 +22,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_12dp"
         android:text="@string/ui_debug_wifi_status_format"
+        android:textColor="@color/car_text_secondary"
         android:textSize="@dimen/text_sm" />
 
     <TextView
@@ -29,6 +31,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_6dp"
         android:text="@string/ui_debug_storage_status_format"
+        android:textColor="@color/car_text_secondary"
         android:textSize="@dimen/text_sm" />
 
     <TextView
@@ -37,12 +40,16 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="@dimen/spacing_6dp"
         android:text="@string/ui_debug_parking_status_format"
+        android:textColor="@color/car_text_secondary"
         android:textSize="@dimen/text_sm" />
 
     <Button
         android:id="@+id/btnRefreshSignals"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/bg_secondary_button"
         android:layout_marginTop="@dimen/spacing_14dp"
-        android:text="@string/ui_debug_refresh_signals" />
+        android:text="@string/ui_debug_refresh_signals"
+        android:textAllCaps="false"
+        android:textColor="@color/car_text_primary" />
 </LinearLayout>

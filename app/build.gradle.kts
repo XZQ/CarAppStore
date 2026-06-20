@@ -3,16 +3,37 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val releaseStoreFilePath = System.getenv("CARAPPSTORE_RELEASE_STORE_FILE").orEmpty()
+val releaseStorePassword = System.getenv("CARAPPSTORE_RELEASE_STORE_PASSWORD").orEmpty()
+val releaseKeyAlias = System.getenv("CARAPPSTORE_RELEASE_KEY_ALIAS").orEmpty()
+val releaseKeyPassword = System.getenv("CARAPPSTORE_RELEASE_KEY_PASSWORD").orEmpty()
+val hasReleaseSigningConfig = listOf(
+    releaseStoreFilePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { it.isNotBlank() }
+
+fun configValue(name: String): String {
+    return (project.findProperty(name) as String?)
+        ?: System.getenv(name)
+        ?: ""
+}
+
 android {
-    namespace = "com.nio.appstore"
+    namespace = "com.xzq.appstore"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.nio.appstore"
+        applicationId = "com.xzq.appstore"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        buildConfigField("String", "CARAPPSTORE_OEM_VEHICLE_ACTION", "\"${configValue("CARAPPSTORE_OEM_VEHICLE_ACTION")}\"")
+        buildConfigField("String", "CARAPPSTORE_OEM_PARKING_EXTRA", "\"${configValue("CARAPPSTORE_OEM_PARKING_EXTRA")}\"")
+        buildConfigField("String", "CARAPPSTORE_OEM_POWER_EXTRA", "\"${configValue("CARAPPSTORE_OEM_POWER_EXTRA")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -20,9 +41,23 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                storeFile = file(releaseStoreFilePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -40,6 +75,7 @@ android {
     }
 
     buildFeatures {
+        buildConfig = true
         viewBinding = true
     }
 }
