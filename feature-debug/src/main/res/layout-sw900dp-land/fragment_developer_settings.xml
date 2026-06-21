@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/car_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="@dimen/spacing_18dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <include
+                android:id="@+id/includeEnvironmentPanel"
+                layout="@layout/include_environment_panel" />
+
+            <include
+                android:id="@+id/includeDescriptionPanel"
+                layout="@layout/include_description_panel" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_18dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <include
+                android:id="@+id/includePolicySignalsPanel"
+                layout="@layout/include_policy_signals_panel" />
+
+            <include
+                android:id="@+id/includeVersionInfoPanel"
+                layout="@layout/include_version_info_panel" />
+
+            <include
+                android:id="@+id/includeCachePanel"
+                layout="@layout/include_cache_panel" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

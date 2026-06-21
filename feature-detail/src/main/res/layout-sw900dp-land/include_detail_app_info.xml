@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_panel"
+    android:orientation="vertical"
+    android:padding="@dimen/spacing_20dp">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:background="@drawable/bg_card_alt">
+
+        <ImageView
+            android:id="@+id/ivDetailHero"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/screen_detail_title"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvDetailHero"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:paddingStart="@dimen/spacing_24dp"
+            android:paddingEnd="@dimen/spacing_24dp"
+            android:textColor="@color/car_text_primary"
+            android:textSize="@dimen/text_2xl"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_18dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="78dp"
+            android:layout_height="78dp"
+            android:background="@drawable/bg_tag_info">
+
+            <ImageView
+                android:id="@+id/ivDetailIcon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@string/screen_detail_title"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvDetailInitial"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:textColor="@color/car_text_primary"
+                android:textSize="@dimen/text_3xl"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_18dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvDetailName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/car_text_primary"
+                android:textSize="@dimen/text_3xl"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvDetailVersion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_8dp"
+                android:textColor="@color/car_text_muted"
+                android:textSize="@dimen/text_md" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvDetailDesc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_18dp"
+        android:lineSpacingExtra="4dp"
+        android:textColor="@color/car_text_secondary"
+        android:textSize="@dimen/text_md" />
+
+    <LinearLayout
+        android:id="@+id/layoutScreenshots"
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_marginTop="@dimen/spacing_18dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/ivScreenshot1"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="@dimen/spacing_8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_card_alt"
+            android:contentDescription="@string/screen_detail_title"
+            android:scaleType="centerCrop" />
+
+        <ImageView
+            android:id="@+id/ivScreenshot2"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="@dimen/spacing_8dp"
+            android:layout_marginEnd="@dimen/spacing_8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_card_alt"
+            android:contentDescription="@string/screen_detail_title"
+            android:scaleType="centerCrop" />
+
+        <ImageView
+            android:id="@+id/ivScreenshot3"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="@dimen/spacing_8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_card_alt"
+            android:contentDescription="@string/screen_detail_title"
+            android:scaleType="centerCrop" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvDetailMeta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_18dp"
+        android:background="@drawable/bg_card_alt"
+        android:lineSpacingExtra="3dp"
+        android:padding="@dimen/spacing_16dp"
+        android:textColor="@color/car_text_secondary"
+        android:textSize="@dimen/text_sm" />
+
+    <TextView
+        android:id="@+id/tvPolicyPrompt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_14dp"
+        android:background="@drawable/bg_tag_warning"
+        android:padding="@dimen/spacing_12dp"
+        android:textColor="@color/car_text_primary"
+        android:textSize="@dimen/text_sm_13"
+        android:visibility="gone" />
+</LinearLayout>
