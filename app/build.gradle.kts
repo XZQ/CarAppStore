@@ -3,22 +3,22 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val releaseStoreFilePath = System.getenv("CARAPPSTORE_RELEASE_STORE_FILE").orEmpty()
-val releaseStorePassword = System.getenv("CARAPPSTORE_RELEASE_STORE_PASSWORD").orEmpty()
-val releaseKeyAlias = System.getenv("CARAPPSTORE_RELEASE_KEY_ALIAS").orEmpty()
-val releaseKeyPassword = System.getenv("CARAPPSTORE_RELEASE_KEY_PASSWORD").orEmpty()
+fun configValue(name: String): String {
+    return (project.findProperty(name) as String?)
+        ?: System.getenv(name)
+        ?: ""
+}
+
+val releaseStoreFilePath = configValue("CARAPPSTORE_RELEASE_STORE_FILE")
+val releaseStorePassword = configValue("CARAPPSTORE_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = configValue("CARAPPSTORE_RELEASE_KEY_ALIAS")
+val releaseKeyPassword = configValue("CARAPPSTORE_RELEASE_KEY_PASSWORD")
 val hasReleaseSigningConfig = listOf(
     releaseStoreFilePath,
     releaseStorePassword,
     releaseKeyAlias,
     releaseKeyPassword,
 ).all { it.isNotBlank() }
-
-fun configValue(name: String): String {
-    return (project.findProperty(name) as String?)
-        ?: System.getenv(name)
-        ?: ""
-}
 
 android {
     namespace = "com.xzq.appstore"

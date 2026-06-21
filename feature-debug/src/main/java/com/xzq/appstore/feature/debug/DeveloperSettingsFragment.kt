@@ -165,10 +165,17 @@ class DeveloperSettingsFragment : BaseFragment() {
 
     /** 绑定缓存管理面板，提供清除本地缓存入口。 */
     private fun bindCacheManagementSection() {
+        renderEventLogStatus()
         binding.includeCachePanel.btnClearCache.setOnClickListener {
             val context = context ?: return@setOnClickListener
             clearCache(context)
             Toast.makeText(context, getString(R.string.ui_debug_cache_cleared), Toast.LENGTH_SHORT).show()
+        }
+        binding.includeCachePanel.btnClearEventLog.setOnClickListener {
+            val context = context ?: return@setOnClickListener
+            eventLogFile(context).delete()
+            renderEventLogStatus()
+            Toast.makeText(context, getString(R.string.ui_debug_event_log_cleared), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -178,6 +185,20 @@ class DeveloperSettingsFragment : BaseFragment() {
         cacheDir?.deleteRecursively()
         context.externalCacheDir?.deleteRecursively()
     }
+
+    private fun renderEventLogStatus() {
+        val context = context ?: return
+        val file = eventLogFile(context)
+        val lineCount = if (file.exists()) file.useLines(Charsets.UTF_8) { lines -> lines.count() } else 0
+        val sizeKb = if (file.exists()) (file.length() + BYTES_PER_KB - 1) / BYTES_PER_KB else 0
+        binding.includeCachePanel.tvEventLogStatus.text = getString(
+            R.string.ui_debug_event_log_status_format,
+            lineCount,
+            sizeKb,
+        )
+    }
+
+    private fun eventLogFile(context: Context) = context.filesDir.resolve(EVENT_LOG_FILE_NAME)
 
     /** 将布尔值转换为可读文案。 */
     private fun booleanText(value: Boolean): String {
@@ -191,6 +212,9 @@ class DeveloperSettingsFragment : BaseFragment() {
     }
 
     companion object {
+        private const val EVENT_LOG_FILE_NAME = "event_log.tsv"
+        private const val BYTES_PER_KB = 1024L
+
         /** 创建开发设置页实例。 */
         fun newInstance(): DeveloperSettingsFragment = DeveloperSettingsFragment()
     }

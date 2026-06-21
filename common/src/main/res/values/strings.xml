@@ -116,6 +116,10 @@
     <string name="ui_debug_cache_management">缓存管理</string>
     <string name="ui_debug_clear_cache">清除缓存</string>
     <string name="ui_debug_cache_cleared">缓存已清除</string>
+    <string name="ui_debug_event_log_status_empty">事件日志：0 条，0 KB</string>
+    <string name="ui_debug_event_log_status_format">事件日志：%1$d 条，%2$d KB</string>
+    <string name="ui_debug_clear_event_log">清除事件日志</string>
+    <string name="ui_debug_event_log_cleared">事件日志已清除</string>
     <string name="ui_debug_refresh_signals">刷新信号</string>
     <string name="screen_home_title">&#x9996;&#x9875;</string>
     <string name="screen_home_empty_apps">&#x6682;&#x65e0;&#x5e94;&#x7528;</string>

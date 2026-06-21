@@ -131,7 +131,8 @@ X-Client-Platform: android-car
 | `VehicleRuntimeState`               | 车况信号数据结构（`parkingMode`、`sourceName`） |
 | `PolicyRuntimeSignalProvider`       | 聚合策略信号接口（WiFi + 存储 + 车况）   |
 | `PolicyRuntimeSignals`              | 聚合信号数据结构（`wifiConnected`、`parkingMode`、`lowStorageMode`） |
-| `StaticVehicleStateSignalProvider`  | 默认兜底实现（固定输出驻车=true）        |
+| `StaticVehicleStateSignalProvider`  | 默认兜底实现（固定输出驻车=false，按安全策略处理） |
+| `BroadcastVehicleStateSignalProvider` | 可配置广播型 OEM 接入，支持 Boolean、数字和常见字符串 extra |
 
 OEM 需要提供的信号：
 
@@ -142,11 +143,12 @@ OEM 需要提供的信号：
 
 OEM 接入步骤（不改业务层）：
 
-1. 新增一个类实现 `VehicleStateSignalProvider` 接口
-2. 在 `observeVehicleState()` 中返回实时 `StateFlow<VehicleRuntimeState>`
-3. 在 `currentVehicleState()` 中返回当前快照
-4. 在 `AppContainer` 中将 `StaticVehicleStateSignalProvider` 替换为 OEM 实现
-5. `DefaultPolicyCenter` 和 `AndroidPolicyRuntimeSignalProvider` 无需任何修改
+1. 广播型接入：配置 `CARAPPSTORE_OEM_VEHICLE_ACTION`、`CARAPPSTORE_OEM_PARKING_EXTRA`，可选配置 `CARAPPSTORE_OEM_POWER_EXTRA`。
+2. SDK / Binder 型接入：新增一个类实现 `VehicleStateSignalProvider` 接口。
+3. 在 `observeVehicleState()` 中返回实时 `StateFlow<VehicleRuntimeState>`。
+4. 在 `currentVehicleState()` 中返回当前快照。
+5. 在 `AppContainer` 中替换或装配对应 OEM 实现。
+6. `DefaultPolicyCenter` 和页面层无需任何修改。
 
 ### 2.2 信号质量验收
 

@@ -45,9 +45,9 @@ class BroadcastVehicleStateSignalProvider(
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action != action) return
             stateFlow.value = VehicleRuntimeState(
-                parkingMode = readBooleanExtra(intent, parkingExtraName, stateFlow.value.parkingMode),
+                parkingMode = VehicleSignalValueParser.booleanExtra(intent.extras?.get(parkingExtraName), stateFlow.value.parkingMode),
                 sourceName = "broadcast:$action",
-                powerOn = readOptionalBooleanExtra(intent, powerExtraName, stateFlow.value.powerOn),
+                powerOn = optionalBooleanExtra(intent, powerExtraName, stateFlow.value.powerOn),
             )
         }
     }
@@ -67,21 +67,28 @@ class BroadcastVehicleStateSignalProvider(
 
     override fun currentVehicleState(): VehicleRuntimeState = stateFlow.value
 
-    private fun readBooleanExtra(intent: Intent, name: String, fallback: Boolean): Boolean {
-        if (!intent.hasExtra(name)) return fallback
-        return when (val value = intent.extras?.get(name)) {
+    private fun optionalBooleanExtra(intent: Intent, name: String, fallback: Boolean?): Boolean? {
+        if (name.isBlank() || !intent.hasExtra(name)) return fallback
+        return VehicleSignalValueParser.booleanExtra(intent.extras?.get(name), fallback ?: false)
+    }
+}
+
+object VehicleSignalValueParser {
+    fun booleanExtra(value: Any?, fallback: Boolean): Boolean {
+        return when (value) {
             is Boolean -> value
             is Number -> value.toInt() != 0
-            is String -> value.equals("true", ignoreCase = true) ||
-                value == "1" ||
-                value.equals("park", ignoreCase = true)
+            is String -> stringToBoolean(value) ?: fallback
             else -> fallback
         }
     }
 
-    private fun readOptionalBooleanExtra(intent: Intent, name: String, fallback: Boolean?): Boolean? {
-        if (name.isBlank() || !intent.hasExtra(name)) return fallback
-        return readBooleanExtra(intent, name, fallback ?: false)
+    private fun stringToBoolean(value: String): Boolean? {
+        return when (value.trim().lowercase()) {
+            "true", "1", "yes", "y", "on", "park", "parked", "parking", "p" -> true
+            "false", "0", "no", "n", "off", "drive", "driving", "d", "moving" -> false
+            else -> null
+        }
     }
 }
 
