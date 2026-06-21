@@ -2,6 +2,7 @@ package com.xzq.appstore.feature.home
 
 import androidx.lifecycle.viewModelScope
 import com.xzq.appstore.common.base.BaseViewModel
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.AppViewData
 import com.xzq.appstore.domain.action.AppPrimaryActionExecutor
 import com.xzq.appstore.domain.appmanager.AppManager
@@ -22,6 +23,7 @@ class HomeViewModel(
     private val installManager: InstallManager,
     private val upgradeManager: UpgradeManager,
     private val policyCenter: PolicyCenter,
+    private val eventTracker: EventTracker = EventTracker(),
 ) : BaseViewModel<HomeUiState>(HomeUiState()) {
 
     /** 首页状态订阅任务。 */
@@ -35,6 +37,7 @@ class HomeViewModel(
         downloadManager = downloadManager,
         installManager = installManager,
         upgradeManager = upgradeManager,
+        tracker = eventTracker,
     )
 
     /** 初始化首页数据，并监听任务状态和策略变化。 */

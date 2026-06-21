@@ -1,7 +1,6 @@
 package com.xzq.appstore.data.datasource.remote
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.xzq.appstore.core.downloader.DownloadSourcePolicy
 
@@ -24,6 +23,11 @@ class AppCatalogJsonParserTest {
         assertEquals("SHA-256", item.checksumType)
         assertEquals("abc123", item.checksumValue)
         assertEquals(DownloadSourcePolicy.DIRECT_HTTP, item.sourcePolicy)
+        assertEquals(CatalogListingState.ROLLBACK, item.listingState)
+        assertEquals(60, item.rolloutPercent)
+        assertEquals(listOf("carappstore-test"), item.allowedChannels)
+        assertEquals(listOf("carappstore-legacy"), item.blockedChannels)
+        assertEquals("2.0.5", item.rollbackVersion)
     }
 
     @Test
@@ -37,11 +41,14 @@ class AppCatalogJsonParserTest {
         assertEquals("asset://icons/nav_map.png", item.appInfo.iconUrl)
         assertEquals("asset://banners/nav_map.png", item.appDetail.bannerUrl)
         assertEquals("https://download.example.com/nav.map.apk", item.appDetail.apkUrl)
+        assertEquals("2.0.5", item.appDetail.versionName)
+        assertEquals("2.0.5", item.appInfo.versionName)
+        assertEquals("2.0.5", item.upgradeInfo.latestVersion)
+        assertEquals(false, item.upgradeInfo.hasUpgrade)
         assertEquals("abc123", item.appDetail.checksumValue)
         assertEquals("适配座舱导航场景", item.appInfo.recommendedReason)
         assertEquals("蔚来地图团队", item.appDetail.developerName)
         assertEquals("新增沿途充电推荐", item.upgradeInfo.changelog)
-        assertTrue(item.upgradeInfo.hasUpgrade)
     }
 
     private companion object {
@@ -74,6 +81,11 @@ class AppCatalogJsonParserTest {
                   "checksumType": "SHA-256",
                   "checksumValue": "abc123",
                   "sourcePolicy": "DIRECT_HTTP",
+                  "listingState": "ROLLBACK",
+                  "rolloutPercent": 60,
+                  "allowedChannels": ["carappstore-test"],
+                  "blockedChannels": ["carappstore-legacy"],
+                  "rollbackVersion": "2.0.5",
                   "hasUpgrade": true,
                   "changelog": "新增沿途充电推荐"
                 }

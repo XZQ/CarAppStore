@@ -246,6 +246,15 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
 
         updateTitle(title)
         selectNav(selectedButton)
+        trackPageView(title)
+    }
+
+    private fun trackPageView(title: String) {
+        appServices.eventTracker.track("page_view_${title.toEventToken()}")
+    }
+
+    private fun String.toEventToken(): String {
+        return trim().replace(Regex("\\s+"), "_").ifBlank { "unknown" }
     }
 
     /**

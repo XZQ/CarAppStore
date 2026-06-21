@@ -1,5 +1,6 @@
 package com.xzq.appstore.domain.action
 
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
 import com.xzq.appstore.domain.install.InstallManager
@@ -18,6 +19,8 @@ class AppPrimaryActionExecutor(
     private val installManager: InstallManager? = null,
     /** 提供升级动作能力。 */
     private val upgradeManager: UpgradeManager? = null,
+    /** 记录用户点击行为。 */
+    private val tracker: EventTracker = EventTracker(),
 ) {
 
     /**
@@ -32,6 +35,7 @@ class AppPrimaryActionExecutor(
         action: PrimaryAction,
         packageName: String? = null,
     ) {
+        tracker.track("primary_click_${action.name.lowercase()}_$appId")
         when (action) {
             PrimaryAction.DOWNLOAD, PrimaryAction.RETRY_DOWNLOAD -> downloadManager?.startDownload(appId)
             PrimaryAction.PAUSE -> downloadManager?.pauseDownload(appId)

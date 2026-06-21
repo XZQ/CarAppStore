@@ -40,4 +40,6 @@ data class RemoteCatalogItem(
     val appDetail: AppDetail,
     /** 升级页使用的版本信息。 */
     val upgradeInfo: UpgradeInfo,
+    /** 目录运营治理信息。 */
+    val governance: AppCatalogGovernance = AppCatalogGovernance(),
 )

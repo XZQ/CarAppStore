@@ -35,6 +35,7 @@ class HomeFragment : BaseFragment() {
             appServices.installManager,
             appServices.upgradeManager,
             appServices.policyCenter,
+            appServices.eventTracker,
         )
     }
 

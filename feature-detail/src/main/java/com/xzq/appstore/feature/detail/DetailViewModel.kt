@@ -3,6 +3,7 @@ package com.xzq.appstore.feature.detail
 import androidx.lifecycle.viewModelScope
 import com.xzq.appstore.common.base.BaseViewModel
 import com.xzq.appstore.common.ui.CarUiStyle
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.domain.action.AppPrimaryActionExecutor
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
@@ -28,6 +29,7 @@ class DetailViewModel(
     private val stateCenter: StateCenter,
     /** 用于监听页面策略变化。 */
     private val policyCenter: PolicyCenter,
+    private val eventTracker: EventTracker = EventTracker(),
 ) : BaseViewModel<DetailUiState>(DetailUiState()) {
 
     /** 当前详情页正在展示的应用 id。 */
@@ -41,6 +43,7 @@ class DetailViewModel(
         downloadManager = downloadManager,
         installManager = installManager,
         upgradeManager = upgradeManager,
+        tracker = eventTracker,
     )
 
     /** 加载指定应用的详情页数据，并订阅其运行态。 */

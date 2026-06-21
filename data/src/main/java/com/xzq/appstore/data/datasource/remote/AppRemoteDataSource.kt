@@ -22,6 +22,7 @@ class AppRemoteDataSource(
     /** 商店目录缓存元数据文件。 */
     catalogCacheMetadataFile: File? = null,
 ) {
+    private val catalogChannel = catalogRequestHeaders["X-Client-Channel"].orEmpty()
     /** 远端目录读取器。 */
     private val catalogLoader = AppRemoteCatalogLoader(context)
     /** 商店目录数据源。 */
@@ -37,7 +38,7 @@ class AppRemoteDataSource(
     )
 
     /** 返回首页应用列表。 */
-    suspend fun getHomeApps(): List<AppInfo> = loadCatalog().map { it.appInfo }
+    suspend fun getHomeApps(): List<AppInfo> = loadVisibleCatalog().map { it.appInfo }
 
     /** 根据 appId 返回应用详情，并补全当前环境下的下载源信息。 */
     suspend fun getAppDetail(appId: String): AppDetail {
@@ -61,11 +62,15 @@ class AppRemoteDataSource(
 
     /** 查找指定应用的远端目录项。 */
     private suspend fun findItem(appId: String): RemoteCatalogItem {
-        return requireNotNull(loadCatalog().firstOrNull { it.appId == appId }) {
+        return requireNotNull(loadVisibleCatalog().firstOrNull { it.appId == appId }) {
             "未找到 appId=$appId 对应的远端目录项"
         }
     }
 
     /** 加载当前生效的商店目录。 */
     private suspend fun loadCatalog(): List<RemoteCatalogItem> = catalogSource.load()
+
+    private suspend fun loadVisibleCatalog(): List<RemoteCatalogItem> {
+        return loadCatalog().filter { item -> item.governance.isVisible(item.appId, catalogChannel) }
+    }
 }

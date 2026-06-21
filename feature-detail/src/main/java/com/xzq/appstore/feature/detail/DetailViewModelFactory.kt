@@ -2,6 +2,7 @@ package com.xzq.appstore.feature.detail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
 import com.xzq.appstore.domain.install.InstallManager
@@ -22,11 +23,21 @@ class DetailViewModelFactory(
     private val stateCenter: StateCenter,
     /** 负责监听详情页策略变化。 */
     private val policyCenter: PolicyCenter,
+    /** 提供本地事件打点能力。 */
+    private val eventTracker: EventTracker,
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
     /** 创建详情页 ViewModel。 */
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return DetailViewModel(appManager, downloadManager, installManager, upgradeManager, stateCenter, policyCenter) as T
+        return DetailViewModel(
+            appManager,
+            downloadManager,
+            installManager,
+            upgradeManager,
+            stateCenter,
+            policyCenter,
+            eventTracker,
+        ) as T
     }
 }

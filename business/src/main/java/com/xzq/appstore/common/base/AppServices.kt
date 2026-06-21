@@ -2,6 +2,7 @@ package com.xzq.appstore.common.base
 
 import com.xzq.appstore.core.installer.InstallSessionStore
 import com.xzq.appstore.core.installer.InstallUserActionDispatcher
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
 import com.xzq.appstore.domain.install.InstallManager
@@ -31,4 +32,6 @@ interface AppServices {
     val installSessionStore: InstallSessionStore
     /** 安装确认动作分发器，供壳层统一拉起系统确认页。 */
     val installUserActionDispatcher: InstallUserActionDispatcher
+    /** 本地事件打点入口，供壳层和业务动作统一记录曝光、点击和结果。 */
+    val eventTracker: EventTracker
 }

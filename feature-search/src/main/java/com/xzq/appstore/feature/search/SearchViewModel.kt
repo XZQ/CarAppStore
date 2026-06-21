@@ -2,6 +2,7 @@ package com.xzq.appstore.feature.search
 
 import androidx.lifecycle.viewModelScope
 import com.xzq.appstore.common.base.BaseViewModel
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.AppViewData
 import com.xzq.appstore.domain.action.AppPrimaryActionExecutor
 import com.xzq.appstore.domain.appmanager.AppManager
@@ -28,6 +29,7 @@ class SearchViewModel(
     private val upgradeManager: UpgradeManager,
     /** 用于监听页面策略变化。 */
     private val policyCenter: PolicyCenter,
+    private val eventTracker: EventTracker = EventTracker(),
 ) :
     BaseViewModel<SearchUiState>(SearchUiState()) {
 
@@ -42,6 +44,7 @@ class SearchViewModel(
         downloadManager = downloadManager,
         installManager = installManager,
         upgradeManager = upgradeManager,
+        tracker = eventTracker,
     )
 
     /** 初始化搜索页数据并开始监听状态变化。 */

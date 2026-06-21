@@ -2,6 +2,7 @@ package com.xzq.appstore.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
 import com.xzq.appstore.domain.install.InstallManager
@@ -22,6 +23,8 @@ class HomeViewModelFactory(
     private val upgradeManager: UpgradeManager,
     /** 提供首页策略观察能力。 */
     private val policyCenter: PolicyCenter,
+    /** 提供本地事件打点能力。 */
+    private val eventTracker: EventTracker,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     /** 创建首页 ViewModel。 */
@@ -33,6 +36,7 @@ class HomeViewModelFactory(
             installManager = installManager,
             upgradeManager = upgradeManager,
             policyCenter = policyCenter,
+            eventTracker = eventTracker,
         ) as T
     }
 }

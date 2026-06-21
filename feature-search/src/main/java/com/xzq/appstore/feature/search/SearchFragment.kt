@@ -37,6 +37,7 @@ class SearchFragment : BaseFragment() {
             appServices.installManager,
             appServices.upgradeManager,
             appServices.policyCenter,
+            appServices.eventTracker,
         )
     }
 

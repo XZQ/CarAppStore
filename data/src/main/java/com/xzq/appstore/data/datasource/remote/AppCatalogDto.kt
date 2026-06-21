@@ -60,6 +60,11 @@ data class AppCatalogItemResponse(
     val checksumType: String? = null,
     val checksumValue: String? = null,
     val sourcePolicy: DownloadSourcePolicy? = null,
+    val listingState: CatalogListingState = CatalogListingState.ACTIVE,
+    val rolloutPercent: Int = 100,
+    val allowedChannels: List<String> = emptyList(),
+    val blockedChannels: List<String> = emptyList(),
+    val rollbackVersion: String = "",
     /** 是否可升级。 */
     val hasUpgrade: Boolean,
     /** 升级变更摘要。 */
@@ -70,6 +75,16 @@ data class AppCatalogItemResponse(
  * 把目录响应项转换成远端目录领域模型。
  */
 fun AppCatalogItemResponse.toRemoteCatalogItem(): RemoteCatalogItem {
+    val governance = AppCatalogGovernance(
+        listingState = listingState,
+        rolloutPercent = rolloutPercent,
+        allowedChannels = allowedChannels,
+        blockedChannels = blockedChannels,
+        rollbackVersion = rollbackVersion,
+    )
+    val effectiveVersion = governance.effectiveVersion(versionName)
+    val effectiveLatestVersion = governance.effectiveVersion(latestVersion)
+    val effectiveHasUpgrade = hasUpgrade && listingState != CatalogListingState.ROLLBACK
     return RemoteCatalogItem(
         appId = appId,
         appInfo = AppInfo(
@@ -77,7 +92,7 @@ fun AppCatalogItemResponse.toRemoteCatalogItem(): RemoteCatalogItem {
             packageName = packageName,
             name = name,
             description = description,
-            versionName = versionName,
+            versionName = effectiveVersion,
             category = category,
             editorialTag = editorialTag,
             iconText = iconText,
@@ -93,7 +108,7 @@ fun AppCatalogItemResponse.toRemoteCatalogItem(): RemoteCatalogItem {
             packageName = packageName,
             name = name,
             description = description,
-            versionName = versionName,
+            versionName = effectiveVersion,
             developerName = developerName,
             category = category,
             iconText = iconText,
@@ -114,10 +129,11 @@ fun AppCatalogItemResponse.toRemoteCatalogItem(): RemoteCatalogItem {
         ),
         upgradeInfo = UpgradeInfo(
             appId = appId,
-            latestVersion = latestVersion,
+            latestVersion = effectiveLatestVersion,
             apkUrl = apkUrl,
-            hasUpgrade = hasUpgrade,
+            hasUpgrade = effectiveHasUpgrade,
             changelog = changelog,
         ),
+        governance = governance,
     )
 }

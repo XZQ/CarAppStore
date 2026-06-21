@@ -37,6 +37,7 @@ class DetailFragment : BaseFragment() {
             upgradeManager = appServices.upgradeManager,
             stateCenter = appServices.stateCenter,
             policyCenter = appServices.policyCenter,
+            eventTracker = appServices.eventTracker,
         )
     }
 

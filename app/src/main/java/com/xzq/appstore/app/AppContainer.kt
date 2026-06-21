@@ -65,7 +65,7 @@ class AppContainer(context: Context) : AppServices {
     val logger: AppLogger by lazy { AppLogger() }
 
     /** 打点器，供下载、安装、升级等链路复用。 */
-    val tracker: EventTracker by lazy { FileEventTracker(storagePaths.eventLogFile) }
+    override val eventTracker: EventTracker by lazy { FileEventTracker(storagePaths.eventLogFile) }
 
     /** 统一数据层访问入口，当前默认采用结构化 JSON 落盘实现。 */
     val localStoreFacade: LocalStoreFacade by lazy {
@@ -187,7 +187,7 @@ class AppContainer(context: Context) : AppServices {
             policyCenter = policyCenter,
             fileDownloader = fileDownloader,
             logger = logger,
-            tracker = tracker,
+            tracker = eventTracker,
         )
     }
 
@@ -199,7 +199,7 @@ class AppContainer(context: Context) : AppServices {
             policyCenter = policyCenter,
             packageInstaller = packageInstaller,
             logger = logger,
-            tracker = tracker,
+            tracker = eventTracker,
         )
     }
 
@@ -212,7 +212,7 @@ class AppContainer(context: Context) : AppServices {
             downloadManager = downloadManager,
             installManager = installManager,
             logger = logger,
-            tracker = tracker,
+            tracker = eventTracker,
         )
     }
 

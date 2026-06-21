@@ -1,6 +1,7 @@
 package com.xzq.appstore.domain.action
 
 import com.xzq.appstore.common.ui.StatusTone
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppViewData
 import com.xzq.appstore.data.model.DownloadPreferences
@@ -110,6 +111,24 @@ class AppPrimaryActionExecutorTest {
         assertEquals(TEST_UPGRADE_APP.appId, upgradeManager.startedUpgradeAppId)
     }
 
+    @Test
+    fun `execute records primary click event`() = runBlocking {
+        val tracker = RecordingTracker()
+        val executor = AppPrimaryActionExecutor(
+            appManager = FakeAppManager(),
+            downloadManager = RecordingDownloadManager(),
+            tracker = tracker,
+        )
+
+        executor.execute(
+            appId = TEST_DOWNLOAD_APP.appId,
+            action = PrimaryAction.DOWNLOAD,
+            packageName = TEST_DOWNLOAD_APP.packageName,
+        )
+
+        assertEquals("primary_click_download_${TEST_DOWNLOAD_APP.appId}", tracker.events.single())
+    }
+
     private class FakeAppManager : AppManager {
         /** 最近一次被请求打开的包名。 */
         var openedPackageName: String? = null
@@ -208,6 +227,14 @@ class AppPrimaryActionExecutorTest {
         override suspend fun checkAllUpgrades(): List<String> = emptyList()
 
         override suspend fun startBatchUpgrade(appIds: List<String>) = Unit
+    }
+
+    private class RecordingTracker : EventTracker() {
+        val events = mutableListOf<String>()
+
+        override fun track(event: String) {
+            events += event
+        }
     }
 
     private companion object {

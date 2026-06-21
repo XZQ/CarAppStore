@@ -51,6 +51,11 @@
 | `latestVersion`        | String        | 否   | 最新版本号（用于升级比对）        |
 | `hasUpgrade`           | Boolean       | 否   | 是否有可升级版本                 |
 | `changelog`            | String        | 否   | 升级变更日志                    |
+| `listingState`         | String        | 否   | 运营状态：`ACTIVE`、`HIDDEN`、`REMOVED`、`ROLLBACK` |
+| `rolloutPercent`       | Int           | 否   | 灰度比例，0-100，客户端按 appId 稳定分桶 |
+| `allowedChannels`      | List\<String> | 否   | 允许展示的客户端 channel，例如 `carappstore-test` |
+| `blockedChannels`      | List\<String> | 否   | 禁止展示的客户端 channel |
+| `rollbackVersion`      | String        | 否   | `ROLLBACK` 状态下展示和升级判断使用的回滚版本 |
 
 验收要求：
 
@@ -59,6 +64,8 @@
 - 可选字段缺失时客户端不会崩溃，但对应位置展示为空
 - `searchKeywords` 必须是字符串数组，不能是逗号分隔的单个字符串
 - 整体返回结构为 `{ "apps": [ ... ] }`，对应客户端 `AppCatalogResponse`
+- `HIDDEN` / `REMOVED` 条目不会进入首页、搜索和详情入口；`ROLLBACK` 条目会用 `rollbackVersion` 覆盖展示版本，并关闭升级态
+- `rolloutPercent`、`allowedChannels`、`blockedChannels` 会在客户端侧共同决定条目是否可见
 
 ### 1.3 缓存策略验收
 
@@ -246,6 +253,7 @@ OEM 接入步骤（不改业务层）：
 **第4周门禁（灰度和稳定性完成标志）：**
 
 - [ ] 灰度请求头可按环境切换，后端正确路由
+- [ ] 后端下发 `listingState` / `rolloutPercent` / channel 黑白名单后，客户端展示结果符合预期
 - [ ] 连续运行 24 小时无崩溃、无内存泄漏
 - [ ] 批量升级 10 个应用无异常
 - [ ] 网络弱连接环境下（丢包率 20%）仍可正常使用

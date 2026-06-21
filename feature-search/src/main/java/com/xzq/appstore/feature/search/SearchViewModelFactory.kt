@@ -2,6 +2,7 @@ package com.xzq.appstore.feature.search
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
 import com.xzq.appstore.domain.install.InstallManager
@@ -22,6 +23,8 @@ class SearchViewModelFactory(
     private val upgradeManager: UpgradeManager,
     /** 提供搜索页策略观察能力。 */
     private val policyCenter: PolicyCenter,
+    /** 提供本地事件打点能力。 */
+    private val eventTracker: EventTracker,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     /** 创建搜索页 ViewModel。 */
@@ -33,6 +36,7 @@ class SearchViewModelFactory(
             installManager = installManager,
             upgradeManager = upgradeManager,
             policyCenter = policyCenter,
+            eventTracker = eventTracker,
         ) as T
     }
 }

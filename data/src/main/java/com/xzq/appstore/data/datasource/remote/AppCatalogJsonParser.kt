@@ -52,6 +52,11 @@ object AppCatalogJsonParser {
             checksumType = json.optString("checksumType").ifBlank { null },
             checksumValue = json.optString("checksumValue").ifBlank { null },
             sourcePolicy = parseSourcePolicy(json.optString("sourcePolicy")),
+            listingState = parseListingState(json.optString("listingState")),
+            rolloutPercent = json.optInt("rolloutPercent", 100),
+            allowedChannels = parseStringList(json.optJSONArray("allowedChannels")),
+            blockedChannels = parseStringList(json.optJSONArray("blockedChannels")),
+            rollbackVersion = json.optString("rollbackVersion"),
             hasUpgrade = json.optBoolean("hasUpgrade"),
             changelog = json.optString("changelog"),
         )
@@ -67,5 +72,11 @@ object AppCatalogJsonParser {
     private fun parseSourcePolicy(raw: String): DownloadSourcePolicy? {
         if (raw.isBlank()) return null
         return runCatching { DownloadSourcePolicy.valueOf(raw.trim().uppercase()) }.getOrNull()
+    }
+
+    private fun parseListingState(raw: String): CatalogListingState {
+        if (raw.isBlank()) return CatalogListingState.ACTIVE
+        return runCatching { CatalogListingState.valueOf(raw.trim().uppercase()) }
+            .getOrDefault(CatalogListingState.ACTIVE)
     }
 }
