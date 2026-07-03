@@ -7,11 +7,10 @@ android {
     namespace = "com.xzq.appstore.data"
     compileSdk = 34
 
-    fun configValue(name: String): String {
-        return (project.findProperty(name) as String?)
+    fun configValue(name: String): String =
+        (project.findProperty(name) as String?)
             ?: System.getenv(name)
             ?: ""
-    }
 
     defaultConfig {
         minSdk = 26
@@ -23,7 +22,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "consumer-rules.pro"
+                "consumer-rules.pro",
             )
         }
     }
@@ -35,6 +34,12 @@ android {
 
     kotlinOptions {
         jvmTarget = "11"
+    }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
     }
 
     buildFeatures {
@@ -62,4 +67,6 @@ dependencies {
 
     testImplementation(libs.junit4)
     testImplementation(libs.org.json)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }
