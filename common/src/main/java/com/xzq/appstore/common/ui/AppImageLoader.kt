@@ -1,80 +1,61 @@
 package com.xzq.appstore.common.ui
 
-import android.graphics.BitmapFactory
-import android.graphics.Bitmap
-import android.net.Uri
-import android.util.LruCache
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
-import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
+import coil.load
+import coil.size.Scale
 
+/**
+ * 应用统一的图片加载入口，基于 Coil 实现：
+ * - 自动内存 + 磁盘缓存
+ * - 自动按 ImageView 尺寸采样，避免 OOM
+ * - 原生支持 asset:// / file:// / http(s)://
+ * - 绑定到 ImageView 生命周期，列表回收自动取消
+ * - 失败时回退到文本兜底视图
+ *
+ * 调用方签名保持稳定，业务层无需感知底层库。
+ */
 object AppImageLoader {
-
-    private val memoryCache = object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() / 16).toInt()) {
-        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
-    }
-
+    /**
+     * 异步加载图片到 [imageView]。
+     *
+     * @param source 图片地址，支持 asset:// / file:// / http(s):// / 本地绝对路径
+     * @param fallbackView 失败或空地址时显示的兜底视图，通常为首字母 TextView
+     */
     fun load(
         imageView: ImageView,
         source: String,
         fallbackView: TextView? = null,
     ) {
         val normalized = source.trim()
-        imageView.tag = normalized
         if (normalized.isBlank()) {
             showFallback(imageView, fallbackView)
             return
         }
 
-        memoryCache.get(normalized)?.let { cached ->
-            fallbackView?.visibility = View.GONE
-            imageView.setImageBitmap(cached)
-            imageView.visibility = View.VISIBLE
-            return
-        }
-
-        imageView.visibility = View.INVISIBLE
-        Thread {
-            val bitmap = runCatching { decode(imageView, normalized) }.getOrNull()
-            imageView.post {
-                if (imageView.tag != normalized) return@post
-                if (bitmap != null) {
-                    memoryCache.put(normalized, bitmap)
+        imageView.load(normalized) {
+            scale(Scale.FILL)
+            listener(
+                onStart = {
+                    imageView.visibility = View.INVISIBLE
                     fallbackView?.visibility = View.GONE
-                    imageView.setImageBitmap(bitmap)
+                },
+                onSuccess = { _, _ ->
                     imageView.visibility = View.VISIBLE
-                } else {
+                    fallbackView?.visibility = View.GONE
+                },
+                onError = { _, _ ->
                     showFallback(imageView, fallbackView)
-                }
-            }
-        }.start()
+                },
+            )
+        }
     }
 
-    private fun decode(imageView: ImageView, source: String) = when {
-        source.startsWith("asset://") -> {
-            val path = source.removePrefix("asset://")
-            imageView.context.assets.open(path).use(BitmapFactory::decodeStream)
-        }
-        source.startsWith("file://") -> {
-            BitmapFactory.decodeFile(Uri.parse(source).path)
-        }
-        source.startsWith("/") -> {
-            BitmapFactory.decodeFile(File(source).absolutePath)
-        }
-        source.startsWith("http://") || source.startsWith("https://") -> {
-            val connection = URL(source).openConnection() as HttpURLConnection
-            connection.connectTimeout = 8_000
-            connection.readTimeout = 8_000
-            connection.instanceFollowRedirects = true
-            connection.inputStream.use(BitmapFactory::decodeStream)
-        }
-        else -> null
-    }
-
-    private fun showFallback(imageView: ImageView, fallbackView: TextView?) {
+    private fun showFallback(
+        imageView: ImageView,
+        fallbackView: TextView?,
+    ) {
         imageView.setImageDrawable(null)
         imageView.visibility = View.GONE
         fallbackView?.visibility = View.VISIBLE

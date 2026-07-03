@@ -17,7 +17,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "consumer-rules.pro"
+                "consumer-rules.pro",
             )
         }
     }
@@ -43,4 +43,5 @@ dependencies {
     implementation(libs.google.material)
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.coil)
 }

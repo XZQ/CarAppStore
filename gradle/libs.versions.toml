@@ -10,6 +10,7 @@ lifecycle = "2.8.4"
 coroutines = "1.8.1"
 junit4 = "4.13.2"
 json = "20240303"
+coil = "2.7.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
@@ -26,3 +27,4 @@ kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 junit4 = { module = "junit:junit", version.ref = "junit4" }
 org-json = { module = "org.json:json", version.ref = "json" }
+coil = { module = "io.coil-kt:coil", version.ref = "coil" }
