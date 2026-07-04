@@ -80,7 +80,6 @@
         android:textColor="@color/car_text_secondary"
         android:textSize="@dimen/text_sm_13" />
 
-
     <LinearLayout
         android:id="@+id/layoutInstallSessionMeta"
         android:layout_width="match_parent"

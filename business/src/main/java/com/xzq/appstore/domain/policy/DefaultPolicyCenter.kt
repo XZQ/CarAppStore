@@ -1,23 +1,23 @@
 package com.xzq.appstore.domain.policy
 
-import android.content.Context
+import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.policy.PolicyRuntimeSignalProvider
+import com.xzq.appstore.core.policy.StorageInfoProvider
 import com.xzq.appstore.data.datasource.local.AppLocalDataSource
 import com.xzq.appstore.data.model.PolicySettings
 import com.xzq.appstore.domain.text.BusinessText
-import com.xzq.appstore.core.logger.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
 class DefaultPolicyCenter(
-    /** 用于读取设备空间等系统级策略信息的应用上下文。 */
-    private val context: Context,
+    /** 用于读取设备可用存储空间。 */
+    private val storageInfoProvider: StorageInfoProvider,
     /** 用于读取和保存策略设置的本地数据源。 */
     private val localDataSource: AppLocalDataSource,
     /** 提供系统/OEM 的实时策略信号。 */
@@ -30,16 +30,17 @@ class DefaultPolicyCenter(
 
     /** 当前持久化策略设置流。 */
     private val storedSettingsFlow = MutableStateFlow(localDataSource.getPolicySettings())
+
     /** 当前合并后的生效策略流。 */
-    private val settingsFlow: StateFlow<PolicySettings> = storedSettingsFlow
-        .combine(runtimeSignalProvider.observeSignals()) { stored, runtime ->
-            mergePolicySettings(stored, runtime)
-        }
-        .stateIn(
-            scope = policyScope,
-            started = SharingStarted.Eagerly,
-            initialValue = mergePolicySettings(storedSettingsFlow.value, runtimeSignalProvider.currentSignals()),
-        )
+    private val settingsFlow: StateFlow<PolicySettings> =
+        storedSettingsFlow
+            .combine(runtimeSignalProvider.observeSignals()) { stored, runtime ->
+                mergePolicySettings(stored, runtime)
+            }.stateIn(
+                scope = policyScope,
+                started = SharingStarted.Eagerly,
+                initialValue = mergePolicySettings(storedSettingsFlow.value, runtimeSignalProvider.currentSignals()),
+            )
 
     /** 校验下载链路是否满足网络和存储前置条件。 */
     override fun canDownload(appId: String): PolicyResult {
@@ -47,7 +48,7 @@ class DefaultPolicyCenter(
         return when {
             !settings.wifiConnected -> PolicyResult(false, BusinessText.POLICY_NOT_WIFI)
             settings.lowStorageMode -> PolicyResult(false, BusinessText.POLICY_LOW_STORAGE)
-            context.filesDir.usableSpace < MIN_REQUIRED_SPACE_BYTES -> PolicyResult(false, BusinessText.POLICY_DEVICE_STORAGE_LOW)
+            storageInfoProvider.usableSpaceBytes() < MIN_REQUIRED_SPACE_BYTES -> PolicyResult(false, BusinessText.POLICY_DEVICE_STORAGE_LOW)
             else -> PolicyResult(true)
         }
     }

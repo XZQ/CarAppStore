@@ -17,7 +17,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "consumer-rules.pro"
+                "consumer-rules.pro",
             )
         }
     }
@@ -41,7 +41,6 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":data"))
     implementation(project(":business"))
-    implementation(project(":feature-downloadmanager"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

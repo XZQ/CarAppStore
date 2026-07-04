@@ -21,8 +21,8 @@ import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.core.tracker.FileEventTracker
 import com.xzq.appstore.data.datasource.local.AppLocalDataSource
 import com.xzq.appstore.data.datasource.remote.AppRemoteDataSource
-import com.xzq.appstore.data.datasource.remote.HttpUrlConnectionAppCatalogHttpClient
 import com.xzq.appstore.data.datasource.remote.DownloadSourceCatalog
+import com.xzq.appstore.data.datasource.remote.HttpUrlConnectionAppCatalogHttpClient
 import com.xzq.appstore.data.datasource.system.AppSystemDataSource
 import com.xzq.appstore.data.downloadenv.DownloadEnvironmentEntry
 import com.xzq.appstore.data.downloadenv.LocalDownloadEnvironmentProvider
@@ -54,7 +54,9 @@ import com.xzq.appstore.domain.upgrade.UpgradeManager
  * 当前 M4 阶段先不把它继续拆成更细的 bootstrap/assembly 对象，
  * 但已经把文件路径等细节收敛到 AppStoragePaths，减少壳层中的散乱引用。
  */
-class AppContainer(context: Context) : AppServices {
+class AppContainer(
+    context: Context,
+) : AppServices {
     /** 应用级上下文，避免持有页面级 context 导致泄漏。 */
     private val appContext = context.applicationContext
 
@@ -139,9 +141,15 @@ class AppContainer(context: Context) : AppServices {
         AndroidPolicyRuntimeSignalProvider(appContext, vehicleStateSignalProvider, logger)
     }
 
+    /** 提供设备可用存储空间查询。 */
+    private val storageInfoProvider by lazy {
+        com.xzq.appstore.data.datasource.system
+            .AndroidStorageInfoProvider(appContext)
+    }
+
     /** 全局策略中心。 */
     override val policyCenter: PolicyCenter by lazy {
-        DefaultPolicyCenter(appContext, localDataSource, runtimeSignalProvider, logger)
+        DefaultPolicyCenter(storageInfoProvider, localDataSource, runtimeSignalProvider, logger)
     }
 
     /** 下载执行器，当前优先走真实下载器，必要时回退模拟实现。 */
@@ -149,13 +157,14 @@ class AppContainer(context: Context) : AppServices {
     private val fileDownloader by lazy {
         RealFileDownloader(
             store = DownloadStore(storagePaths.downloadsDir),
-            sourceResolver = DownloadSourceResolver(
-                DownloadSourceResolverConfig(
-                    defaultSourcePolicy = downloadEnvConfig.defaultSourcePolicy,
-                    allowMockSource = downloadEnvConfig.allowMockSource,
-                    allowDirectHttp = downloadEnvConfig.allowDirectHttp,
-                )
-            ),
+            sourceResolver =
+                DownloadSourceResolver(
+                    DownloadSourceResolverConfig(
+                        defaultSourcePolicy = downloadEnvConfig.defaultSourcePolicy,
+                        allowMockSource = downloadEnvConfig.allowMockSource,
+                        allowDirectHttp = downloadEnvConfig.allowDirectHttp,
+                    ),
+                ),
             fallbackDownloader = SimulatedFileDownloader(),
         )
     }
