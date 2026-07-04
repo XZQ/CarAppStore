@@ -45,7 +45,6 @@ class ResilientAppCatalogSource(
     /** 日志入口。 */
     private val logger: AppLogger = AppLogger(),
 ) : AppCatalogSource {
-
     /** 加载商店目录。 */
     override suspend fun load(): List<RemoteCatalogItem> {
         val httpCatalog = loadFromHttp()
@@ -62,15 +61,33 @@ class ResilientAppCatalogSource(
         if (endpointUrl.isNullOrBlank()) return null
         return runCatching {
             val cachedMetadata = cacheMetadataFile?.let(AppCatalogCacheMetadataStore::read)
-            val response = httpClient.fetch(
-                AppCatalogHttpRequest(
-                    endpointUrl = requireNotNull(endpointUrl),
-                    headers = requestHeaders,
-                    eTag = cachedMetadata?.eTag,
-                    lastModified = cachedMetadata?.lastModified,
+            val response =
+                httpClient.fetch(
+                    AppCatalogHttpRequest(
+                        endpointUrl = requireNotNull(endpointUrl),
+                        headers = requestHeaders,
+                        eTag = cachedMetadata?.eTag,
+                        lastModified = cachedMetadata?.lastModified,
+                    ),
                 )
-            )
             if (response.notModified) {
+                // 304 响应可能携带更新后的 ETag/Last-Modified，刷新 metadata 避免下次仍用旧值
+                // 陷入"304 永远命中"循环。
+                val refreshedEtag = response.eTag ?: cachedMetadata?.eTag
+                val refreshedLastModified = response.lastModified ?: cachedMetadata?.lastModified
+                if (refreshedEtag != cachedMetadata?.eTag || refreshedLastModified != cachedMetadata?.lastModified) {
+                    withContext(Dispatchers.IO) {
+                        cacheMetadataFile?.let {
+                            AppCatalogCacheMetadataStore.write(
+                                it,
+                                AppCatalogCacheMetadata(
+                                    eTag = refreshedEtag,
+                                    lastModified = refreshedLastModified,
+                                ),
+                            )
+                        }
+                    }
+                }
                 return@runCatching loadFromCache()
             }
             val responseText = requireNotNull(response.body) { "catalog response body is empty" }
@@ -86,7 +103,7 @@ class ResilientAppCatalogSource(
                         AppCatalogCacheMetadata(
                             eTag = response.eTag,
                             lastModified = response.lastModified,
-                        )
+                        ),
                     )
                 }
             }
@@ -108,9 +125,7 @@ class ResilientAppCatalogSource(
     }
 
     /** 在 IO 线程读取缓存文本。 */
-    private suspend fun readCache(target: File): String {
-        return withContext(Dispatchers.IO) { target.readText(Charsets.UTF_8) }
-    }
+    private suspend fun readCache(target: File): String = withContext(Dispatchers.IO) { target.readText(Charsets.UTF_8) }
 
     private companion object {
         private const val TAG = "AppCatalogSource"

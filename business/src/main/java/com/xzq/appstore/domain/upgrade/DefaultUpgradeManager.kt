@@ -13,6 +13,7 @@ import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.state.UpgradeStatus
 import com.xzq.appstore.domain.text.BusinessText
 import kotlinx.coroutines.delay
+import java.io.File
 
 class DefaultUpgradeManager(
     /** 统一数据入口，负责升级信息和 staged version 读写。 */
@@ -30,7 +31,6 @@ class DefaultUpgradeManager(
     /** 升级链路打点器。 */
     private val tracker: EventTracker,
 ) : UpgradeManager {
-
     /** 检查当前应用是否存在可升级版本，并同步升级状态。 */
     override suspend fun checkUpgrade(appId: String): Boolean {
         require(appId.isNotBlank()) { "appId 不能为空" }
@@ -51,27 +51,40 @@ class DefaultUpgradeManager(
     }
 
     /** 批量启动升级流程，逐个串行执行，遇到失败时停止后续。 */
-    override suspend fun startBatchUpgrade(appIds: List<String>) {
+    override suspend fun startBatchUpgrade(appIds: List<String>): UpgradeBatchResult {
         require(appIds.isNotEmpty()) { "升级列表不能为空" }
+        val succeeded = mutableListOf<String>()
+        val failed = mutableMapOf<String, String>()
+        val skipped = mutableMapOf<String, String>()
         for (appId in appIds) {
             require(appId.isNotBlank()) { "升级列表中的 appId 不能为空" }
-            val policy = policyCenter.canUpgrade(appId)
+            // 与单任务升级一致：APK 已落盘时不再要求下载链路条件。
+            val policy = policyCenter.canUpgrade(appId, isApkCached(appId))
             if (!policy.allow) {
-                stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.upgradeRestricted(policy.reason))
-                return
+                val reason = BusinessText.upgradeRestricted(policy.reason)
+                stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = reason)
+                skipped[appId] = reason
+                return@startBatchUpgrade UpgradeBatchResult(succeeded = succeeded, failed = failed, skipped = skipped)
             }
             startUpgrade(appId)
-            // 等待单个升级完成后再继续下一个。
+            // 等待单个升级完成后再继续下一个，并把结果归类到对应桶。
             while (true) {
                 delay(200)
                 val state = stateCenter.snapshot(appId)
                 when (state.upgradeStatus) {
-                    UpgradeStatus.NONE -> break
-                    UpgradeStatus.FAILED -> return
+                    UpgradeStatus.NONE -> {
+                        succeeded.add(appId)
+                        break
+                    }
+                    UpgradeStatus.FAILED -> {
+                        failed[appId] = state.errorMessage ?: BusinessText.UPGRADE_INSTALL_FAILED
+                        return@startBatchUpgrade UpgradeBatchResult(succeeded = succeeded, failed = failed, skipped = skipped)
+                    }
                     else -> Unit
                 }
             }
         }
+        return UpgradeBatchResult(succeeded = succeeded, failed = failed, skipped = skipped)
     }
 
     /**
@@ -81,8 +94,9 @@ class DefaultUpgradeManager(
      */
     override suspend fun startUpgrade(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
-        // 升级前先做策略判断，避免在不允许升级时继续消耗下载和安装资源。
-        val policy = policyCenter.canUpgrade(appId)
+        // 升级前先做策略判断，APK 已落盘时跳过下载相关条件，避免 Wi-Fi 漂移等误拦已就绪任务。
+        val apkAlreadyDownloaded = isApkCached(appId)
+        val policy = policyCenter.canUpgrade(appId, apkAlreadyDownloaded)
         if (!policy.allow) {
             stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.upgradeRestricted(policy.reason))
             return
@@ -143,4 +157,8 @@ class DefaultUpgradeManager(
             }
         }
     }
+
+    /** 判断指定应用的 APK 是否已落盘且可读，用于策略中心决定是否跳过下载链路校验。 */
+    private suspend fun isApkCached(appId: String): Boolean =
+        repository.getDownloadedApk(appId)?.takeIf { it.isNotBlank() && File(it).exists() } != null
 }

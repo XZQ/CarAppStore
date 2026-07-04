@@ -21,6 +21,8 @@ data class VehicleRuntimeState(
 
 /**
  * VehicleStateSignalProvider 定义 OEM 车况信号提供者。
+ *
+ * 实现类若注册了系统监听（广播、回调等），应在 [close] 中反注册，避免进程级泄漏。
  */
 interface VehicleStateSignalProvider {
     /** 观察实时车况信号。 */
@@ -28,6 +30,9 @@ interface VehicleStateSignalProvider {
 
     /** 读取当前车况信号快照。 */
     fun currentVehicleState(): VehicleRuntimeState
+
+    /** 释放底层资源。默认空实现以兼容纯内存 provider。 */
+    fun close() {}
 }
 
 class BroadcastVehicleStateSignalProvider(
@@ -37,20 +42,28 @@ class BroadcastVehicleStateSignalProvider(
     private val powerExtraName: String = "",
     initialState: VehicleRuntimeState = VehicleRuntimeState(sourceName = "broadcast"),
 ) : VehicleStateSignalProvider {
-
     private val appContext = context.applicationContext
     private val stateFlow = MutableStateFlow(initialState)
 
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action != action) return
-            stateFlow.value = VehicleRuntimeState(
-                parkingMode = VehicleSignalValueParser.booleanExtra(intent.extras?.get(parkingExtraName), stateFlow.value.parkingMode),
-                sourceName = "broadcast:$action",
-                powerOn = optionalBooleanExtra(intent, powerExtraName, stateFlow.value.powerOn),
-            )
+    private val receiver =
+        object : BroadcastReceiver() {
+            override fun onReceive(
+                context: Context,
+                intent: Intent,
+            ) {
+                if (intent.action != action) return
+                stateFlow.value =
+                    VehicleRuntimeState(
+                        parkingMode =
+                            VehicleSignalValueParser.booleanExtra(
+                                intent.extras?.get(parkingExtraName),
+                                stateFlow.value.parkingMode,
+                            ),
+                        sourceName = "broadcast:$action",
+                        powerOn = optionalBooleanExtra(intent, powerExtraName, stateFlow.value.powerOn),
+                    )
+            }
         }
-    }
 
     init {
         require(action.isNotBlank()) { "vehicle broadcast action must not be blank" }
@@ -67,29 +80,39 @@ class BroadcastVehicleStateSignalProvider(
 
     override fun currentVehicleState(): VehicleRuntimeState = stateFlow.value
 
-    private fun optionalBooleanExtra(intent: Intent, name: String, fallback: Boolean?): Boolean? {
+    /** 反注册广播接收器，避免 Context 复用场景（如测试）下累积悬挂 receiver。 */
+    override fun close() {
+        runCatching { appContext.unregisterReceiver(receiver) }
+    }
+
+    private fun optionalBooleanExtra(
+        intent: Intent,
+        name: String,
+        fallback: Boolean?,
+    ): Boolean? {
         if (name.isBlank() || !intent.hasExtra(name)) return fallback
         return VehicleSignalValueParser.booleanExtra(intent.extras?.get(name), fallback ?: false)
     }
 }
 
 object VehicleSignalValueParser {
-    fun booleanExtra(value: Any?, fallback: Boolean): Boolean {
-        return when (value) {
+    fun booleanExtra(
+        value: Any?,
+        fallback: Boolean,
+    ): Boolean =
+        when (value) {
             is Boolean -> value
             is Number -> value.toInt() != 0
             is String -> stringToBoolean(value) ?: fallback
             else -> fallback
         }
-    }
 
-    private fun stringToBoolean(value: String): Boolean? {
-        return when (value.trim().lowercase()) {
+    private fun stringToBoolean(value: String): Boolean? =
+        when (value.trim().lowercase()) {
             "true", "1", "yes", "y", "on", "park", "parked", "parking", "p" -> true
             "false", "0", "no", "n", "off", "drive", "driving", "d", "moving" -> false
             else -> null
         }
-    }
 }
 
 /**

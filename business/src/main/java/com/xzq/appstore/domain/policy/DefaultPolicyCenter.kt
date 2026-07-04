@@ -9,6 +9,7 @@ import com.xzq.appstore.domain.text.BusinessText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -72,6 +73,22 @@ class DefaultPolicyCenter(
         val installPolicy = canInstall(appId)
         if (!installPolicy.allow) return installPolicy
         return PolicyResult(true)
+    }
+
+    /**
+     * 升级策略的可降级版本。
+     *
+     * APK 已落盘时升级链路不再消耗下载资源，因此仅校验安装前置条件，
+     * 避免 Wi-Fi 漂移等下载相关条件误拦已经完成下载的升级任务。
+     */
+    override fun canUpgrade(
+        appId: String,
+        apkAlreadyDownloaded: Boolean,
+    ): PolicyResult = if (apkAlreadyDownloaded) canInstall(appId) else canUpgrade(appId)
+
+    /** 取消内部策略合并协程，避免在 AppContainer.shutdown 后悬挂。 */
+    override fun close() {
+        policyScope.cancel()
     }
 
     /** 观察当前持久化策略配置。 */

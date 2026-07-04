@@ -13,6 +13,7 @@ import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
 import com.xzq.appstore.domain.install.InstallManager
 import com.xzq.appstore.domain.state.PrimaryAction
+import com.xzq.appstore.domain.upgrade.UpgradeBatchResult
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -276,7 +277,7 @@ class AppPrimaryActionExecutorTest {
 
         override suspend fun checkAllUpgrades(): List<String> = emptyList()
 
-        override suspend fun startBatchUpgrade(appIds: List<String>) = Unit
+        override suspend fun startBatchUpgrade(appIds: List<String>) = UpgradeBatchResult()
     }
 
     private class RecordingTracker : EventTracker() {

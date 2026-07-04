@@ -11,7 +11,6 @@ import java.security.MessageDigest
  * 将文件操作从 RealFileDownloader 中抽离，使下载器专注于下载流程编排。
  */
 object DownloadFileHelper {
-
     /** 合并分片时使用的缓冲区大小。 */
     private const val MERGE_BUFFER_BYTES = 8 * 1024
 
@@ -27,6 +26,10 @@ object DownloadFileHelper {
     /**
      * 将所有分片文件按顺序合并成最终文件。
      *
+     * 合并前会对每个分片做长度校验：若 [DownloadSegmentRecord.endByte] >= [DownloadSegmentRecord.startByte]，
+     * 则要求 partFile 长度等于 (endByte - startByte + 1)，否则视为上次写入中途崩溃，抛 IOException 让
+     * 上层以 MERGE_FAILED 形式失败，避免错位以 CHECKSUM_MISMATCH 形式出现丢失诊断。
+     *
      * @param segments 按 index 排序前的分片记录列表
      * @param finalFile 合并目标文件
      * @return 合并是否成功
@@ -34,13 +37,23 @@ object DownloadFileHelper {
     fun mergeSegments(
         segments: List<DownloadSegmentRecord>,
         finalFile: File,
-    ): Boolean {
-        return runCatching {
+    ): Boolean =
+        runCatching {
             RandomAccessFile(finalFile, "rw").use { out ->
                 out.setLength(0L)
                 segments.sortedBy { it.index }.forEach { seg ->
                     val partFile = File(seg.tmpFilePath)
                     if (!partFile.exists()) throw IOException("missing segment ${seg.index}")
+                    val expected =
+                        if (seg.endByte >= seg.startByte) {
+                            seg.endByte - seg.startByte + 1L
+                        } else {
+                            -1L
+                        }
+                    val actual = partFile.length()
+                    if (expected > 0L && actual != expected) {
+                        throw IOException("segment ${seg.index} length mismatch: expected=$expected actual=$actual")
+                    }
                     partFile.inputStream().use { input ->
                         val buffer = ByteArray(MERGE_BUFFER_BYTES)
                         var read = input.read(buffer)
@@ -54,7 +67,6 @@ object DownloadFileHelper {
                 }
             }
         }.isSuccess
-    }
 
     /**
      * 校验下载文件的长度和可选摘要值。
@@ -94,12 +106,16 @@ object DownloadFileHelper {
      * @param checksumType 校验算法名称，支持 SHA-256/SHA256/MD5
      * @return 十六进制格式的小写哈希值
      */
-    fun calculateHash(file: File, checksumType: String): String {
-        val algo = when (checksumType.uppercase()) {
-            ALGO_SHA256, ALGO_SHA256_ALT -> ALGO_SHA256
-            ALGO_MD5 -> ALGO_MD5
-            else -> ALGO_SHA256
-        }
+    fun calculateHash(
+        file: File,
+        checksumType: String,
+    ): String {
+        val algo =
+            when (checksumType.uppercase()) {
+                ALGO_SHA256, ALGO_SHA256_ALT -> ALGO_SHA256
+                ALGO_MD5 -> ALGO_MD5
+                else -> ALGO_SHA256
+            }
         val digest = MessageDigest.getInstance(algo)
         file.inputStream().use { input ->
             val buffer = ByteArray(MERGE_BUFFER_BYTES)

@@ -33,9 +33,20 @@ class RealFileDownloader(
     private val maxParallelSegments: Int = DEFAULT_MAX_PARALLEL_SEGMENTS,
     /** 单个分片的最大重试次数。 */
     private val maxSegmentRetryCount: Int = DEFAULT_MAX_SEGMENT_RETRY_COUNT,
+    /** 运行态刷盘节流间隔，避免每 32KB 一次全量重写。 */
+    private val runningFlushIntervalMs: Long = DEFAULT_RUNNING_FLUSH_INTERVAL_MS,
     /** 合并前测试钩子，供测试场景注入分片文件扰动。 */
     private val beforeMergeHook: ((segments: List<DownloadSegmentRecord>, finalFile: File) -> Unit)? = null,
 ) : FileDownloader {
+    /** 分片内存缓存：taskId -> (segmentId -> record)，避免每 32KB 触发全量 JSON 读写。 */
+    private val segmentCache: MutableMap<String, MutableMap<String, DownloadSegmentRecord>> = mutableMapOf()
+
+    /** 上次运行态刷盘时间，用于节流。 */
+    private val lastFlushMs: MutableMap<String, Long> = mutableMapOf()
+
+    /** 保护 segmentCache / lastFlushMs 的锁。 */
+    private val segmentCacheLock = Any()
+
     /**
      * 执行真实文件下载。
      *
@@ -83,6 +94,11 @@ class RealFileDownloader(
                     existingSegments = existingSegments,
                 ).sortedBy { it.index }
         store.saveSegments(request.taskId, plannedSegments)
+        // 同步加载内存缓存，后续 saveSegmentRecord 走缓存层，避免热路径全量 JSON 读写。
+        synchronized(segmentCacheLock) {
+            segmentCache[request.taskId] = plannedSegments.associateBy { it.segmentId }.toMutableMap()
+            lastFlushMs[request.taskId] = System.currentTimeMillis()
+        }
         return plannedSegments
     }
 
@@ -404,6 +420,19 @@ class RealFileDownloader(
 
             code in HTTP_SUCCESS_RANGE -> null
 
+            // 416 Requested Range Not Satisfiable：续传 offset 越界（远端文件已变 / 已完整下载），
+            // 删除本分片临时文件并标记可重试，下次重新从 0 下载，避免无限重试同一越界范围。
+            code == HTTP_RANGE_NOT_SATISFIABLE -> {
+                runCatching { File(segment.tmpFilePath).delete() }
+                SegmentResult(
+                    segment.segmentId,
+                    false,
+                    code = DownloadFailureCode.HTTP_4XX,
+                    message = "HTTP 416 range not satisfiable, will retry from start",
+                    attempts = attempt,
+                )
+            }
+
             code in HTTP_CLIENT_ERROR_RANGE ->
                 SegmentResult(
                     segment.segmentId,
@@ -520,13 +549,24 @@ class RealFileDownloader(
         }
     }
 
-    /** 聚合所有分片的已下载字节数，用于计算任务级进度。 */
-    private fun calculateAggregateDownloaded(taskId: String): Long =
-        store.readSegments(taskId).sumOf { seg ->
+    /** 聚合所有分片的已下载字节数，用于计算任务级进度。优先读内存缓存，避免热路径磁盘 IO。 */
+    private fun calculateAggregateDownloaded(taskId: String): Long {
+        val segments =
+            synchronized(segmentCacheLock) {
+                segmentCache[taskId]?.values?.toList() ?: store.readSegments(taskId)
+            }
+        return segments.sumOf { seg ->
             maxOf(seg.downloadedBytes, File(seg.tmpFilePath).takeIf { it.exists() }?.length() ?: 0L)
         }
+    }
 
-    /** 保存单个分片的最新状态。 */
+    /**
+     * 保存单个分片的最新状态。
+     *
+     * 写入内存缓存，并按节流策略决定是否同步刷盘：
+     * - 非运行态（完成/失败/暂停/取消等）立即刷盘；
+     * - 运行态按 [runningFlushIntervalMs] 节流，避免每 32KB 一次全量 JSON 重写。
+     */
     private fun saveSegmentRecord(
         request: DownloadRequest,
         segment: DownloadSegmentRecord,
@@ -535,15 +575,41 @@ class RealFileDownloader(
         retryCount: Int,
     ) {
         val now = System.currentTimeMillis()
-        val current = store.readSegments(request.taskId).associateBy { it.segmentId }.toMutableMap()
-        current[segment.segmentId] =
+        val updated =
             segment.copy(
                 downloadedBytes = downloadedBytes,
                 status = status,
                 retryCount = retryCount,
                 updatedAt = now,
             )
-        store.saveSegments(request.taskId, current.values.sortedBy { it.index })
+        val shouldFlush =
+            synchronized(segmentCacheLock) {
+                val taskCache = segmentCache.getOrPut(request.taskId) { mutableMapOf() }
+                taskCache[segment.segmentId] = updated
+                val isRunning = status == DownloaderText.STATUS_RUNNING
+                if (!isRunning) {
+                    lastFlushMs[request.taskId] = now
+                    true
+                } else {
+                    val last = lastFlushMs[request.taskId] ?: 0L
+                    if (now - last >= runningFlushIntervalMs) {
+                        lastFlushMs[request.taskId] = now
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+        if (shouldFlush) flushSegmentCache(request.taskId)
+    }
+
+    /** 把内存缓存中的分片状态同步刷盘。 */
+    private fun flushSegmentCache(taskId: String) {
+        val snapshot =
+            synchronized(segmentCacheLock) {
+                segmentCache[taskId]?.values?.sortedBy { it.index } ?: return
+            }
+        store.saveSegments(taskId, snapshot)
     }
 
     /** 单个分片下载完成后的归一化结果。 */
@@ -673,6 +739,9 @@ class RealFileDownloader(
         /** 默认最大分片重试次数。 */
         const val DEFAULT_MAX_SEGMENT_RETRY_COUNT = 2
 
+        /** 运行态默认刷盘节流间隔：500ms，避免 32KB buffer 触发的全量 JSON 重写。 */
+        const val DEFAULT_RUNNING_FLUSH_INTERVAL_MS = 500L
+
         /** 请求的分段并发数。 */
         const val REQUESTED_SEGMENT_COUNT = 2
 
@@ -684,6 +753,9 @@ class RealFileDownloader(
 
         /** HTTP 服务端错误响应码起始值。 */
         const val HTTP_SERVER_ERROR_THRESHOLD = 500
+
+        /** HTTP 416 Range Not Satisfiable，续传 offset 越界专用。 */
+        const val HTTP_RANGE_NOT_SATISFIABLE = 416
 
         /** 速度计算基准毫秒数。 */
         const val SPEED_CALCULATION_BASE = 1000L

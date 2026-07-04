@@ -236,4 +236,15 @@ class AppContainer(
         // 访问下载管理器时会触发其初始化逻辑，顺带执行下载任务恢复。
         downloadManager
     }
+
+    /**
+     * 释放底层系统监听与协程作用域。
+     *
+     * 进程退出时系统会自然回收 BroadcastReceiver / NetworkCallback，但在测试与
+     * AppContainer 重建场景下必须显式释放，否则会跨用例累积悬挂 receiver。
+     */
+    fun shutdown() {
+        runCatching { policyCenter.close() }
+        runCatching { runtimeSignalProvider.close() }
+    }
 }

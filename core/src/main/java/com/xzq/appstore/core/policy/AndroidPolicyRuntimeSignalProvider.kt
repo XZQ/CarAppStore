@@ -11,6 +11,7 @@ import com.xzq.appstore.core.logger.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -32,6 +33,7 @@ class AndroidPolicyRuntimeSignalProvider(
 ) : PolicyRuntimeSignalProvider {
     /** 应用级上下文。 */
     private val appContext = context.applicationContext
+
     /** 监听系统和 OEM 信号使用的内部作用域。 */
     private val signalScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -39,27 +41,35 @@ class AndroidPolicyRuntimeSignalProvider(
     private val signalsFlow = MutableStateFlow(readSignals())
 
     /** 网络能力监听器，用于实时刷新 Wi‑Fi 状态。 */
-    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) = refreshSignals()
+    private val networkCallback =
+        object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) = refreshSignals()
 
-        override fun onLost(network: Network) = refreshSignals()
+            override fun onLost(network: Network) = refreshSignals()
 
-        override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
-            refreshSignals()
+            override fun onCapabilitiesChanged(
+                network: Network,
+                networkCapabilities: NetworkCapabilities,
+            ) {
+                refreshSignals()
+            }
         }
-    }
 
     /** 存储状态广播接收器，用于实时刷新低存储标记。 */
     @Suppress("DEPRECATION")
-    private val storageReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            when (intent.action) {
-                Intent.ACTION_DEVICE_STORAGE_LOW,
-                Intent.ACTION_DEVICE_STORAGE_OK,
-                -> refreshSignals()
+    private val storageReceiver =
+        object : BroadcastReceiver() {
+            override fun onReceive(
+                context: Context,
+                intent: Intent,
+            ) {
+                when (intent.action) {
+                    Intent.ACTION_DEVICE_STORAGE_LOW,
+                    Intent.ACTION_DEVICE_STORAGE_OK,
+                    -> refreshSignals()
+                }
             }
         }
-    }
 
     init {
         registerObservers()
@@ -72,6 +82,19 @@ class AndroidPolicyRuntimeSignalProvider(
     /** 读取当前实时策略信号。 */
     override fun currentSignals(): PolicyRuntimeSignals = signalsFlow.value
 
+    /** 释放系统监听与协程作用域，避免 BroadcastReceiver / NetworkCallback 在进程内累积悬挂。 */
+    fun close() {
+        signalScope.cancel()
+        runCatching {
+            appContext
+                .getSystemService(ConnectivityManager::class.java)
+                ?.unregisterNetworkCallback(networkCallback)
+        }.onFailure { logger.d(TAG, "unregister network callback failed: ${it.message}") }
+        runCatching { appContext.unregisterReceiver(storageReceiver) }
+            .onFailure { logger.d(TAG, "unregister storage receiver failed: ${it.message}") }
+        vehicleStateSignalProvider.close()
+    }
+
     /** 注册系统监听。 */
     @Suppress("DEPRECATION")
     private fun registerObservers() {
@@ -81,10 +104,11 @@ class AndroidPolicyRuntimeSignalProvider(
         }.onFailure { logger.d(TAG, "register network callback failed: ${it.message}") }
 
         runCatching {
-            val filter = IntentFilter().apply {
-                addAction(Intent.ACTION_DEVICE_STORAGE_LOW)
-                addAction(Intent.ACTION_DEVICE_STORAGE_OK)
-            }
+            val filter =
+                IntentFilter().apply {
+                    addAction(Intent.ACTION_DEVICE_STORAGE_LOW)
+                    addAction(Intent.ACTION_DEVICE_STORAGE_OK)
+                }
             appContext.registerReceiver(storageReceiver, filter)
         }.onFailure { logger.d(TAG, "register storage receiver failed: ${it.message}") }
     }
@@ -114,8 +138,8 @@ class AndroidPolicyRuntimeSignalProvider(
     }
 
     /** 安全读取 Wi-Fi 状态，避免系统权限或 OEM 服务异常导致应用启动崩溃。 */
-    private fun readWifiConnected(connectivityManager: ConnectivityManager?): Boolean {
-        return runCatching {
+    private fun readWifiConnected(connectivityManager: ConnectivityManager?): Boolean =
+        runCatching {
             val activeNetwork = connectivityManager?.activeNetwork
             val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
             capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
@@ -123,17 +147,15 @@ class AndroidPolicyRuntimeSignalProvider(
             logger.d(TAG, "read wifi state failed: ${it.message}")
             false
         }
-    }
 
     /** 安全读取车况状态，OEM provider 异常时按非驻车处理。 */
-    private fun readParkingMode(): Boolean {
-        return runCatching {
+    private fun readParkingMode(): Boolean =
+        runCatching {
             vehicleStateSignalProvider.currentVehicleState().parkingMode
         }.getOrElse {
             logger.d(TAG, "read vehicle state failed: ${it.message}")
             false
         }
-    }
 
     private companion object {
         private const val TAG = "AndroidPolicyRuntimeSignalProvider"

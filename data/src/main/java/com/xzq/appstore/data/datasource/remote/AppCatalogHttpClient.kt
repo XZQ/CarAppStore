@@ -48,28 +48,28 @@ interface AppCatalogHttpClient {
  */
 class HttpUrlConnectionAppCatalogHttpClient : AppCatalogHttpClient {
     /** 请求目录接口并返回响应体。 */
-    override suspend fun fetch(request: AppCatalogHttpRequest): AppCatalogHttpResponse {
-        return withContext(Dispatchers.IO) {
+    override suspend fun fetch(request: AppCatalogHttpRequest): AppCatalogHttpResponse =
+        withContext(Dispatchers.IO) {
             request(request)
         }
-    }
 
     /** 发起 HTTP 请求并返回响应体。 */
     private fun request(request: AppCatalogHttpRequest): AppCatalogHttpResponse {
-        val connection = (URL(request.endpointUrl).openConnection() as HttpURLConnection).apply {
-            connectTimeout = CONNECT_TIMEOUT_MILLIS
-            readTimeout = READ_TIMEOUT_MILLIS
-            requestMethod = METHOD_GET
-            doInput = true
-            setRequestProperty(HEADER_ACCEPT, MIME_JSON)
-            request.headers.forEach { (name, value) ->
-                if (name.isNotBlank() && value.isNotBlank()) {
-                    setRequestProperty(name, value)
+        val connection =
+            (URL(request.endpointUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = CONNECT_TIMEOUT_MILLIS
+                readTimeout = READ_TIMEOUT_MILLIS
+                requestMethod = METHOD_GET
+                doInput = true
+                setRequestProperty(HEADER_ACCEPT, MIME_JSON)
+                request.headers.forEach { (name, value) ->
+                    if (name.isNotBlank() && value.isNotBlank()) {
+                        setRequestProperty(name, value)
+                    }
                 }
+                request.eTag?.takeIf { it.isNotBlank() }?.let { setRequestProperty(HEADER_IF_NONE_MATCH, it) }
+                request.lastModified?.takeIf { it.isNotBlank() }?.let { setRequestProperty(HEADER_IF_MODIFIED_SINCE, it) }
             }
-            request.eTag?.takeIf { it.isNotBlank() }?.let { setRequestProperty(HEADER_IF_NONE_MATCH, it) }
-            request.lastModified?.takeIf { it.isNotBlank() }?.let { setRequestProperty(HEADER_IF_MODIFIED_SINCE, it) }
-        }
         return try {
             val code = connection.responseCode
             if (code == HTTP_NOT_MODIFIED) {
@@ -92,16 +92,23 @@ class HttpUrlConnectionAppCatalogHttpClient : AppCatalogHttpClient {
         }
     }
 
-    /** 组装非成功状态码的异常文案。 */
-    private fun buildFailureMessage(connection: HttpURLConnection, code: Int): String {
-        val errorText = runCatching {
-            connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-        }.getOrNull()
-        return if (errorText.isNullOrBlank()) {
-            "catalog request failed with code=$code"
-        } else {
-            "catalog request failed with code=$code message=$errorText"
-        }
+    /** 组装非成功状态码的异常文案，区分客户端错误、服务端错误与其他，便于上游诊断。 */
+    private fun buildFailureMessage(
+        connection: HttpURLConnection,
+        code: Int,
+    ): String {
+        val errorText =
+            runCatching {
+                connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+            }.getOrNull()
+        val category =
+            when {
+                code in HTTP_CLIENT_ERROR_RANGE -> "client_error"
+                code >= HTTP_SERVER_ERROR_THRESHOLD -> "server_error"
+                else -> "non_success"
+            }
+        val base = "catalog request failed category=$category code=$code"
+        return if (errorText.isNullOrBlank()) base else "$base message=$errorText"
     }
 
     private companion object {
@@ -113,8 +120,12 @@ class HttpUrlConnectionAppCatalogHttpClient : AppCatalogHttpClient {
         private const val HEADER_ETAG = "ETag"
         private const val HEADER_LAST_MODIFIED = "Last-Modified"
         private const val HTTP_NOT_MODIFIED = 304
-        private const val CONNECT_TIMEOUT_MILLIS = 1_500
-        private const val READ_TIMEOUT_MILLIS = 1_500
+
+        // 车机弱网下 1.5s 几乎必超时，导致 HTTP 缓存形同虚设；放宽到 8s/15s。
+        private const val CONNECT_TIMEOUT_MILLIS = 8_000
+        private const val READ_TIMEOUT_MILLIS = 15_000
+        private const val HTTP_SERVER_ERROR_THRESHOLD = 500
+        private val HTTP_CLIENT_ERROR_RANGE = 400..499
         private val SUCCESS_CODE_RANGE = 200..299
     }
 }
