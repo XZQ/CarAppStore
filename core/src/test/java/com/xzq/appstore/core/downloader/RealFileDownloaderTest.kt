@@ -20,287 +20,311 @@ import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RealFileDownloaderTest {
+    @Test
+    fun `download 在进入分片下载前收到取消后会快速停止`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = SLOW_HEAD_DELAY_MS,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 7 },
+                )
+
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+                val control = DownloadExecutionControl()
+
+                val job =
+                    async {
+                        fixture.downloader.download(fixture.request, control) { event ->
+                            events += event
+                        }
+                    }
+
+                delay(PROBE_SETTLE_DELAY_MS)
+                control.requestCancel()
+
+                withTimeout(FAST_STOP_TIMEOUT_MS) {
+                    job.await()
+                }
+
+                assertFalse(events.any { it is DownloadEvent.Running })
+                val stopped = events.last() as DownloadEvent.Stopped
+                assertEquals(DownloadStopReason.CANCELED, stopped.reason)
+                assertEquals(0L, stopped.downloadedBytes)
+                assertTrue(fixture.store.readSegments(fixture.request.taskId).isEmpty())
+            }
+        }
 
     @Test
-    fun `download 在进入分片下载前收到取消后会快速停止`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = SLOW_HEAD_DELAY_MS,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 7 },
-        )
+    fun `download 在响应体读取阶段收到取消后会输出取消停止事件并标记分片`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = SLOW_BODY_DELAY_MS,
+                    payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { index -> (index % 97).toByte() },
+                )
 
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-            val control = DownloadExecutionControl()
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+                val control = DownloadExecutionControl()
+                val canceled = AtomicBoolean(false)
 
-            val job = async {
                 fixture.downloader.download(fixture.request, control) { event ->
                     events += event
+                    if (event is DownloadEvent.Running && canceled.compareAndSet(false, true)) {
+                        control.requestCancel()
+                    }
                 }
+
+                val stopped = events.last() as DownloadEvent.Stopped
+                assertEquals(DownloadStopReason.CANCELED, stopped.reason)
+                assertTrue(stopped.downloadedBytes > 0L)
+                assertFalse(events.any { it is DownloadEvent.Completed })
+                val segments = fixture.store.readSegments(fixture.request.taskId)
+                assertTrue(segments.isNotEmpty())
+                assertTrue(segments.any { it.status == DownloaderText.STATUS_CANCELED })
             }
-
-            delay(PROBE_SETTLE_DELAY_MS)
-            control.requestCancel()
-
-            withTimeout(FAST_STOP_TIMEOUT_MS) {
-                job.await()
-            }
-
-            assertFalse(events.any { it is DownloadEvent.Running })
-            val stopped = events.last() as DownloadEvent.Stopped
-            assertEquals(DownloadStopReason.CANCELED, stopped.reason)
-            assertEquals(0L, stopped.downloadedBytes)
-            assertTrue(fixture.store.readSegments(fixture.request.taskId).isEmpty())
         }
-    }
 
     @Test
-    fun `download 在响应体读取阶段收到取消后会输出取消停止事件并标记分片`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = SLOW_BODY_DELAY_MS,
-            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { index -> (index % 97).toByte() },
-        )
+    fun `download 在读取超时失败时会保留已下载分片进度`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 3 },
+                    stallAfterFirstChunkMs = SOCKET_TIMEOUT_MS.toLong() + EXTRA_STALL_BUFFER_MS,
+                )
 
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-            val control = DownloadExecutionControl()
-            val canceled = AtomicBoolean(false)
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
 
-            fixture.downloader.download(fixture.request, control) { event ->
-                events += event
-                if (event is DownloadEvent.Running && canceled.compareAndSet(false, true)) {
-                    control.requestCancel()
+                fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                    events += event
                 }
-            }
 
-            val stopped = events.last() as DownloadEvent.Stopped
-            assertEquals(DownloadStopReason.CANCELED, stopped.reason)
-            assertTrue(stopped.downloadedBytes > 0L)
-            assertFalse(events.any { it is DownloadEvent.Completed })
-            val segments = fixture.store.readSegments(fixture.request.taskId)
-            assertTrue(segments.isNotEmpty())
-            assertTrue(segments.any { it.status == DownloaderText.STATUS_CANCELED })
+                val failed = events.last() as DownloadEvent.Failed
+                assertEquals(DownloadFailureCode.NETWORK_TIMEOUT, failed.code)
+                val segments = fixture.store.readSegments(fixture.request.taskId)
+                assertTrue(segments.isNotEmpty())
+                val segment = segments.first()
+                assertEquals(DownloaderText.STATUS_FAILED_TIMEOUT, segment.status)
+                assertEquals(SERVER_WRITE_CHUNK_BYTES.toLong(), segment.downloadedBytes)
+            }
         }
-    }
 
     @Test
-    fun `download 在读取超时失败时会保留已下载分片进度`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 3 },
-            stallAfterFirstChunkMs = SOCKET_TIMEOUT_MS.toLong() + EXTRA_STALL_BUFFER_MS,
-        )
+    fun `download 在响应体提前结束时会保留已下载分片进度`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 5 },
+                    closeAfterFirstChunk = true,
+                )
 
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
 
-            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
-                events += event
+                fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                    events += event
+                }
+
+                val failed = events.last() as DownloadEvent.Failed
+                assertEquals(DownloadFailureCode.FILE_INCOMPLETE, failed.code)
+                val segments = fixture.store.readSegments(fixture.request.taskId)
+                assertTrue(segments.isNotEmpty())
+                val segment = segments.first()
+                assertEquals(DownloaderText.STATUS_FAILED_INCOMPLETE, segment.status)
+                assertEquals(SERVER_WRITE_CHUNK_BYTES.toLong(), segment.downloadedBytes)
             }
-
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.NETWORK_TIMEOUT, failed.code)
-            val segments = fixture.store.readSegments(fixture.request.taskId)
-            assertTrue(segments.isNotEmpty())
-            val segment = segments.first()
-            assertEquals(DownloaderText.STATUS_FAILED_TIMEOUT, segment.status)
-            assertEquals(SERVER_WRITE_CHUNK_BYTES.toLong(), segment.downloadedBytes)
         }
-    }
 
     @Test
-    fun `download 在响应体提前结束时会保留已下载分片进度`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 5 },
-            closeAfterFirstChunk = true,
-        )
+    fun `download 在服务端返回 4xx 时会归类为 HTTP_4XX`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 9 },
+                    getStatusCode = 404,
+                )
 
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-
-            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
-                events += event
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+                fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                    events += event
+                }
+                val failed = events.last() as DownloadEvent.Failed
+                assertEquals(DownloadFailureCode.HTTP_4XX, failed.code)
             }
-
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.FILE_INCOMPLETE, failed.code)
-            val segments = fixture.store.readSegments(fixture.request.taskId)
-            assertTrue(segments.isNotEmpty())
-            val segment = segments.first()
-            assertEquals(DownloaderText.STATUS_FAILED_INCOMPLETE, segment.status)
-            assertEquals(SERVER_WRITE_CHUNK_BYTES.toLong(), segment.downloadedBytes)
         }
-    }
 
     @Test
-    fun `download 在服务端返回 4xx 时会归类为 HTTP_4XX`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 9 },
-            getStatusCode = 404,
-        )
+    fun `download 在服务端返回 5xx 时会归类为 HTTP_5XX`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 11 },
+                    getStatusCode = 503,
+                )
 
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
-                events += event
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+                fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                    events += event
+                }
+                val failed = events.last() as DownloadEvent.Failed
+                assertEquals(DownloadFailureCode.HTTP_5XX, failed.code)
             }
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.HTTP_4XX, failed.code)
         }
-    }
 
     @Test
-    fun `download 在服务端返回 5xx 时会归类为 HTTP_5XX`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 11 },
-            getStatusCode = 503,
-        )
+    fun `download 在续传时收到非 206 响应会归类为 RANGE_NOT_SUPPORTED`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 13 },
+                    ignoreRangeRequest = true,
+                    requestDownloadedBytes = PARTIAL_DOWNLOADED_BYTES,
+                    requestTotalBytes = TEST_TOTAL_BYTES,
+                )
 
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
-                events += event
+            fixture.use {
+                fixture.primePartialSegment(PARTIAL_DOWNLOADED_BYTES, TEST_TOTAL_BYTES)
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+                fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                    events += event
+                }
+                val failed = events.last() as DownloadEvent.Failed
+                assertEquals(DownloadFailureCode.RANGE_NOT_SUPPORTED, failed.code)
             }
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.HTTP_5XX, failed.code)
         }
-    }
 
     @Test
-    fun `download 在续传时收到非 206 响应会归类为 RANGE_NOT_SUPPORTED`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 13 },
-            ignoreRangeRequest = true,
-            requestDownloadedBytes = PARTIAL_DOWNLOADED_BYTES,
-            requestTotalBytes = TEST_TOTAL_BYTES,
-        )
+    fun `download 在文件校验不匹配时会归类为 CHECKSUM_MISMATCH`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 17 },
+                    requestChecksumType = "SHA-256",
+                    requestChecksumValue = sha256(ByteArray(TEST_TOTAL_BYTES.toInt()) { 99 }),
+                )
 
-        fixture.use {
-            fixture.primePartialSegment(PARTIAL_DOWNLOADED_BYTES, TEST_TOTAL_BYTES)
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
-                events += event
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+                fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                    events += event
+                }
+                val failed = events.last() as DownloadEvent.Failed
+                assertEquals(DownloadFailureCode.CHECKSUM_MISMATCH, failed.code)
+                assertTrue(fixture.request.targetFile.exists())
             }
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.RANGE_NOT_SUPPORTED, failed.code)
         }
-    }
 
     @Test
-    fun `download 在文件校验不匹配时会归类为 CHECKSUM_MISMATCH`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 17 },
-            requestChecksumType = "SHA-256",
-            requestChecksumValue = sha256(ByteArray(TEST_TOTAL_BYTES.toInt()) { 99 }),
-        )
+    fun `download 在 ETag 不一致时会归类为 REMOTE_FILE_CHANGED`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 19 },
+                    requestETag = "etag-old",
+                    headETag = "etag-new",
+                )
 
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
-                events += event
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+                fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                    events += event
+                }
+                val failed = events.last() as DownloadEvent.Failed
+                assertEquals(DownloadFailureCode.REMOTE_FILE_CHANGED, failed.code)
+                assertFalse(events.any { it is DownloadEvent.Running })
             }
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.CHECKSUM_MISMATCH, failed.code)
-            assertTrue(fixture.request.targetFile.exists())
         }
-    }
 
     @Test
-    fun `download 在 ETag 不一致时会归类为 REMOTE_FILE_CHANGED`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 19 },
-            requestETag = "etag-old",
-            headETag = "etag-new",
-        )
+    fun `download 在 Last-Modified 不一致时会归类为 REMOTE_FILE_CHANGED`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 23 },
+                    requestLastModified = "Mon, 01 Jan 2024 00:00:00 GMT",
+                    headLastModified = "Tue, 02 Jan 2024 00:00:00 GMT",
+                )
 
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
-                events += event
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+                fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                    events += event
+                }
+                val failed = events.last() as DownloadEvent.Failed
+                assertEquals(DownloadFailureCode.REMOTE_FILE_CHANGED, failed.code)
+                assertFalse(events.any { it is DownloadEvent.Running })
             }
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.REMOTE_FILE_CHANGED, failed.code)
-            assertFalse(events.any { it is DownloadEvent.Running })
         }
-    }
 
     @Test
-    fun `download 在 Last-Modified 不一致时会归类为 REMOTE_FILE_CHANGED`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 23 },
-            requestLastModified = "Mon, 01 Jan 2024 00:00:00 GMT",
-            headLastModified = "Tue, 02 Jan 2024 00:00:00 GMT",
-        )
+    fun `download 在服务端提前结束响应体时会归类为 FILE_INCOMPLETE`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(INCOMPLETE_BODY_BYTES.toInt()) { 29 },
+                    headContentLength = TEST_TOTAL_BYTES,
+                )
 
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
-                events += event
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+                fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                    events += event
+                }
+                val failed = events.last() as DownloadEvent.Failed
+                assertEquals(DownloadFailureCode.FILE_INCOMPLETE, failed.code)
+                val segments = fixture.store.readSegments(fixture.request.taskId)
+                assertTrue(segments.isNotEmpty())
+                assertEquals(DownloaderText.STATUS_FAILED_INCOMPLETE, segments.first().status)
             }
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.REMOTE_FILE_CHANGED, failed.code)
-            assertFalse(events.any { it is DownloadEvent.Running })
         }
-    }
 
     @Test
-    fun `download 在服务端提前结束响应体时会归类为 FILE_INCOMPLETE`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(INCOMPLETE_BODY_BYTES.toInt()) { 29 },
-            headContentLength = TEST_TOTAL_BYTES,
-        )
+    fun `download 在合并前分片文件丢失时会归类为 MERGE_FAILED`() =
+        runBlocking {
+            val fixture =
+                TestFixture(
+                    headDelayMs = 0L,
+                    bodyChunkDelayMs = 0L,
+                    payload = ByteArray(MERGE_TEST_TOTAL_BYTES.toInt()) { 31 },
+                    beforeMergeHook = { segments, _ ->
+                        File(segments.first().tmpFilePath).delete()
+                    },
+                )
 
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
-                events += event
+            fixture.use {
+                val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+                fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                    events += event
+                }
+                val failed = events.last() as DownloadEvent.Failed
+                assertEquals(DownloadFailureCode.MERGE_FAILED, failed.code)
             }
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.FILE_INCOMPLETE, failed.code)
-            val segments = fixture.store.readSegments(fixture.request.taskId)
-            assertTrue(segments.isNotEmpty())
-            assertEquals(DownloaderText.STATUS_FAILED_INCOMPLETE, segments.first().status)
         }
-    }
-
-    @Test
-    fun `download 在合并前分片文件丢失时会归类为 MERGE_FAILED`() = runBlocking {
-        val fixture = TestFixture(
-            headDelayMs = 0L,
-            bodyChunkDelayMs = 0L,
-            payload = ByteArray(MERGE_TEST_TOTAL_BYTES.toInt()) { 31 },
-            beforeMergeHook = { segments, _ ->
-                File(segments.first().tmpFilePath).delete()
-            },
-        )
-
-        fixture.use {
-            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
-            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
-                events += event
-            }
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.MERGE_FAILED, failed.code)
-        }
-    }
 
     /** 下载器测试专用的依赖集合。 */
     private class TestFixture(
@@ -348,61 +372,69 @@ class RealFileDownloaderTest {
         val store = DownloadStore(workDir)
 
         /** 本地 HTTP 测试服务器。 */
-        val server = TestHttpServer(
-            headDelayMs = headDelayMs,
-            bodyChunkDelayMs = bodyChunkDelayMs,
-            payload = payload,
-            stallAfterFirstChunkMs = stallAfterFirstChunkMs,
-            closeAfterFirstChunk = closeAfterFirstChunk,
-            getStatusCode = getStatusCode,
-            supportRangeHeader = supportRangeHeader,
-            ignoreRangeRequest = ignoreRangeRequest,
-            headContentLength = headContentLength,
-            headETag = headETag,
-            headLastModified = headLastModified,
-        )
+        val server =
+            TestHttpServer(
+                headDelayMs = headDelayMs,
+                bodyChunkDelayMs = bodyChunkDelayMs,
+                payload = payload,
+                stallAfterFirstChunkMs = stallAfterFirstChunkMs,
+                closeAfterFirstChunk = closeAfterFirstChunk,
+                getStatusCode = getStatusCode,
+                supportRangeHeader = supportRangeHeader,
+                ignoreRangeRequest = ignoreRangeRequest,
+                headContentLength = headContentLength,
+                headETag = headETag,
+                headLastModified = headLastModified,
+            )
 
         /** 被测下载器实例。 */
-        val downloader = RealFileDownloader(
-            store = store,
-            sourceResolver = DownloadSourceResolver(
-                DownloadSourceResolverConfig(
-                    defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
-                    allowMockSource = false,
-                    allowDirectHttp = true,
-                )
-            ),
-            connectTimeoutMs = SOCKET_TIMEOUT_MS,
-            readTimeoutMs = SOCKET_TIMEOUT_MS,
-            chunkBytes = TEST_CHUNK_BYTES,
-            maxParallelSegments = 1,
-            maxSegmentRetryCount = 0,
-            beforeMergeHook = beforeMergeHook,
-        )
+        val downloader =
+            RealFileDownloader(
+                store = store,
+                sourceResolver =
+                    DownloadSourceResolver(
+                        DownloadSourceResolverConfig(
+                            defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
+                            allowMockSource = false,
+                            allowDirectHttp = true,
+                        ),
+                    ),
+                connectTimeoutMs = SOCKET_TIMEOUT_MS,
+                readTimeoutMs = SOCKET_TIMEOUT_MS,
+                chunkBytes = TEST_CHUNK_BYTES,
+                maxParallelSegments = 1,
+                maxSegmentRetryCount = 0,
+                beforeMergeHook = beforeMergeHook,
+            )
 
         /** 当前测试下载请求。 */
-        val request = DownloadRequest(
-            taskId = TEST_TASK_ID,
-            appId = TEST_APP_ID,
-            url = server.url,
-            targetFile = store.getFinalDir().resolve("demo.apk"),
-            downloadedBytes = requestDownloadedBytes,
-            totalBytes = requestTotalBytes,
-            checksumType = requestChecksumType,
-            checksumValue = requestChecksumValue,
-            eTag = requestETag,
-            lastModified = requestLastModified,
-            sourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
-        )
+        val request =
+            DownloadRequest(
+                taskId = TEST_TASK_ID,
+                appId = TEST_APP_ID,
+                url = server.url,
+                targetFile = store.getFinalDir().resolve("demo.apk"),
+                downloadedBytes = requestDownloadedBytes,
+                totalBytes = requestTotalBytes,
+                checksumType = requestChecksumType,
+                checksumValue = requestChecksumValue,
+                eTag = requestETag,
+                lastModified = requestLastModified,
+                sourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
+            )
 
         /** 为续传测试预置已有分片和临时文件。 */
-        fun primePartialSegment(downloadedBytes: Long, totalBytes: Long) {
+        fun primePartialSegment(
+            downloadedBytes: Long,
+            totalBytes: Long,
+        ) {
             val tempDir = store.getTaskTempDir(TEST_TASK_ID)
             val now = System.currentTimeMillis()
-            val partFile = File(tempDir, "part-0.tmp").apply {
-                parentFile?.mkdirs()
-                writeBytes(ByteArray(downloadedBytes.toInt()) { 1 })
-            }
+            val partFile =
+                File(tempDir, "part-0.tmp").apply {
+                    parentFile?.mkdirs()
+                    writeBytes(ByteArray(downloadedBytes.toInt()) { 1 })
+                }
             store.saveSegments(
                 TEST_TASK_ID,
                 listOf(
@@ -418,8 +450,8 @@ class RealFileDownloaderTest {
                         retryCount = 0,
                         createdAt = now,
                         updatedAt = now,
-                    )
-                )
+                    ),
+                ),
             )
         }
 
@@ -458,18 +490,19 @@ class RealFileDownloaderTest {
         private val serverSocket = ServerSocket(0)
 
         /** 后台接受连接的线程。 */
-        private val acceptThread = Thread {
-            while (!serverSocket.isClosed) {
-                try {
-                    val socket = serverSocket.accept()
-                    handle(socket)
-                } catch (_: IOException) {
-                    if (serverSocket.isClosed) {
-                        return@Thread
+        private val acceptThread =
+            Thread {
+                while (!serverSocket.isClosed) {
+                    try {
+                        val socket = serverSocket.accept()
+                        handle(socket)
+                    } catch (_: IOException) {
+                        if (serverSocket.isClosed) {
+                            return@Thread
+                        }
                     }
                 }
             }
-        }
 
         /** 当前服务地址。 */
         val url: String = "http://127.0.0.1:${serverSocket.localPort}/demo.apk"
@@ -492,12 +525,13 @@ class RealFileDownloaderTest {
                 val headers = readHeaders(reader)
                 when (requestLine.substringBefore(' ').uppercase()) {
                     "HEAD" -> handleHead(client.getOutputStream())
-                    "GET" -> handleGet(client, client.getOutputStream(), headers["Range"])
-                    else -> writeHeaders(
-                        output = client.getOutputStream(),
-                        statusLine = "HTTP/1.1 405 Method Not Allowed",
-                        headers = mapOf("Content-Length" to "0"),
-                    )
+                    "GET" -> handleGet(client.getOutputStream(), headers["Range"])
+                    else ->
+                        writeHeaders(
+                            output = client.getOutputStream(),
+                            statusLine = "HTTP/1.1 405 Method Not Allowed",
+                            headers = mapOf("Content-Length" to "0"),
+                        )
                 }
             }
         }
@@ -508,20 +542,24 @@ class RealFileDownloaderTest {
             writeHeaders(
                 output = output,
                 statusLine = "HTTP/1.1 200 OK",
-                headers = buildMap {
-                    put("Content-Length", headContentLength.toString())
-                    put("Content-Type", "application/vnd.android.package-archive")
-                    if (supportRangeHeader) {
-                        put("Accept-Ranges", "bytes")
-                    }
-                    headETag?.let { put("ETag", it) }
-                    headLastModified?.let { put("Last-Modified", it) }
-                },
+                headers =
+                    buildMap {
+                        put("Content-Length", headContentLength.toString())
+                        put("Content-Type", "application/vnd.android.package-archive")
+                        if (supportRangeHeader) {
+                            put("Accept-Ranges", "bytes")
+                        }
+                        headETag?.let { put("ETag", it) }
+                        headLastModified?.let { put("Last-Modified", it) }
+                    },
             )
         }
 
         /** 模拟支持 Range 且可慢速输出的文件下载响应。 */
-        private fun handleGet(client: Socket, output: OutputStream, rangeHeader: String?) {
+        private fun handleGet(
+            output: OutputStream,
+            rangeHeader: String?,
+        ) {
             if (headDelayMs > 0L) Thread.sleep(headDelayMs)
             if (getStatusCode !in 200..206) {
                 writeHeaders(
@@ -537,14 +575,15 @@ class RealFileDownloaderTest {
             writeHeaders(
                 output = output,
                 statusLine = if (effectiveRangeHeader != null) "HTTP/1.1 206 Partial Content" else "HTTP/1.1 200 OK",
-                headers = buildMap {
-                    put("Accept-Ranges", "bytes")
-                    put("Content-Type", "application/vnd.android.package-archive")
-                    put("Content-Length", body.size.toString())
-                    if (effectiveRangeHeader != null) {
-                        put("Content-Range", "bytes ${range.first}-${range.last}/${payload.size}")
-                    }
-                },
+                headers =
+                    buildMap {
+                        put("Accept-Ranges", "bytes")
+                        put("Content-Type", "application/vnd.android.package-archive")
+                        put("Content-Length", body.size.toString())
+                        if (effectiveRangeHeader != null) {
+                            put("Content-Range", "bytes ${range.first}-${range.last}/${payload.size}")
+                        }
+                    },
             )
             try {
                 var offset = 0
@@ -591,20 +630,24 @@ class RealFileDownloaderTest {
             statusLine: String,
             headers: Map<String, String>,
         ) {
-            val rawHeaders = buildString {
-                append(statusLine).append("\r\n")
-                headers.forEach { (key, value) ->
-                    append(key).append(": ").append(value).append("\r\n")
+            val rawHeaders =
+                buildString {
+                    append(statusLine).append("\r\n")
+                    headers.forEach { (key, value) ->
+                        append(key).append(": ").append(value).append("\r\n")
+                    }
+                    append("Connection: close\r\n")
+                    append("\r\n")
                 }
-                append("Connection: close\r\n")
-                append("\r\n")
-            }
             output.write(rawHeaders.toByteArray())
             output.flush()
         }
 
         /** 解析单段 Range 请求头。 */
-        private fun parseRange(header: String?, totalBytes: Long): LongRange {
+        private fun parseRange(
+            header: String?,
+            totalBytes: Long,
+        ): LongRange {
             if (header.isNullOrBlank()) return 0L..(totalBytes - 1L)
             val rawValue = header.removePrefix("bytes=").trim()
             val parts = rawValue.split("-", limit = 2)

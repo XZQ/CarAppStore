@@ -16,6 +16,7 @@ import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -136,6 +137,39 @@ class AppPrimaryActionExecutorTest {
             )
 
             assertEquals("primary_click_download_${TEST_DOWNLOAD_APP.appId}", tracker.events.single())
+        }
+
+    @Test
+    fun `DOWNLOAD 抛异常时会把错误向上抛出且不记录副作用`() =
+        runBlocking {
+            val downloadManager =
+                RecordingDownloadManager().apply {
+                    errorForStart = IllegalStateException("network down")
+                }
+            val installManager = RecordingInstallManager()
+            val executor =
+                AppPrimaryActionExecutor(
+                    appManager = FakeAppManager(),
+                    downloadManager = downloadManager,
+                    installManager = installManager,
+                )
+
+            val error =
+                try {
+                    executor.execute(
+                        appId = TEST_DOWNLOAD_APP.appId,
+                        action = PrimaryAction.DOWNLOAD,
+                        packageName = TEST_DOWNLOAD_APP.packageName,
+                    )
+                    null
+                } catch (e: IllegalStateException) {
+                    e
+                }
+
+            assertNotNull(error)
+            assertEquals("network down", error?.message)
+            assertTrue(downloadManager.startedAppIds.isEmpty())
+            assertTrue(installManager.installedAppIds.isEmpty())
         }
 
     private class FakeAppManager : AppManager {
