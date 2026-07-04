@@ -1,7 +1,6 @@
 
 package com.xzq.appstore.feature.installcenter
 
-import com.xzq.appstore.common.R
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -10,6 +9,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.xzq.appstore.common.R
 import com.xzq.appstore.common.base.BaseTaskCenterFragment
 import com.xzq.appstore.common.ui.TaskCenterText
 import com.xzq.appstore.common.ui.TaskCenterUiFormatter
@@ -19,15 +19,15 @@ import com.xzq.appstore.data.model.TaskCenterExtensionUiState
 import com.xzq.appstore.data.model.TaskCenterFailureUiState
 import com.xzq.appstore.feature.installcenter.databinding.FragmentInstallCenterBinding
 import com.xzq.appstore.feature.installcenter.databinding.ViewInstallCenterControlsBinding
-import com.xzq.appstore.feature.downloadmanager.InstallTaskAdapter
 import kotlinx.coroutines.launch
 
 class InstallCenterFragment : BaseTaskCenterFragment() {
-
     /** 当前页面的 ViewBinding。 */
     private var _binding: FragmentInstallCenterBinding? = null
+
     /** 对外暴露的非空 Binding 访问入口。 */
-    private val binding get() = _binding!!
+    private val binding get() = requireNotNull(_binding) { "Binding 已销毁" }
+
     /** 安装中心扩展区控制器。 */
     private var controlsController: InstallCenterControlsController? = null
 
@@ -51,26 +51,39 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
     }
 
     /** 创建安装中心视图。 */
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View {
         _binding = FragmentInstallCenterBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     /** 初始化安装中心扩展区、列表区和事件绑定。 */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         super.onViewCreated(view, savedInstanceState)
         bindCenterTitle(binding.headerBlock, getString(R.string.screen_install_manager_title))
         bindExtensionSlot(
             extensionBinding = binding.extensionSlot,
-            uiState = TaskCenterExtensionUiState(
-                centerName = getString(R.string.screen_install_center_name),
-                title = getString(R.string.screen_install_extension_title),
-                hint = getString(R.string.screen_install_extension_hint),
-                showPanel = true,
-            ),
+            uiState =
+                TaskCenterExtensionUiState(
+                    centerName = getString(R.string.screen_install_center_name),
+                    title = getString(R.string.screen_install_extension_title),
+                    hint = getString(R.string.screen_install_extension_hint),
+                    showPanel = true,
+                ),
         )
         // 安装中心把会话控制区挂接到公共扩展插槽中。
-        val controlBinding = ViewInstallCenterControlsBinding.inflate(layoutInflater, binding.extensionSlot.extensionContentContainer, false)
+        val controlBinding =
+            ViewInstallCenterControlsBinding.inflate(
+                layoutInflater,
+                binding.extensionSlot.extensionContentContainer,
+                false,
+            )
         controlsController = InstallCenterControlsController(controlBinding)
         attachExtensionContent(binding.extensionSlot, controlBinding.root)
         controlsController?.bindHandlers(
@@ -105,41 +118,48 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
                 viewModel.uiState.collect { state ->
                     val showTaskPanels = state.screenState == InstallCenterScreenState.Content
                     val showChrome = state.screenState !is InstallCenterScreenState.Error
-                    val subtitle = when (val screenState = state.screenState) {
-                        InstallCenterScreenState.Loading -> getString(R.string.loading)
-                        InstallCenterScreenState.Content -> TaskCenterUiFormatter.subtitle(
-                            filter = state.selectedFilter,
-                            primaryLabel = getString(R.string.screen_install_primary_label),
-                            primaryCount = state.tasks.size,
-                            failedCount = state.failedCount,
-                        ) + TaskCenterText.sessionFilterLine(
-                            state.selectedSessionFilter.label,
-                            state.activeSessionCount,
-                            state.failedSessionCount,
-                            state.recoveredSessionCount,
-                        )
-                        InstallCenterScreenState.Empty -> getString(R.string.screen_install_empty_hint)
-                        is InstallCenterScreenState.Error -> screenState.message.ifBlank {
-                            getString(R.string.screen_install_error_hint)
+                    val subtitle =
+                        when (val screenState = state.screenState) {
+                            InstallCenterScreenState.Loading -> getString(R.string.loading)
+                            InstallCenterScreenState.Content ->
+                                TaskCenterUiFormatter.subtitle(
+                                    filter = state.selectedFilter,
+                                    primaryLabel = getString(R.string.screen_install_primary_label),
+                                    primaryCount = state.tasks.size,
+                                    failedCount = state.failedCount,
+                                ) +
+                                    TaskCenterText.sessionFilterLine(
+                                        state.selectedSessionFilter.label,
+                                        state.activeSessionCount,
+                                        state.failedSessionCount,
+                                        state.recoveredSessionCount,
+                                    )
+                            InstallCenterScreenState.Empty -> getString(R.string.screen_install_empty_hint)
+                            is InstallCenterScreenState.Error ->
+                                screenState.message.ifBlank {
+                                    getString(R.string.screen_install_error_hint)
+                                }
                         }
-                    }
-                    val hint = when (val screenState = state.screenState) {
-                        InstallCenterScreenState.Loading -> getString(R.string.screen_install_loading_hint)
-                        InstallCenterScreenState.Content,
-                        InstallCenterScreenState.Empty,
-                        -> listOf(
-                            TaskCenterUiFormatter.headerHint(getString(R.string.screen_install_tasks)),
-                            TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.tasks.size, state.failedCount),
-                            TaskCenterText.sessionSummary(
-                                state.activeSessionCount,
-                                state.failedSessionCount,
-                                state.recoveredSessionCount,
-                            ),
-                        ).joinToString("\n")
-                        is InstallCenterScreenState.Error -> screenState.message.ifBlank {
-                            getString(R.string.screen_install_error_hint)
+                    val hint =
+                        when (val screenState = state.screenState) {
+                            InstallCenterScreenState.Loading -> getString(R.string.screen_install_loading_hint)
+                            InstallCenterScreenState.Content,
+                            InstallCenterScreenState.Empty,
+                            ->
+                                listOf(
+                                    TaskCenterUiFormatter.headerHint(getString(R.string.screen_install_tasks)),
+                                    TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.tasks.size, state.failedCount),
+                                    TaskCenterText.sessionSummary(
+                                        state.activeSessionCount,
+                                        state.failedSessionCount,
+                                        state.recoveredSessionCount,
+                                    ),
+                                ).joinToString("\n")
+                            is InstallCenterScreenState.Error ->
+                                screenState.message.ifBlank {
+                                    getString(R.string.screen_install_error_hint)
+                                }
                         }
-                    }
                     controlsController?.bind(state.controlsUiState)
 
                     // 安装中心头部除了任务统计，还会拼上 Session 维度摘要。
@@ -157,28 +177,32 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
                     binding.extensionSlot.root.visibility = if (showChrome) View.VISIBLE else View.GONE
                     bindActionBlock(
                         actionBinding = binding.actionBlock,
-                        uiState = TaskCenterActionUiState(
-                            centerName = getString(R.string.screen_install_center_name),
-                            scopeHint = getString(R.string.screen_install_controls_hint),
-                            selectedFilter = state.selectedFilter,
-                            secondaryText = TaskCenterText.switchSessionView(state.selectedSessionFilter.label),
-                            tertiaryText = getString(R.string.screen_install_start_runnable_format, state.batchRunnableCount),
-                            quaternaryText = getString(R.string.ui_clear_failed_state_format, state.clearFailedCount),
-                            runnableCount = state.batchRunnableCount,
-                            failedCount = state.clearFailedCount,
-                        ),
+                        uiState =
+                            TaskCenterActionUiState(
+                                centerName = getString(R.string.screen_install_center_name),
+                                scopeHint = getString(R.string.screen_install_controls_hint),
+                                selectedFilter = state.selectedFilter,
+                                secondaryText = TaskCenterText.switchSessionView(state.selectedSessionFilter.label),
+                                tertiaryText = getString(R.string.screen_install_start_runnable_format, state.batchRunnableCount),
+                                quaternaryText = getString(R.string.ui_clear_failed_state_format, state.clearFailedCount),
+                                runnableCount = state.batchRunnableCount,
+                                failedCount = state.clearFailedCount,
+                            ),
                     )
                     // 失败面板、空态面板和列表区都跟随当前任务和 Session 过滤结果更新。
                     bindEmptyPanel(
                         emptyPanelBinding = binding.emptyPanel,
-                        uiState = TaskCenterEmptyUiState(
-                            centerName = getString(R.string.screen_install_center_name),
-                            selectedFilter = state.selectedFilter,
-                            primaryText = getString(R.string.ui_go_download_manager),
-                            secondaryText = getString(R.string.ui_clear_failed_state),
-                            showEmpty = state.screenState == InstallCenterScreenState.Empty || state.screenState is InstallCenterScreenState.Error,
-                            showSecondary = showChrome && state.showFailurePanel,
-                        ),
+                        uiState =
+                            TaskCenterEmptyUiState(
+                                centerName = getString(R.string.screen_install_center_name),
+                                selectedFilter = state.selectedFilter,
+                                primaryText = getString(R.string.ui_go_download_manager),
+                                secondaryText = getString(R.string.ui_clear_failed_state),
+                                showEmpty =
+                                    state.screenState == InstallCenterScreenState.Empty ||
+                                        state.screenState is InstallCenterScreenState.Error,
+                                showSecondary = showChrome && state.showFailurePanel,
+                            ),
                     )
                     bindListBlock(
                         listBlockBinding = binding.installTaskBlock,
@@ -187,13 +211,14 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
                     )
                     bindFailurePanel(
                         failureBinding = binding.failurePanel,
-                        uiState = TaskCenterFailureUiState(
-                            centerName = getString(R.string.screen_install_center_name),
-                            failedCount = state.clearFailedCount,
-                            primaryText = getString(R.string.screen_install_retry_failed_format, state.failedCount),
-                            secondaryText = getString(R.string.ui_clear_failed_state_format, state.clearFailedCount),
-                            showPanel = showChrome && state.showFailurePanel,
-                        ),
+                        uiState =
+                            TaskCenterFailureUiState(
+                                centerName = getString(R.string.screen_install_center_name),
+                                failedCount = state.clearFailedCount,
+                                primaryText = getString(R.string.screen_install_retry_failed_format, state.failedCount),
+                                secondaryText = getString(R.string.ui_clear_failed_state_format, state.clearFailedCount),
+                                showPanel = showChrome && state.showFailurePanel,
+                            ),
                     )
                     bindFailureHandlers(
                         failureBinding = binding.failurePanel,

@@ -1,12 +1,6 @@
 
 package com.xzq.appstore.feature.downloadmanager
 
-import com.xzq.appstore.common.R
-import com.xzq.appstore.data.model.TaskCenterActionUiState
-import com.xzq.appstore.data.model.TaskCenterEmptyUiState
-import com.xzq.appstore.data.model.TaskCenterFailureUiState
-import com.xzq.appstore.data.model.TaskCenterExtensionUiState
-
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -15,20 +9,27 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.xzq.appstore.common.R
 import com.xzq.appstore.common.base.BaseTaskCenterFragment
 import com.xzq.appstore.common.ui.TaskCenterUiFormatter
+import com.xzq.appstore.data.model.TaskCenterActionUiState
+import com.xzq.appstore.data.model.TaskCenterEmptyUiState
+import com.xzq.appstore.data.model.TaskCenterExtensionUiState
+import com.xzq.appstore.data.model.TaskCenterFailureUiState
 import com.xzq.appstore.feature.downloadmanager.databinding.FragmentDownloadManagerBinding
 import com.xzq.appstore.feature.downloadmanager.databinding.ViewDownloadCenterPreferencesBinding
 import kotlinx.coroutines.launch
 
 class DownloadManagerFragment : BaseTaskCenterFragment() {
-
     /** 当前页面的 ViewBinding。 */
     private var _binding: FragmentDownloadManagerBinding? = null
+
     /** 对外暴露的非空 Binding 访问入口。 */
-    private val binding get() = _binding!!
+    private val binding get() = requireNotNull(_binding) { "Binding 已销毁" }
+
     /** 下载偏好扩展区的 ViewBinding。 */
     private var preferencesBinding: ViewDownloadCenterPreferencesBinding? = null
+
     /** 下载偏好扩展区控制器。 */
     private var preferencesController: DownloadCenterPreferencesController? = null
 
@@ -62,26 +63,39 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
     }
 
     /** 创建下载中心视图。 */
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View {
         _binding = FragmentDownloadManagerBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     /** 初始化下载中心的扩展区、列表区和事件绑定。 */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         super.onViewCreated(view, savedInstanceState)
         bindCenterTitle(binding.headerBlock, getString(R.string.screen_download_manager_title))
         bindExtensionSlot(
             extensionBinding = binding.extensionSlot,
-            uiState = TaskCenterExtensionUiState(
-                centerName = getString(R.string.screen_download_center_name),
-                title = getString(R.string.screen_download_extension_title),
-                hint = getString(R.string.screen_download_extension_hint),
-                showPanel = true,
-            ),
+            uiState =
+                TaskCenterExtensionUiState(
+                    centerName = getString(R.string.screen_download_center_name),
+                    title = getString(R.string.screen_download_extension_title),
+                    hint = getString(R.string.screen_download_extension_hint),
+                    showPanel = true,
+                ),
         )
         // 下载中心把偏好设置扩展区挂接到公共扩展插槽中。
-        val prefsBinding = ViewDownloadCenterPreferencesBinding.inflate(layoutInflater, binding.extensionSlot.extensionContentContainer, false)
+        val prefsBinding =
+            ViewDownloadCenterPreferencesBinding.inflate(
+                layoutInflater,
+                binding.extensionSlot.extensionContentContainer,
+                false,
+            )
         preferencesBinding = prefsBinding
         preferencesController = DownloadCenterPreferencesController(prefsBinding)
         attachExtensionContent(binding.extensionSlot, prefsBinding.root)
@@ -123,33 +137,39 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
                 viewModel.uiState.collect { state ->
                     val showTaskPanels = state.screenState == DownloadManagerScreenState.Content
                     val showChrome = state.screenState !is DownloadManagerScreenState.Error
-                    val subtitle = when (val screenState = state.screenState) {
-                        DownloadManagerScreenState.Loading -> getString(R.string.loading)
-                        DownloadManagerScreenState.Content -> TaskCenterUiFormatter.subtitle(
-                            filter = state.selectedFilter,
-                            primaryLabel = getString(R.string.screen_download_primary_label),
-                            primaryCount = state.tasks.size,
-                            secondaryLabel = getString(R.string.screen_download_secondary_label),
-                            secondaryCount = state.installTasks.size,
-                            failedCount = state.failedCount,
-                        )
-                        DownloadManagerScreenState.Empty -> getString(R.string.screen_download_empty_hint)
-                        is DownloadManagerScreenState.Error -> screenState.message.ifBlank {
-                            getString(R.string.screen_download_error_hint)
+                    val subtitle =
+                        when (val screenState = state.screenState) {
+                            DownloadManagerScreenState.Loading -> getString(R.string.loading)
+                            DownloadManagerScreenState.Content ->
+                                TaskCenterUiFormatter.subtitle(
+                                    filter = state.selectedFilter,
+                                    primaryLabel = getString(R.string.screen_download_primary_label),
+                                    primaryCount = state.tasks.size,
+                                    secondaryLabel = getString(R.string.screen_download_secondary_label),
+                                    secondaryCount = state.installTasks.size,
+                                    failedCount = state.failedCount,
+                                )
+                            DownloadManagerScreenState.Empty -> getString(R.string.screen_download_empty_hint)
+                            is DownloadManagerScreenState.Error ->
+                                screenState.message.ifBlank {
+                                    getString(R.string.screen_download_error_hint)
+                                }
                         }
-                    }
-                    val hint = when (val screenState = state.screenState) {
-                        DownloadManagerScreenState.Loading -> getString(R.string.screen_download_loading_hint)
-                        DownloadManagerScreenState.Content,
-                        DownloadManagerScreenState.Empty,
-                        -> listOf(
-                            TaskCenterUiFormatter.headerHint(getString(R.string.screen_download_overview_title)),
-                            TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.visibleTaskCount, state.failedCount),
-                        ).joinToString("\n")
-                        is DownloadManagerScreenState.Error -> screenState.message.ifBlank {
-                            getString(R.string.screen_download_error_hint)
+                    val hint =
+                        when (val screenState = state.screenState) {
+                            DownloadManagerScreenState.Loading -> getString(R.string.screen_download_loading_hint)
+                            DownloadManagerScreenState.Content,
+                            DownloadManagerScreenState.Empty,
+                            ->
+                                listOf(
+                                    TaskCenterUiFormatter.headerHint(getString(R.string.screen_download_overview_title)),
+                                    TaskCenterUiFormatter.batchSummary(state.selectedFilter, state.visibleTaskCount, state.failedCount),
+                                ).joinToString("\n")
+                            is DownloadManagerScreenState.Error ->
+                                screenState.message.ifBlank {
+                                    getString(R.string.screen_download_error_hint)
+                                }
                         }
-                    }
                     // 头部摘要同时展示下载任务和待安装任务的联合统计。
                     bindHeaderBlock(
                         headerBinding = binding.headerBlock,
@@ -165,27 +185,29 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
                     binding.extensionSlot.root.visibility = if (showChrome) View.VISIBLE else View.GONE
                     bindActionBlock(
                         actionBinding = binding.actionBlock,
-                        uiState = TaskCenterActionUiState(
-                            centerName = getString(R.string.screen_download_center_name),
-                            scopeHint = getString(R.string.screen_download_controls_hint),
-                            selectedFilter = state.selectedFilter,
-                            secondaryText = getString(R.string.screen_download_retry_failed_format, state.failedCount),
-                            tertiaryText = getString(R.string.screen_download_install_ready_format, state.readyInstallCount),
-                            quaternaryText = getString(R.string.screen_download_clear_completed),
-                            runnableCount = state.readyInstallCount,
-                            failedCount = state.failedCount,
-                        ),
+                        uiState =
+                            TaskCenterActionUiState(
+                                centerName = getString(R.string.screen_download_center_name),
+                                scopeHint = getString(R.string.screen_download_controls_hint),
+                                selectedFilter = state.selectedFilter,
+                                secondaryText = getString(R.string.screen_download_retry_failed_format, state.failedCount),
+                                tertiaryText = getString(R.string.screen_download_install_ready_format, state.readyInstallCount),
+                                quaternaryText = getString(R.string.screen_download_clear_completed),
+                                runnableCount = state.readyInstallCount,
+                                failedCount = state.failedCount,
+                            ),
                     )
                     // 失败面板和空态面板根据当前筛选结果动态切换。
                     bindFailurePanel(
                         failureBinding = binding.failurePanel,
-                        uiState = TaskCenterFailureUiState(
-                            centerName = getString(R.string.screen_download_center_name),
-                            failedCount = state.failedCount,
-                            primaryText = getString(R.string.screen_download_retry_failed_format, state.failedCount),
-                            secondaryText = getString(R.string.action_clear_failed),
-                            showPanel = showChrome && state.failedCount > 0,
-                        ),
+                        uiState =
+                            TaskCenterFailureUiState(
+                                centerName = getString(R.string.screen_download_center_name),
+                                failedCount = state.failedCount,
+                                primaryText = getString(R.string.screen_download_retry_failed_format, state.failedCount),
+                                secondaryText = getString(R.string.action_clear_failed),
+                                showPanel = showChrome && state.failedCount > 0,
+                            ),
                     )
                     bindFailureHandlers(
                         failureBinding = binding.failurePanel,
@@ -195,14 +217,17 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
 
                     bindEmptyPanel(
                         emptyPanelBinding = binding.emptyPanel,
-                        uiState = TaskCenterEmptyUiState(
-                            centerName = getString(R.string.screen_download_center_name),
-                            selectedFilter = state.selectedFilter,
-                            primaryText = getString(R.string.screen_download_go_home),
-                            secondaryText = getString(R.string.screen_download_go_my_apps),
-                            showEmpty = state.screenState == DownloadManagerScreenState.Empty || state.screenState is DownloadManagerScreenState.Error,
-                            showSecondary = true,
-                        ),
+                        uiState =
+                            TaskCenterEmptyUiState(
+                                centerName = getString(R.string.screen_download_center_name),
+                                selectedFilter = state.selectedFilter,
+                                primaryText = getString(R.string.screen_download_go_home),
+                                secondaryText = getString(R.string.screen_download_go_my_apps),
+                                showEmpty =
+                                    state.screenState == DownloadManagerScreenState.Empty ||
+                                        state.screenState is DownloadManagerScreenState.Error,
+                                showSecondary = true,
+                            ),
                     )
                     bindListBlock(
                         listBlockBinding = binding.installTaskBlock,

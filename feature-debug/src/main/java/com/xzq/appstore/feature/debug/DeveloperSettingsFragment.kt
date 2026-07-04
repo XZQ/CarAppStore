@@ -8,18 +8,18 @@ import android.view.ViewGroup
 import android.widget.Toast
 import com.xzq.appstore.common.R
 import com.xzq.appstore.common.base.BaseFragment
-import com.xzq.appstore.data.downloadenv.DownloadEnvironmentConfig
 import com.xzq.appstore.data.downloadenv.DownloadEnvironment
+import com.xzq.appstore.data.downloadenv.DownloadEnvironmentConfig
 import com.xzq.appstore.data.downloadenv.DownloadEnvironmentEntry
 import com.xzq.appstore.data.downloadenv.LocalDownloadEnvironmentProvider
 import com.xzq.appstore.feature.debug.databinding.FragmentDeveloperSettingsBinding
 
 class DeveloperSettingsFragment : BaseFragment() {
-
     /** 当前页面的 ViewBinding。 */
     private var _binding: FragmentDeveloperSettingsBinding? = null
+
     /** 对外暴露的非空 Binding 访问入口。 */
-    private val binding get() = _binding!!
+    private val binding get() = requireNotNull(_binding) { "Binding 已销毁" }
 
     /** 下载环境配置读写入口。 */
     private lateinit var environmentProvider: LocalDownloadEnvironmentProvider
@@ -31,13 +31,20 @@ class DeveloperSettingsFragment : BaseFragment() {
     }
 
     /** 创建开发设置页视图。 */
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View {
         _binding = FragmentDeveloperSettingsBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     /** 初始化页面标题和所有面板。 */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         super.onViewCreated(view, savedInstanceState)
         navigator.updateTitle(getString(R.string.ui_developer_settings))
         bindEnvironmentSection()
@@ -70,19 +77,22 @@ class DeveloperSettingsFragment : BaseFragment() {
         val config = DownloadEnvironmentEntry(environmentProvider).currentConfig()
         val envBinding = binding.includeEnvironmentPanel
         envBinding.tvCurrentEnvironment.text = getString(R.string.ui_download_environment_current_format, current.name)
-        envBinding.tvEnvironmentHint.text = when (current) {
-            DownloadEnvironment.DEV -> getString(R.string.ui_download_environment_hint_dev)
-            DownloadEnvironment.TEST -> getString(R.string.ui_download_environment_hint_test)
-            DownloadEnvironment.PROD -> getString(R.string.ui_download_environment_hint_prod)
-        }
-        envBinding.tvCatalogSource.text = getString(
-            R.string.ui_catalog_source_current_format,
-            resolveCatalogSourceText(config),
-        )
-        envBinding.tvDownloadBaseUrl.text = getString(
-            R.string.ui_debug_download_base_url_format,
-            config.downloadBaseUrl,
-        )
+        envBinding.tvEnvironmentHint.text =
+            when (current) {
+                DownloadEnvironment.DEV -> getString(R.string.ui_download_environment_hint_dev)
+                DownloadEnvironment.TEST -> getString(R.string.ui_download_environment_hint_test)
+                DownloadEnvironment.PROD -> getString(R.string.ui_download_environment_hint_prod)
+            }
+        envBinding.tvCatalogSource.text =
+            getString(
+                R.string.ui_catalog_source_current_format,
+                resolveCatalogSourceText(config),
+            )
+        envBinding.tvDownloadBaseUrl.text =
+            getString(
+                R.string.ui_debug_download_base_url_format,
+                config.downloadBaseUrl,
+            )
         envBinding.tvProductionReadiness.text = buildProductionReadinessText(config)
     }
 
@@ -133,18 +143,21 @@ class DeveloperSettingsFragment : BaseFragment() {
         val settings = policyCenter.getSettings()
         val signalsBinding = binding.includePolicySignalsPanel
 
-        signalsBinding.tvWifiStatus.text = getString(
-            R.string.ui_debug_wifi_status_format,
-            booleanText(settings.wifiConnected),
-        )
-        signalsBinding.tvStorageStatus.text = getString(
-            R.string.ui_debug_storage_status_format,
-            booleanText(settings.lowStorageMode),
-        )
-        signalsBinding.tvParkingStatus.text = getString(
-            R.string.ui_debug_parking_status_format,
-            booleanText(settings.parkingMode),
-        )
+        signalsBinding.tvWifiStatus.text =
+            getString(
+                R.string.ui_debug_wifi_status_format,
+                booleanText(settings.wifiConnected),
+            )
+        signalsBinding.tvStorageStatus.text =
+            getString(
+                R.string.ui_debug_storage_status_format,
+                booleanText(settings.lowStorageMode),
+            )
+        signalsBinding.tvParkingStatus.text =
+            getString(
+                R.string.ui_debug_parking_status_format,
+                booleanText(settings.parkingMode),
+            )
     }
 
     /** 绑定版本信息面板，展示应用版本号和包名。 */
@@ -152,15 +165,17 @@ class DeveloperSettingsFragment : BaseFragment() {
         val context = context ?: return
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         val versionBinding = binding.includeVersionInfoPanel
-        versionBinding.tvVersionInfo.text = getString(
-            R.string.ui_debug_version_format,
-            packageInfo.versionName,
-            packageInfo.longVersionCode.toInt(),
-        )
-        versionBinding.tvPackageName.text = getString(
-            R.string.ui_debug_package_format,
-            context.packageName,
-        )
+        versionBinding.tvVersionInfo.text =
+            getString(
+                R.string.ui_debug_version_format,
+                packageInfo.versionName,
+                packageInfo.longVersionCode.toInt(),
+            )
+        versionBinding.tvPackageName.text =
+            getString(
+                R.string.ui_debug_package_format,
+                context.packageName,
+            )
     }
 
     /** 绑定缓存管理面板，提供清除本地缓存入口。 */
@@ -191,19 +206,18 @@ class DeveloperSettingsFragment : BaseFragment() {
         val file = eventLogFile(context)
         val lineCount = if (file.exists()) file.useLines(Charsets.UTF_8) { lines -> lines.count() } else 0
         val sizeKb = if (file.exists()) (file.length() + BYTES_PER_KB - 1) / BYTES_PER_KB else 0
-        binding.includeCachePanel.tvEventLogStatus.text = getString(
-            R.string.ui_debug_event_log_status_format,
-            lineCount,
-            sizeKb,
-        )
+        binding.includeCachePanel.tvEventLogStatus.text =
+            getString(
+                R.string.ui_debug_event_log_status_format,
+                lineCount,
+                sizeKb,
+            )
     }
 
     private fun eventLogFile(context: Context) = context.filesDir.resolve(EVENT_LOG_FILE_NAME)
 
     /** 将布尔值转换为可读文案。 */
-    private fun booleanText(value: Boolean): String {
-        return if (value) getString(R.string.ui_debug_yes) else getString(R.string.ui_debug_no)
-    }
+    private fun booleanText(value: Boolean): String = if (value) getString(R.string.ui_debug_yes) else getString(R.string.ui_debug_no)
 
     /** 释放页面 Binding。 */
     override fun onDestroyView() {

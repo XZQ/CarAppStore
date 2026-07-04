@@ -14,11 +14,11 @@ import com.xzq.appstore.feature.myapp.databinding.FragmentMyAppBinding
 import kotlinx.coroutines.launch
 
 class MyAppFragment : BaseFragment() {
-
     /** 当前页面的 ViewBinding。 */
     private var _binding: FragmentMyAppBinding? = null
+
     /** 对外暴露的非空 Binding 访问入口。 */
-    private val binding get() = _binding!!
+    private val binding get() = requireNotNull(_binding) { "Binding 已销毁" }
 
     /** 我的应用页 ViewModel。 */
     private val viewModel: MyAppViewModel by viewModels {
@@ -31,13 +31,20 @@ class MyAppFragment : BaseFragment() {
     }
 
     /** 创建我的应用页视图。 */
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View {
         _binding = FragmentMyAppBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     /** 初始化列表、标题和状态订阅。 */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         super.onViewCreated(view, savedInstanceState)
         navigator.updateTitle(getString(R.string.screen_my_apps_title))
         binding.recyclerMyApps.layoutManager = GridLayoutManager(requireContext(), resolveSpanCount())
@@ -66,14 +73,16 @@ class MyAppFragment : BaseFragment() {
             viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
                     // 根据结果数量切换副标题文案。
-                    binding.tvMyAppSubtitle.text = when (val screenState = state.screenState) {
-                        MyAppScreenState.Loading -> getString(R.string.loading)
-                        MyAppScreenState.Content -> getString(R.string.screen_my_apps_count, state.apps.size)
-                        MyAppScreenState.Empty -> getString(R.string.screen_my_apps_empty_tasks)
-                        is MyAppScreenState.Error -> screenState.message.ifBlank {
-                            getString(R.string.screen_my_apps_error_hint)
+                    binding.tvMyAppSubtitle.text =
+                        when (val screenState = state.screenState) {
+                            MyAppScreenState.Loading -> getString(R.string.loading)
+                            MyAppScreenState.Content -> getString(R.string.screen_my_apps_count, state.apps.size)
+                            MyAppScreenState.Empty -> getString(R.string.screen_my_apps_empty_tasks)
+                            is MyAppScreenState.Error ->
+                                screenState.message.ifBlank {
+                                    getString(R.string.screen_my_apps_error_hint)
+                                }
                         }
-                    }
                     adapter.submitList(state.apps)
                 }
             }
