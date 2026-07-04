@@ -1,10 +1,6 @@
 package com.xzq.appstore.data.datasource.local
 
 import android.content.Context
-import com.xzq.appstore.data.model.DownloadPreferences
-import com.xzq.appstore.data.model.DownloadSegmentRecord
-import com.xzq.appstore.data.model.DownloadTaskRecord
-import com.xzq.appstore.data.model.InstalledApp
 import com.xzq.appstore.data.local.entity.DownloadArtifactRefEntity
 import com.xzq.appstore.data.local.entity.InstalledAppEntity
 import com.xzq.appstore.data.local.mapper.DownloadTaskMapper
@@ -12,6 +8,10 @@ import com.xzq.appstore.data.local.store.InMemoryLocalStoreFacade
 import com.xzq.appstore.data.local.store.LocalStoreFacade
 import com.xzq.appstore.data.local.store.LocalStoreFallbackPolicy
 import com.xzq.appstore.data.local.store.LocalStoreKeys
+import com.xzq.appstore.data.model.DownloadPreferences
+import com.xzq.appstore.data.model.DownloadSegmentRecord
+import com.xzq.appstore.data.model.DownloadTaskRecord
+import com.xzq.appstore.data.model.InstalledApp
 import com.xzq.appstore.data.model.PolicySettings
 import com.xzq.appstore.domain.state.DownloadStatus
 import org.json.JSONArray
@@ -27,27 +27,36 @@ class AppLocalDataSource(
 ) {
     /** 当前模块统一使用的应用级 Context。 */
     private val appContext = context.applicationContext
+
     /** 兼容旧版本格式的 legacy 本地存储文件。 */
     private val storeFile = File(appContext.filesDir, "local_store.json")
+
     /** 下载产物默认目录。 */
     private val downloadDir = File(appContext.filesDir, "downloads").apply { mkdirs() }
 
     /** 已安装应用的 legacy 内存镜像。 */
     private val installedApps = mutableListOf<InstalledApp>()
+
     /** 已下载 APK 路径的 legacy 内存镜像。 */
     private val downloadedApkPaths = mutableMapOf<String, String>()
+
     /** staged upgrade 版本号的 legacy 内存镜像。 */
     private val stagedUpgradeVersions = mutableMapOf<String, String>()
+
     /** 下载任务的 legacy 内存镜像。 */
     private val downloadTasks = mutableMapOf<String, DownloadTaskRecord>()
+
     /** 下载分片的 legacy 内存镜像。 */
     private val downloadSegments = mutableMapOf<String, List<DownloadSegmentRecord>>()
+
     /** 下载偏好的 legacy 内存镜像。 */
     private var downloadPreferences = DownloadPreferences()
+
     /** 策略设置的 legacy 内存镜像。 */
     private var policySettings = PolicySettings()
     private val recentlyOpenedPackages = mutableListOf<String>()
-    /** 保护 legacy fallback 文件读写的并发锁。 */
+
+    /** 保护 legacy fallback 文件读写和内存镜像的并发锁。 */
     private val legacyStoreLock = ReentrantLock()
 
     init {
@@ -55,56 +64,69 @@ class AppLocalDataSource(
     }
 
     /** 获取已安装应用列表。 */
-    fun getInstalledApps(): List<InstalledApp> = installedApps.toList()
+    fun getInstalledApps(): List<InstalledApp> = legacyStoreLock.withLock { installedApps.toList() }
 
-    fun getRecentlyOpenedPackages(): List<String> {
-        val facadeValue = localStoreFacade.getSetting(LocalStoreKeys.RECENTLY_OPENED_PACKAGES)
-            ?.value
-            ?.let(::decodeStringList)
-            .orEmpty()
-        return LocalStoreFallbackPolicy
-            .preferFacadeList(facadeValue, recentlyOpenedPackages.toList())
-            .take(MAX_RECENTLY_OPENED_PACKAGES)
-    }
+    fun getRecentlyOpenedPackages(): List<String> =
+        legacyStoreLock.withLock {
+            val facadeValue =
+                localStoreFacade
+                    .getSetting(LocalStoreKeys.RECENTLY_OPENED_PACKAGES)
+                    ?.value
+                    ?.let(::decodeStringList)
+                    .orEmpty()
+            LocalStoreFallbackPolicy
+                .preferFacadeList(facadeValue, recentlyOpenedPackages.toList())
+                .take(MAX_RECENTLY_OPENED_PACKAGES)
+        }
 
     fun recordRecentlyOpenedPackage(packageName: String) {
         val normalized = packageName.trim()
         if (normalized.isBlank()) return
-        val updated = (listOf(normalized) + getRecentlyOpenedPackages())
-            .distinct()
-            .take(MAX_RECENTLY_OPENED_PACKAGES)
-        recentlyOpenedPackages.clear()
-        recentlyOpenedPackages.addAll(updated)
-        localStoreFacade.saveSetting(
-            com.xzq.appstore.data.local.entity.SettingsEntity(
-                key = LocalStoreKeys.RECENTLY_OPENED_PACKAGES,
-                value = encodeStringList(updated),
-                updatedAt = System.currentTimeMillis(),
+        legacyStoreLock.withLock {
+            val updated =
+                (listOf(normalized) + getRecentlyOpenedPackagesLocked())
+                    .distinct()
+                    .take(MAX_RECENTLY_OPENED_PACKAGES)
+            recentlyOpenedPackages.clear()
+            recentlyOpenedPackages.addAll(updated)
+            localStoreFacade.saveSetting(
+                com.xzq.appstore.data.local.entity.SettingsEntity(
+                    key = LocalStoreKeys.RECENTLY_OPENED_PACKAGES,
+                    value = encodeStringList(updated),
+                    updatedAt = System.currentTimeMillis(),
+                ),
             )
-        )
-        persist()
+            persistLocked()
+        }
     }
 
     /** 保存已安装应用，并同步到结构化存储和 legacy fallback。 */
-    fun saveInstalledApp(app: InstalledApp) {
-        installedApps.removeAll { it.appId == app.appId }
-        installedApps.add(app)
-        localStoreFacade.saveInstalledApp(
-            InstalledAppEntity(
-                appId = app.appId,
-                packageName = app.packageName,
-                name = app.name,
-                versionName = app.versionName,
+    fun saveInstalledApp(app: InstalledApp) =
+        legacyStoreLock.withLock {
+            installedApps.removeAll { it.appId == app.appId }
+            installedApps.add(app)
+            localStoreFacade.saveInstalledApp(
+                InstalledAppEntity(
+                    appId = app.appId,
+                    packageName = app.packageName,
+                    name = app.name,
+                    versionName = app.versionName,
+                ),
             )
-        )
-        persist()
-    }
+            persistLocked()
+        }
 
     /** 判断指定应用是否已经安装。 */
-    fun isInstalled(appId: String): Boolean = installedApps.any { it.appId == appId }
+    fun isInstalled(appId: String): Boolean =
+        legacyStoreLock.withLock {
+            installedApps.any { it.appId == appId }
+        }
 
     /** 保存已下载 APK 的路径引用。 */
-    fun saveDownloadedApk(appId: String, apkPath: String) {
+    fun saveDownloadedApk(
+        appId: String,
+        apkPath: String,
+    ) = legacyStoreLock.withLock {
         downloadedApkPaths[appId] = apkPath
         val file = File(apkPath)
         localStoreFacade.saveDownloadArtifactRef(
@@ -114,160 +136,194 @@ class AppLocalDataSource(
                 fileSize = if (file.exists()) file.length() else 0L,
                 fileExists = file.exists(),
                 updatedAt = System.currentTimeMillis(),
-            )
+            ),
         )
-        persist()
+        persistLocked()
     }
 
     /** 获取仍然有效的 APK 路径。 */
-    fun getDownloadedApk(appId: String): String? {
-        val facadePath = localStoreFacade.getDownloadArtifactRef(appId)?.apkPath?.takeIf { File(it).exists() }
-        val legacyPath = downloadedApkPaths[appId]?.takeIf { File(it).exists() }
-        return LocalStoreFallbackPolicy.preferFacade(facadePath, legacyPath)
-    }
+    fun getDownloadedApk(appId: String): String? =
+        legacyStoreLock.withLock {
+            val facadePath = localStoreFacade.getDownloadArtifactRef(appId)?.apkPath?.takeIf { File(it).exists() }
+            val legacyPath = downloadedApkPaths[appId]?.takeIf { File(it).exists() }
+            LocalStoreFallbackPolicy.preferFacade(facadePath, legacyPath)
+        }
 
     /** 获取指定应用默认的下载目标文件。 */
     fun getOrCreateDownloadFile(appId: String): File = File(downloadDir, "$appId.apk")
 
     /** 获取当前策略设置。 */
-    fun getPolicySettings(): PolicySettings {
-        val facadeValue = localStoreFacade.getSetting(LocalStoreKeys.POLICY_SETTINGS)?.value?.let { decodePolicySettings(it) }
-        return LocalStoreFallbackPolicy.preferFacade(facadeValue, policySettings) ?: PolicySettings()
-    }
+    fun getPolicySettings(): PolicySettings =
+        legacyStoreLock.withLock {
+            val facadeValue = localStoreFacade.getSetting(LocalStoreKeys.POLICY_SETTINGS)?.value?.let { decodePolicySettings(it) }
+            LocalStoreFallbackPolicy.preferFacade(facadeValue, policySettings) ?: PolicySettings()
+        }
 
     /** 保存策略设置。 */
-    fun savePolicySettings(settings: PolicySettings) {
-        policySettings = settings
-        localStoreFacade.saveSetting(
-            com.xzq.appstore.data.local.entity.SettingsEntity(
-                key = LocalStoreKeys.POLICY_SETTINGS,
-                value = encodePolicySettings(settings),
-                updatedAt = System.currentTimeMillis(),
+    fun savePolicySettings(settings: PolicySettings) =
+        legacyStoreLock.withLock {
+            policySettings = settings
+            localStoreFacade.saveSetting(
+                com.xzq.appstore.data.local.entity.SettingsEntity(
+                    key = LocalStoreKeys.POLICY_SETTINGS,
+                    value = encodePolicySettings(settings),
+                    updatedAt = System.currentTimeMillis(),
+                ),
             )
-        )
-        persist()
-    }
+            persistLocked()
+        }
 
     /** 保存 staged upgrade 的目标版本。 */
-    fun stageUpgradeVersion(appId: String, versionName: String) {
+    fun stageUpgradeVersion(
+        appId: String,
+        versionName: String,
+    ) = legacyStoreLock.withLock {
         stagedUpgradeVersions[appId] = versionName
         localStoreFacade.saveSetting(
             com.xzq.appstore.data.local.entity.SettingsEntity(
                 key = LocalStoreKeys.stagedUpgrade(appId),
                 value = versionName,
                 updatedAt = System.currentTimeMillis(),
-            )
+            ),
         )
-        persist()
+        persistLocked()
     }
 
     /** 读取并消费 staged upgrade 版本号。 */
-    fun consumeStagedUpgradeVersion(appId: String): String? {
-        val facadeKey = LocalStoreKeys.stagedUpgrade(appId)
-        val value = localStoreFacade.getSetting(facadeKey)?.value ?: stagedUpgradeVersions.remove(appId)
-        localStoreFacade.removeSetting(facadeKey)
-        persist()
-        return value
-    }
+    fun consumeStagedUpgradeVersion(appId: String): String? =
+        legacyStoreLock.withLock {
+            val facadeKey = LocalStoreKeys.stagedUpgrade(appId)
+            val value = localStoreFacade.getSetting(facadeKey)?.value ?: stagedUpgradeVersions.remove(appId)
+            localStoreFacade.removeSetting(facadeKey)
+            persistLocked()
+            value
+        }
 
     /** 只读取 staged upgrade 版本号，不执行消费。 */
-    fun peekStagedUpgradeVersion(appId: String): String? {
-        return LocalStoreFallbackPolicy.preferFacade(
-            localStoreFacade.getSetting(LocalStoreKeys.stagedUpgrade(appId))?.value,
-            stagedUpgradeVersions[appId],
-        )
-    }
+    fun peekStagedUpgradeVersion(appId: String): String? =
+        legacyStoreLock.withLock {
+            LocalStoreFallbackPolicy.preferFacade(
+                localStoreFacade.getSetting(LocalStoreKeys.stagedUpgrade(appId))?.value,
+                stagedUpgradeVersions[appId],
+            )
+        }
 
     /** 保存下载任务记录。 */
-    fun saveDownloadTask(record: DownloadTaskRecord) {
-        downloadTasks[record.appId] = record
-        localStoreFacade.saveDownloadTask(DownloadTaskMapper.toEntity(record))
-        persist()
-    }
+    fun saveDownloadTask(record: DownloadTaskRecord) =
+        legacyStoreLock.withLock {
+            downloadTasks[record.appId] = record
+            localStoreFacade.saveDownloadTask(DownloadTaskMapper.toEntity(record))
+            persistLocked()
+        }
 
     /** 获取指定应用的下载任务记录。 */
-    fun getDownloadTask(appId: String): DownloadTaskRecord? {
-        val facadeRecord = localStoreFacade.getDownloadTask(appId)?.let { DownloadTaskMapper.fromEntity(it) }
-        return LocalStoreFallbackPolicy.preferFacade(facadeRecord, downloadTasks[appId])
-    }
+    fun getDownloadTask(appId: String): DownloadTaskRecord? =
+        legacyStoreLock.withLock {
+            val facadeRecord = localStoreFacade.getDownloadTask(appId)?.let { DownloadTaskMapper.fromEntity(it) }
+            LocalStoreFallbackPolicy.preferFacade(facadeRecord, downloadTasks[appId])
+        }
 
     /** 获取所有下载任务记录。 */
-    fun getAllDownloadTasks(): List<DownloadTaskRecord> {
-        val facadeTasks = localStoreFacade.getAllDownloadTasks().map { DownloadTaskMapper.fromEntity(it) }
-        val legacyTasks = downloadTasks.values.sortedByDescending { it.updatedAt }
-        return LocalStoreFallbackPolicy.preferFacadeList(facadeTasks, legacyTasks)
-    }
+    fun getAllDownloadTasks(): List<DownloadTaskRecord> =
+        legacyStoreLock.withLock {
+            val facadeTasks = localStoreFacade.getAllDownloadTasks().map { DownloadTaskMapper.fromEntity(it) }
+            val legacyTasks = downloadTasks.values.sortedByDescending { it.updatedAt }
+            LocalStoreFallbackPolicy.preferFacadeList(facadeTasks, legacyTasks)
+        }
 
     /** 删除指定应用的下载任务。 */
-    fun removeDownloadTask(appId: String) {
-        downloadTasks.remove(appId)
-        downloadSegments.remove(appId)
-        localStoreFacade.removeDownloadTask(appId)
-        persist()
-    }
+    fun removeDownloadTask(appId: String) =
+        legacyStoreLock.withLock {
+            downloadTasks.remove(appId)
+            downloadSegments.remove(appId)
+            localStoreFacade.removeDownloadTask(appId)
+            persistLocked()
+        }
 
     /** 保存指定应用的下载分片记录。 */
-    fun saveDownloadSegments(appId: String, segments: List<DownloadSegmentRecord>) {
+    fun saveDownloadSegments(
+        appId: String,
+        segments: List<DownloadSegmentRecord>,
+    ) = legacyStoreLock.withLock {
         downloadSegments[appId] = segments
         localStoreFacade.saveDownloadSegments(appId, segments.map { DownloadTaskMapper.toSegmentEntity(it) })
-        persist()
+        persistLocked()
     }
 
     /** 获取指定应用的下载分片记录。 */
-    fun getDownloadSegments(appId: String): List<DownloadSegmentRecord> {
-        val facadeSegments = localStoreFacade.getDownloadSegments(appId).map { DownloadTaskMapper.fromSegmentEntity(it) }
-        val legacySegments = downloadSegments[appId].orEmpty()
-        return LocalStoreFallbackPolicy.preferFacadeList(facadeSegments, legacySegments)
-    }
+    fun getDownloadSegments(appId: String): List<DownloadSegmentRecord> =
+        legacyStoreLock.withLock {
+            val facadeSegments = localStoreFacade.getDownloadSegments(appId).map { DownloadTaskMapper.fromSegmentEntity(it) }
+            val legacySegments = downloadSegments[appId].orEmpty()
+            LocalStoreFallbackPolicy.preferFacadeList(facadeSegments, legacySegments)
+        }
 
     /** 清理所有已完成或已取消的下载任务。 */
-    fun clearCompletedDownloadTasks(): Int {
-        val targets = downloadTasks.values.filter {
-            it.status == DownloadStatus.COMPLETED || it.status == DownloadStatus.CANCELED
-        }
-        targets.forEach { task ->
-            // 已取消任务的 APK 不能再复用，需要顺带清理本地文件引用。
-            if (task.status == DownloadStatus.CANCELED) {
-                downloadedApkPaths.remove(task.appId)
-                localStoreFacade.removeDownloadArtifactRef(task.appId)
-                getOrCreateDownloadFile(task.appId).takeIf { it.exists() }?.delete()
+    fun clearCompletedDownloadTasks(): Int =
+        legacyStoreLock.withLock {
+            val targets =
+                downloadTasks.values.filter {
+                    it.status == DownloadStatus.COMPLETED || it.status == DownloadStatus.CANCELED
+                }
+            targets.forEach { task ->
+                // 已取消任务的 APK 不能再复用，需要顺带清理本地文件引用。
+                if (task.status == DownloadStatus.CANCELED) {
+                    downloadedApkPaths.remove(task.appId)
+                    localStoreFacade.removeDownloadArtifactRef(task.appId)
+                    getOrCreateDownloadFile(task.appId).takeIf { it.exists() }?.delete()
+                }
+                downloadTasks.remove(task.appId)
+                downloadSegments.remove(task.appId)
+                localStoreFacade.removeDownloadTask(task.appId)
             }
-            downloadTasks.remove(task.appId)
-            downloadSegments.remove(task.appId)
-            localStoreFacade.removeDownloadTask(task.appId)
+            if (targets.isNotEmpty()) persistLocked()
+            targets.size
         }
-        if (targets.isNotEmpty()) persist()
-        return targets.size
-    }
 
     /** 删除指定应用的本地 APK 产物和路径引用。 */
-    fun clearDownloadedApk(appId: String) {
-        downloadedApkPaths.remove(appId)
-        localStoreFacade.removeDownloadArtifactRef(appId)
-        getOrCreateDownloadFile(appId).takeIf { it.exists() }?.delete()
-        persist()
-    }
+    fun clearDownloadedApk(appId: String) =
+        legacyStoreLock.withLock {
+            downloadedApkPaths.remove(appId)
+            localStoreFacade.removeDownloadArtifactRef(appId)
+            getOrCreateDownloadFile(appId).takeIf { it.exists() }?.delete()
+            persistLocked()
+        }
 
     /** 获取下载偏好设置。 */
-    fun getDownloadPreferences(): DownloadPreferences {
-        val facadeValue = localStoreFacade.getSetting(LocalStoreKeys.DOWNLOAD_PREFERENCES)?.value?.let { decodeDownloadPreferences(it) }
-        return LocalStoreFallbackPolicy.preferFacade(facadeValue, downloadPreferences) ?: DownloadPreferences()
-    }
+    fun getDownloadPreferences(): DownloadPreferences =
+        legacyStoreLock.withLock {
+            val facadeValue = localStoreFacade.getSetting(LocalStoreKeys.DOWNLOAD_PREFERENCES)?.value?.let { decodeDownloadPreferences(it) }
+            LocalStoreFallbackPolicy.preferFacade(facadeValue, downloadPreferences) ?: DownloadPreferences()
+        }
 
     /** 保存下载偏好设置。 */
-    fun saveDownloadPreferences(preferences: DownloadPreferences) {
-        downloadPreferences = preferences
-        localStoreFacade.saveSetting(
-            com.xzq.appstore.data.local.entity.SettingsEntity(
-                key = LocalStoreKeys.DOWNLOAD_PREFERENCES,
-                value = encodeDownloadPreferences(preferences),
-                updatedAt = System.currentTimeMillis(),
+    fun saveDownloadPreferences(preferences: DownloadPreferences) =
+        legacyStoreLock.withLock {
+            downloadPreferences = preferences
+            localStoreFacade.saveSetting(
+                com.xzq.appstore.data.local.entity.SettingsEntity(
+                    key = LocalStoreKeys.DOWNLOAD_PREFERENCES,
+                    value = encodeDownloadPreferences(preferences),
+                    updatedAt = System.currentTimeMillis(),
+                ),
             )
-        )
-        persist()
-    }
+            persistLocked()
+        }
 
     // ==================== loadFromDisk 解析辅助方法 ====================
+
+    /** 不加锁版本的 getRecentlyOpenedPackages，仅供已持锁方法内部调用。 */
+    private fun getRecentlyOpenedPackagesLocked(): List<String> {
+        val facadeValue =
+            localStoreFacade
+                .getSetting(LocalStoreKeys.RECENTLY_OPENED_PACKAGES)
+                ?.value
+                ?.let(::decodeStringList)
+                .orEmpty()
+        return LocalStoreFallbackPolicy
+            .preferFacadeList(facadeValue, recentlyOpenedPackages.toList())
+            .take(MAX_RECENTLY_OPENED_PACKAGES)
+    }
 
     /** 从 JSON 数组解析已安装应用列表。 */
     private fun parseInstalledApps(array: JSONArray?): List<InstalledApp> {
@@ -289,31 +345,35 @@ class AppLocalDataSource(
         val result = mutableMapOf<String, DownloadTaskRecord>()
         repeat(array.length()) { index ->
             val item = array.getJSONObject(index)
-            val record = DownloadTaskRecord(
-                taskId = item.optString("taskId"),
-                appId = item.optString("appId"),
-                status = runCatching { DownloadStatus.valueOf(item.optString("status")) }
-                    .getOrElse { DownloadStatus.IDLE },
-                progress = item.optInt("progress"),
-                targetFilePath = item.optString("targetFilePath"),
-                downloadedBytes = item.optLong("downloadedBytes"),
-                totalBytes = item.optLong("totalBytes"),
-                speedBytesPerSec = item.optLong("speedBytesPerSec"),
-                failureCode = item.optString("failureCode").ifBlank { null },
-                failureMessage = item.optString("failureMessage").ifBlank { null },
-                retryCount = item.optInt("retryCount", 0),
-                downloadUrl = item.optString("downloadUrl").ifBlank { null },
-                tempDirPath = item.optString("tempDirPath").ifBlank { null },
-                eTag = item.optString("eTag").ifBlank { null },
-                lastModified = item.optString("lastModified").ifBlank { null },
-                supportsRange = item.optBoolean("supportsRange", false),
-                checksumType = item.optString("checksumType").ifBlank { null },
-                checksumValue = item.optString("checksumValue").ifBlank { null },
-                segmentCount = item.optInt("segmentCount", DEFAULT_SEGMENT_COUNT)
-                    .coerceAtLeast(DEFAULT_SEGMENT_COUNT),
-                createdAt = item.optLong("createdAt", item.optLong("updatedAt")),
-                updatedAt = item.optLong("updatedAt"),
-            )
+            val record =
+                DownloadTaskRecord(
+                    taskId = item.optString("taskId"),
+                    appId = item.optString("appId"),
+                    status =
+                        runCatching { DownloadStatus.valueOf(item.optString("status")) }
+                            .getOrElse { DownloadStatus.IDLE },
+                    progress = item.optInt("progress"),
+                    targetFilePath = item.optString("targetFilePath"),
+                    downloadedBytes = item.optLong("downloadedBytes"),
+                    totalBytes = item.optLong("totalBytes"),
+                    speedBytesPerSec = item.optLong("speedBytesPerSec"),
+                    failureCode = item.optString("failureCode").ifBlank { null },
+                    failureMessage = item.optString("failureMessage").ifBlank { null },
+                    retryCount = item.optInt("retryCount", 0),
+                    downloadUrl = item.optString("downloadUrl").ifBlank { null },
+                    tempDirPath = item.optString("tempDirPath").ifBlank { null },
+                    eTag = item.optString("eTag").ifBlank { null },
+                    lastModified = item.optString("lastModified").ifBlank { null },
+                    supportsRange = item.optBoolean("supportsRange", false),
+                    checksumType = item.optString("checksumType").ifBlank { null },
+                    checksumValue = item.optString("checksumValue").ifBlank { null },
+                    segmentCount =
+                        item
+                            .optInt("segmentCount", DEFAULT_SEGMENT_COUNT)
+                            .coerceAtLeast(DEFAULT_SEGMENT_COUNT),
+                    createdAt = item.optLong("createdAt", item.optLong("updatedAt")),
+                    updatedAt = item.optLong("updatedAt"),
+                )
             result[record.appId] = record
         }
         return result
@@ -328,19 +388,20 @@ class AppLocalDataSource(
             val list = mutableListOf<DownloadSegmentRecord>()
             repeat(arr.length()) { index ->
                 val item = arr.getJSONObject(index)
-                list += DownloadSegmentRecord(
-                    segmentId = item.optString("segmentId"),
-                    taskId = item.optString("taskId"),
-                    index = item.optInt("index"),
-                    startByte = item.optLong("startByte"),
-                    endByte = item.optLong("endByte"),
-                    downloadedBytes = item.optLong("downloadedBytes"),
-                    status = item.optString("status"),
-                    tmpFilePath = item.optString("tmpFilePath"),
-                    retryCount = item.optInt("retryCount", 0),
-                    createdAt = item.optLong("createdAt"),
-                    updatedAt = item.optLong("updatedAt"),
-                )
+                list +=
+                    DownloadSegmentRecord(
+                        segmentId = item.optString("segmentId"),
+                        taskId = item.optString("taskId"),
+                        index = item.optInt("index"),
+                        startByte = item.optLong("startByte"),
+                        endByte = item.optLong("endByte"),
+                        downloadedBytes = item.optLong("downloadedBytes"),
+                        status = item.optString("status"),
+                        tmpFilePath = item.optString("tmpFilePath"),
+                        retryCount = item.optInt("retryCount", 0),
+                        createdAt = item.optLong("createdAt"),
+                        updatedAt = item.optLong("updatedAt"),
+                    )
             }
             result[appId] = list
         }
@@ -409,72 +470,85 @@ class AppLocalDataSource(
     // ==================== persist 序列化辅助方法 ====================
 
     /** 将已安装应用列表序列化为 JSON 数组。 */
-    private fun buildInstalledAppsJson(): JSONArray = JSONArray().apply {
-        installedApps.forEach { app ->
-            put(JSONObject().apply {
-                put("appId", app.appId)
-                put("packageName", app.packageName)
-                put("name", app.name)
-                put("versionName", app.versionName)
-            })
+    private fun buildInstalledAppsJson(): JSONArray =
+        JSONArray().apply {
+            installedApps.forEach { app ->
+                put(
+                    JSONObject().apply {
+                        put("appId", app.appId)
+                        put("packageName", app.packageName)
+                        put("name", app.name)
+                        put("versionName", app.versionName)
+                    },
+                )
+            }
         }
-    }
 
     /** 将下载任务序列化为 JSON 数组。 */
-    private fun buildDownloadTasksJson(): JSONArray = JSONArray().apply {
-        downloadTasks.values.forEach { task ->
-            put(JSONObject().apply {
-                put("taskId", task.taskId)
-                put("appId", task.appId)
-                put("status", task.status.name)
-                put("progress", task.progress)
-                put("targetFilePath", task.targetFilePath)
-                put("downloadedBytes", task.downloadedBytes)
-                put("totalBytes", task.totalBytes)
-                put("speedBytesPerSec", task.speedBytesPerSec)
-                put("failureCode", task.failureCode)
-                put("failureMessage", task.failureMessage)
-                put("retryCount", task.retryCount)
-                put("downloadUrl", task.downloadUrl)
-                put("tempDirPath", task.tempDirPath)
-                put("eTag", task.eTag)
-                put("lastModified", task.lastModified)
-                put("supportsRange", task.supportsRange)
-                put("checksumType", task.checksumType)
-                put("checksumValue", task.checksumValue)
-                put("segmentCount", task.segmentCount)
-                put("createdAt", task.createdAt)
-                put("updatedAt", task.updatedAt)
-            })
+    private fun buildDownloadTasksJson(): JSONArray =
+        JSONArray().apply {
+            downloadTasks.values.forEach { task ->
+                put(
+                    JSONObject().apply {
+                        put("taskId", task.taskId)
+                        put("appId", task.appId)
+                        put("status", task.status.name)
+                        put("progress", task.progress)
+                        put("targetFilePath", task.targetFilePath)
+                        put("downloadedBytes", task.downloadedBytes)
+                        put("totalBytes", task.totalBytes)
+                        put("speedBytesPerSec", task.speedBytesPerSec)
+                        put("failureCode", task.failureCode)
+                        put("failureMessage", task.failureMessage)
+                        put("retryCount", task.retryCount)
+                        put("downloadUrl", task.downloadUrl)
+                        put("tempDirPath", task.tempDirPath)
+                        put("eTag", task.eTag)
+                        put("lastModified", task.lastModified)
+                        put("supportsRange", task.supportsRange)
+                        put("checksumType", task.checksumType)
+                        put("checksumValue", task.checksumValue)
+                        put("segmentCount", task.segmentCount)
+                        put("createdAt", task.createdAt)
+                        put("updatedAt", task.updatedAt)
+                    },
+                )
+            }
         }
-    }
 
     /** 将下载分片序列化为 JSON 对象。 */
-    private fun buildDownloadSegmentsJson(): JSONObject = JSONObject().apply {
-        downloadSegments.forEach { (appId, segments) ->
-            put(appId, JSONArray().apply {
-                segments.forEach { seg ->
-                    put(JSONObject().apply {
-                        put("segmentId", seg.segmentId)
-                        put("taskId", seg.taskId)
-                        put("index", seg.index)
-                        put("startByte", seg.startByte)
-                        put("endByte", seg.endByte)
-                        put("downloadedBytes", seg.downloadedBytes)
-                        put("status", seg.status)
-                        put("tmpFilePath", seg.tmpFilePath)
-                        put("retryCount", seg.retryCount)
-                        put("createdAt", seg.createdAt)
-                        put("updatedAt", seg.updatedAt)
-                    })
-                }
-            })
+    private fun buildDownloadSegmentsJson(): JSONObject =
+        JSONObject().apply {
+            downloadSegments.forEach { (appId, segments) ->
+                put(
+                    appId,
+                    JSONArray().apply {
+                        segments.forEach { seg ->
+                            put(
+                                JSONObject().apply {
+                                    put("segmentId", seg.segmentId)
+                                    put("taskId", seg.taskId)
+                                    put("index", seg.index)
+                                    put("startByte", seg.startByte)
+                                    put("endByte", seg.endByte)
+                                    put("downloadedBytes", seg.downloadedBytes)
+                                    put("status", seg.status)
+                                    put("tmpFilePath", seg.tmpFilePath)
+                                    put("retryCount", seg.retryCount)
+                                    put("createdAt", seg.createdAt)
+                                    put("updatedAt", seg.updatedAt)
+                                },
+                            )
+                        }
+                    },
+                )
+            }
         }
-    }
 
-    private fun buildStringArray(values: List<String>): JSONArray = JSONArray().apply {
-        values.forEach { value -> put(value) }
-    }
+    private fun buildStringArray(values: List<String>): JSONArray =
+        JSONArray().apply {
+            values.forEach { value -> put(value) }
+        }
 
     /** 将 JSON 原子写入 legacy fallback 文件（先写临时文件再替换）。 */
     private fun writeLegacyStore(root: JSONObject) {
@@ -489,13 +563,13 @@ class AppLocalDataSource(
     }
 
     /** 将下载偏好编码为 JSON 字符串。 */
-    private fun encodeDownloadPreferences(value: DownloadPreferences): String {
-        return JSONObject().apply {
-            put("autoResumeOnLaunch", value.autoResumeOnLaunch)
-            put("autoRetryEnabled", value.autoRetryEnabled)
-            put("maxAutoRetryCount", value.maxAutoRetryCount)
-        }.toString()
-    }
+    private fun encodeDownloadPreferences(value: DownloadPreferences): String =
+        JSONObject()
+            .apply {
+                put("autoResumeOnLaunch", value.autoResumeOnLaunch)
+                put("autoRetryEnabled", value.autoRetryEnabled)
+                put("maxAutoRetryCount", value.maxAutoRetryCount)
+            }.toString()
 
     /** 从 JSON 字符串解码下载偏好。 */
     private fun decodeDownloadPreferences(raw: String): DownloadPreferences {
@@ -508,13 +582,13 @@ class AppLocalDataSource(
     }
 
     /** 将策略设置编码为 JSON 字符串。 */
-    private fun encodePolicySettings(value: PolicySettings): String {
-        return JSONObject().apply {
-            put("wifiConnected", value.wifiConnected)
-            put("parkingMode", value.parkingMode)
-            put("lowStorageMode", value.lowStorageMode)
-        }.toString()
-    }
+    private fun encodePolicySettings(value: PolicySettings): String =
+        JSONObject()
+            .apply {
+                put("wifiConnected", value.wifiConnected)
+                put("parkingMode", value.parkingMode)
+                put("lowStorageMode", value.lowStorageMode)
+            }.toString()
 
     /** 从 JSON 字符串解码策略设置。 */
     private fun decodePolicySettings(raw: String): PolicySettings {
@@ -530,34 +604,45 @@ class AppLocalDataSource(
 
     private fun decodeStringList(raw: String): List<String> = parseStringList(JSONArray(raw))
 
-    /** 将当前 legacy 内存镜像持久化回兼容文件。 */
-    private fun persist() {
-        legacyStoreLock.withLock {
-            val root = JSONObject().apply {
+    /** 调用方必须已持有 legacyStoreLock。将当前 legacy 内存镜像持久化回兼容文件。 */
+    private fun persistLocked() {
+        val root =
+            JSONObject().apply {
                 put("schemaVersion", LEGACY_STORE_SCHEMA_VERSION)
                 put("installedApps", buildInstalledAppsJson())
-                put("downloadedApkPaths", JSONObject().apply {
-                    downloadedApkPaths.forEach { (appId, path) -> put(appId, path) }
-                })
-                put("stagedUpgradeVersions", JSONObject().apply {
-                    stagedUpgradeVersions.forEach { (appId, version) -> put(appId, version) }
-                })
+                put(
+                    "downloadedApkPaths",
+                    JSONObject().apply {
+                        downloadedApkPaths.forEach { (appId, path) -> put(appId, path) }
+                    },
+                )
+                put(
+                    "stagedUpgradeVersions",
+                    JSONObject().apply {
+                        stagedUpgradeVersions.forEach { (appId, version) -> put(appId, version) }
+                    },
+                )
                 put("downloadTasks", buildDownloadTasksJson())
                 put("downloadSegments", buildDownloadSegmentsJson())
-                put("downloadPreferences", JSONObject().apply {
-                    put("autoResumeOnLaunch", downloadPreferences.autoResumeOnLaunch)
-                    put("autoRetryEnabled", downloadPreferences.autoRetryEnabled)
-                    put("maxAutoRetryCount", downloadPreferences.maxAutoRetryCount)
-                })
-                put("policySettings", JSONObject().apply {
-                    put("wifiConnected", policySettings.wifiConnected)
-                    put("parkingMode", policySettings.parkingMode)
-                    put("lowStorageMode", policySettings.lowStorageMode)
-                })
+                put(
+                    "downloadPreferences",
+                    JSONObject().apply {
+                        put("autoResumeOnLaunch", downloadPreferences.autoResumeOnLaunch)
+                        put("autoRetryEnabled", downloadPreferences.autoRetryEnabled)
+                        put("maxAutoRetryCount", downloadPreferences.maxAutoRetryCount)
+                    },
+                )
+                put(
+                    "policySettings",
+                    JSONObject().apply {
+                        put("wifiConnected", policySettings.wifiConnected)
+                        put("parkingMode", policySettings.parkingMode)
+                        put("lowStorageMode", policySettings.lowStorageMode)
+                    },
+                )
                 put("recentlyOpenedPackages", buildStringArray(recentlyOpenedPackages))
             }
-            writeLegacyStore(root)
-        }
+        writeLegacyStore(root)
     }
 
     private companion object {
