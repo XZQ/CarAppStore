@@ -17,6 +17,7 @@ import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.policy.PolicyResult
 import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.PrimaryAction
+import com.xzq.appstore.domain.upgrade.UpgradeBatchResult
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -215,7 +216,7 @@ class DownloadManagerViewModelTest {
 
         override suspend fun checkAllUpgrades(): List<String> = emptyList()
 
-        override suspend fun startBatchUpgrade(appIds: List<String>) = Unit
+        override suspend fun startBatchUpgrade(appIds: List<String>) = UpgradeBatchResult()
     }
 
     private class FakePolicyCenter : PolicyCenter {

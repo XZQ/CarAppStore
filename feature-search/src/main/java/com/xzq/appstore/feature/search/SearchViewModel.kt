@@ -14,6 +14,7 @@ import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class SearchViewModel(
@@ -30,22 +31,22 @@ class SearchViewModel(
     /** 用于监听页面策略变化。 */
     private val policyCenter: PolicyCenter,
     private val eventTracker: EventTracker = EventTracker(),
-) :
-    BaseViewModel<SearchUiState>(SearchUiState()) {
-
+) : BaseViewModel<SearchUiState>(SearchUiState()) {
     /** 搜索页状态订阅任务。 */
     private var observeJob: Job? = null
+
     /** 搜索页策略订阅任务。 */
     private var observePolicyJob: Job? = null
 
     /** 搜索结果和详情共用的主动作分发器。 */
-    private val primaryActionExecutor = AppPrimaryActionExecutor(
-        appManager = appManager,
-        downloadManager = downloadManager,
-        installManager = installManager,
-        upgradeManager = upgradeManager,
-        tracker = eventTracker,
-    )
+    private val primaryActionExecutor =
+        AppPrimaryActionExecutor(
+            appManager = appManager,
+            downloadManager = downloadManager,
+            installManager = installManager,
+            upgradeManager = upgradeManager,
+            tracker = eventTracker,
+        )
 
     /** 初始化搜索页数据并开始监听状态变化。 */
     fun load() {
@@ -58,24 +59,28 @@ class SearchViewModel(
 
     /** 根据关键字刷新搜索结果。 */
     fun search(keyword: String) {
-        _uiState.value = _uiState.value.copy(keyword = keyword, screenState = SearchScreenState.Loading)
+        _uiState.update { it.copy(keyword = keyword, screenState = SearchScreenState.Loading) }
         viewModelScope.launch { refresh(keyword) }
     }
 
     /** 监听页面全局状态变化，并在变化时刷新当前关键字结果。 */
     private fun observeStateChanges() {
         if (observeJob != null) return
-        observeJob = stateCenter.observeAll()
-            .onEach { refresh(_uiState.value.keyword) }
-            .launchIn(viewModelScope)
+        observeJob =
+            stateCenter
+                .observeAll()
+                .onEach { refresh(_uiState.value.keyword) }
+                .launchIn(viewModelScope)
     }
 
     /** 监听页面策略变化，并在变化时刷新当前关键字结果。 */
     private fun observePolicyChanges() {
         if (observePolicyJob != null) return
-        observePolicyJob = policyCenter.observeSettings()
-            .onEach { refresh(_uiState.value.keyword) }
-            .launchIn(viewModelScope)
+        observePolicyJob =
+            policyCenter
+                .observeSettings()
+                .onEach { refresh(_uiState.value.keyword) }
+                .launchIn(viewModelScope)
     }
 
     /** 处理搜索结果卡片主动作点击。 */
@@ -93,22 +98,29 @@ class SearchViewModel(
     private suspend fun refresh(keyword: String) {
         runCatching {
             val apps = appManager.searchApps(keyword)
-            _uiState.value.copy(
-                apps = apps,
-                policyPrompt = appManager.getPolicyPrompt(),
-                screenState = when {
+            val screen =
+                when {
                     keyword.isBlank() && apps.isEmpty() -> SearchScreenState.Idle
                     apps.isEmpty() -> SearchScreenState.Empty
                     else -> SearchScreenState.Content
-                },
-            )
-        }.onSuccess { _uiState.value = it }
-            .onFailure { throwable ->
-                _uiState.value = _uiState.value.copy(
+                }
+            apps to screen
+        }.onSuccess { (apps, screen) ->
+            _uiState.update {
+                it.copy(
+                    apps = apps,
+                    policyPrompt = appManager.getPolicyPrompt(),
+                    screenState = screen,
+                )
+            }
+        }.onFailure { throwable ->
+            _uiState.update {
+                it.copy(
                     apps = emptyList(),
                     policyPrompt = "",
                     screenState = SearchScreenState.Error(throwable.message.orEmpty()),
                 )
             }
+        }
     }
 }

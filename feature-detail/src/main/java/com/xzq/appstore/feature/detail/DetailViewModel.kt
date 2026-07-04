@@ -14,6 +14,7 @@ import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class DetailViewModel(
@@ -31,39 +32,53 @@ class DetailViewModel(
     private val policyCenter: PolicyCenter,
     private val eventTracker: EventTracker = EventTracker(),
 ) : BaseViewModel<DetailUiState>(DetailUiState()) {
-
     /** 当前详情页正在展示的应用 id。 */
     private lateinit var currentAppId: String
-    /** 策略订阅任务。 */
+
+    /** 详情页应用运行态订阅任务，重复 load 时先取消以避免累积 collector。 */
+    private var observeStateJob: Job? = null
+
+    /** 详情页策略订阅任务。 */
     private var observePolicyJob: Job? = null
 
     /** 详情页与卡片共用的主动作分发器。 */
-    private val primaryActionExecutor = AppPrimaryActionExecutor(
-        appManager = appManager,
-        downloadManager = downloadManager,
-        installManager = installManager,
-        upgradeManager = upgradeManager,
-        tracker = eventTracker,
-    )
+    private val primaryActionExecutor =
+        AppPrimaryActionExecutor(
+            appManager = appManager,
+            downloadManager = downloadManager,
+            installManager = installManager,
+            upgradeManager = upgradeManager,
+            tracker = eventTracker,
+        )
 
-    /** 加载指定应用的详情页数据，并订阅其运行态。 */
+    /** 加载指定应用的详情页数据，并订阅其运行态。重复调用会先取消上一次订阅，避免 collector 累积。 */
     fun load(appId: String) {
         currentAppId = appId
-        viewModelScope.launch {
-            loadDetail(appId)
-        }
-        stateCenter.observe(appId)
-            .onEach { appState ->
-                // 页面只消费已经归一化的状态文本、主按钮和进度，不自己做业务判断。
-                _uiState.value = _uiState.value.copy(
-                    stateText = appState.statusText,
-                    statusTone = CarUiStyle.resolveStatusTone(appState),
-                    primaryAction = appState.primaryAction,
-                    progress = appState.progress,
-                )
-            }
-            .launchIn(viewModelScope)
-        observePolicyChanges()
+        observeStateJob?.cancel()
+        observePolicyJob?.cancel()
+        observeStateJob =
+            stateCenter
+                .observe(appId)
+                .onEach { appState ->
+                    // 页面只消费已经归一化的状态文本、主按钮和进度，不自己做业务判断。
+                    _uiState.update {
+                        it.copy(
+                            stateText = appState.statusText,
+                            statusTone = CarUiStyle.resolveStatusTone(appState),
+                            primaryAction = appState.primaryAction,
+                            progress = appState.progress,
+                        )
+                    }
+                }.launchIn(viewModelScope)
+        observePolicyJob =
+            policyCenter
+                .observeSettings()
+                .onEach {
+                    if (::currentAppId.isInitialized) {
+                        _uiState.update { it.copy(policyPrompt = appManager.getPolicyPrompt()) }
+                    }
+                }.launchIn(viewModelScope)
+        viewModelScope.launch { loadDetail(appId) }
     }
 
     /** 处理详情页主按钮点击。 */
@@ -79,34 +94,27 @@ class DetailViewModel(
 
     /** 加载详情页数据并同步升级可用性。 */
     private suspend fun loadDetail(appId: String) {
-        _uiState.value = _uiState.value.copy(screenState = DetailScreenState.Loading)
+        _uiState.update { it.copy(screenState = DetailScreenState.Loading) }
         runCatching {
             val detail = appManager.getAppDetail(appId)
             upgradeManager.checkUpgrade(appId)
-            _uiState.value.copy(
-                appDetail = detail,
-                screenState = DetailScreenState.Content,
-                policyPrompt = appManager.getPolicyPrompt(),
-            )
-        }.onSuccess { _uiState.value = it }
-            .onFailure { throwable ->
-                _uiState.value = _uiState.value.copy(
+            detail
+        }.onSuccess { detail ->
+            _uiState.update {
+                it.copy(
+                    appDetail = detail,
+                    screenState = DetailScreenState.Content,
+                    policyPrompt = appManager.getPolicyPrompt(),
+                )
+            }
+        }.onFailure { throwable ->
+            _uiState.update {
+                it.copy(
                     appDetail = null,
                     screenState = DetailScreenState.Error(throwable.message.orEmpty()),
                     policyPrompt = "",
                 )
             }
-    }
-
-    /** 监听页面策略变化，并在变化时刷新当前提示。 */
-    private fun observePolicyChanges() {
-        if (observePolicyJob != null) return
-        observePolicyJob = policyCenter.observeSettings()
-            .onEach {
-                if (::currentAppId.isInitialized) {
-                    _uiState.value = _uiState.value.copy(policyPrompt = appManager.getPolicyPrompt())
-                }
-            }
-            .launchIn(viewModelScope)
+        }
     }
 }

@@ -11,6 +11,7 @@ import com.xzq.appstore.data.model.UpgradeTaskViewData
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.PrimaryAction
+import com.xzq.appstore.domain.upgrade.UpgradeBatchResult
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,75 +30,82 @@ import org.junit.runner.Description
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class UpgradeViewModelTest {
-
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `load 有任务时会进入内容态`() = runTest {
-        val viewModel = UpgradeViewModel(
-            appManager = FakeAppManager(),
-            stateCenter = DefaultStateCenter(),
-            upgradeManager = RecordingUpgradeManager(),
-        )
+    fun `load 有任务时会进入内容态`() =
+        runTest {
+            val viewModel =
+                UpgradeViewModel(
+                    appManager = FakeAppManager(),
+                    stateCenter = DefaultStateCenter(),
+                    upgradeManager = RecordingUpgradeManager(),
+                )
 
-        viewModel.load()
-        advanceUntilIdle()
+            viewModel.load()
+            advanceUntilIdle()
 
-        assertEquals(UpgradeScreenState.Content, viewModel.uiState.value.screenState)
-        assertEquals(2, viewModel.uiState.value.availableCount)
-    }
-
-    @Test
-    fun `onPrimaryClick 为升级动作时会发起升级`() = runTest {
-        val appManager = FakeAppManager()
-        val upgradeManager = RecordingUpgradeManager()
-        val viewModel = UpgradeViewModel(
-            appManager = appManager,
-            stateCenter = DefaultStateCenter(),
-            upgradeManager = upgradeManager,
-        )
-
-        viewModel.onPrimaryClick(TEST_UPGRADE_TASK)
-        advanceUntilIdle()
-
-        assertEquals(TEST_UPGRADE_TASK.appId, upgradeManager.startedUpgradeAppId)
-        assertNull(appManager.openedPackageName)
-    }
+            assertEquals(UpgradeScreenState.Content, viewModel.uiState.value.screenState)
+            assertEquals(2, viewModel.uiState.value.availableCount)
+        }
 
     @Test
-    fun `onPrimaryClick 为打开动作时会打开应用`() = runTest {
-        val appManager = FakeAppManager()
-        val upgradeManager = RecordingUpgradeManager()
-        val viewModel = UpgradeViewModel(
-            appManager = appManager,
-            stateCenter = DefaultStateCenter(),
-            upgradeManager = upgradeManager,
-        )
+    fun `onPrimaryClick 为升级动作时会发起升级`() =
+        runTest {
+            val appManager = FakeAppManager()
+            val upgradeManager = RecordingUpgradeManager()
+            val viewModel =
+                UpgradeViewModel(
+                    appManager = appManager,
+                    stateCenter = DefaultStateCenter(),
+                    upgradeManager = upgradeManager,
+                )
 
-        viewModel.onPrimaryClick(TEST_OPEN_TASK)
-        advanceUntilIdle()
+            viewModel.onPrimaryClick(TEST_UPGRADE_TASK)
+            advanceUntilIdle()
 
-        assertEquals(TEST_OPEN_TASK.packageName, appManager.openedPackageName)
-        assertNull(upgradeManager.startedUpgradeAppId)
-    }
+            assertEquals(TEST_UPGRADE_TASK.appId, upgradeManager.startedUpgradeAppId)
+            assertNull(appManager.openedPackageName)
+        }
 
     @Test
-    fun `load 失败时会进入错误态`() = runTest {
-        val viewModel = UpgradeViewModel(
-            appManager = FailingAppManager(),
-            stateCenter = DefaultStateCenter(),
-            upgradeManager = RecordingUpgradeManager(),
-        )
+    fun `onPrimaryClick 为打开动作时会打开应用`() =
+        runTest {
+            val appManager = FakeAppManager()
+            val upgradeManager = RecordingUpgradeManager()
+            val viewModel =
+                UpgradeViewModel(
+                    appManager = appManager,
+                    stateCenter = DefaultStateCenter(),
+                    upgradeManager = upgradeManager,
+                )
 
-        viewModel.load()
-        advanceUntilIdle()
+            viewModel.onPrimaryClick(TEST_OPEN_TASK)
+            advanceUntilIdle()
 
-        assertEquals(
-            UpgradeScreenState.Error("upgrade tasks unavailable"),
-            viewModel.uiState.value.screenState,
-        )
-    }
+            assertEquals(TEST_OPEN_TASK.packageName, appManager.openedPackageName)
+            assertNull(upgradeManager.startedUpgradeAppId)
+        }
+
+    @Test
+    fun `load 失败时会进入错误态`() =
+        runTest {
+            val viewModel =
+                UpgradeViewModel(
+                    appManager = FailingAppManager(),
+                    stateCenter = DefaultStateCenter(),
+                    upgradeManager = RecordingUpgradeManager(),
+                )
+
+            viewModel.load()
+            advanceUntilIdle()
+
+            assertEquals(
+                UpgradeScreenState.Error("upgrade tasks unavailable"),
+                viewModel.uiState.value.screenState,
+            )
+        }
 
     private open class FakeAppManager : AppManager {
         /** 最近一次被请求打开的包名。 */
@@ -153,7 +161,7 @@ class UpgradeViewModelTest {
 
         override suspend fun checkAllUpgrades(): List<String> = emptyList()
 
-        override suspend fun startBatchUpgrade(appIds: List<String>) = Unit
+        override suspend fun startBatchUpgrade(appIds: List<String>) = UpgradeBatchResult()
     }
 
     class MainDispatcherRule(
@@ -171,39 +179,42 @@ class UpgradeViewModelTest {
 
     private companion object {
         /** 测试详情模型。 */
-        val TEST_APP_DETAIL = AppDetail(
-            appId = "demo.upgrade.center",
-            packageName = "com.nio.demo.upgrade.center",
-            name = "Upgrade Center",
-            description = "upgrade center test app",
-            versionName = "1.0.0",
-            apkUrl = "https://example.com/upgrade-center.apk",
-        )
+        val TEST_APP_DETAIL =
+            AppDetail(
+                appId = "demo.upgrade.center",
+                packageName = "com.nio.demo.upgrade.center",
+                name = "Upgrade Center",
+                description = "upgrade center test app",
+                versionName = "1.0.0",
+                apkUrl = "https://example.com/upgrade-center.apk",
+            )
 
         /** 升级动作任务。 */
-        val TEST_UPGRADE_TASK = UpgradeTaskViewData(
-            appId = "demo.upgrade.task",
-            packageName = "com.nio.demo.upgrade.task",
-            name = "Upgrade Task",
-            currentVersion = "1.0.0",
-            targetVersion = "2.0.0",
-            stateText = "可升级",
-            statusTone = StatusTone.WARNING,
-            overallStatus = TaskOverallStatus.PENDING,
-            primaryAction = PrimaryAction.UPGRADE,
-        )
+        val TEST_UPGRADE_TASK =
+            UpgradeTaskViewData(
+                appId = "demo.upgrade.task",
+                packageName = "com.nio.demo.upgrade.task",
+                name = "Upgrade Task",
+                currentVersion = "1.0.0",
+                targetVersion = "2.0.0",
+                stateText = "可升级",
+                statusTone = StatusTone.WARNING,
+                overallStatus = TaskOverallStatus.PENDING,
+                primaryAction = PrimaryAction.UPGRADE,
+            )
 
         /** 打开动作任务。 */
-        val TEST_OPEN_TASK = UpgradeTaskViewData(
-            appId = "demo.open.task",
-            packageName = "com.nio.demo.open.task",
-            name = "Open Task",
-            currentVersion = "2.0.0",
-            targetVersion = "2.0.0",
-            stateText = "已升级",
-            statusTone = StatusTone.SUCCESS,
-            overallStatus = TaskOverallStatus.COMPLETED,
-            primaryAction = PrimaryAction.OPEN,
-        )
+        val TEST_OPEN_TASK =
+            UpgradeTaskViewData(
+                appId = "demo.open.task",
+                packageName = "com.nio.demo.open.task",
+                name = "Open Task",
+                currentVersion = "2.0.0",
+                targetVersion = "2.0.0",
+                stateText = "已升级",
+                statusTone = StatusTone.SUCCESS,
+                overallStatus = TaskOverallStatus.COMPLETED,
+                primaryAction = PrimaryAction.OPEN,
+            )
     }
 }

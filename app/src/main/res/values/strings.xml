@@ -15,4 +15,10 @@
     <string name="upgrade">升级</string>
     <string name="go_my_apps">我的应用</string>
     <string name="back_home">返回首页</string>
+
+    <!-- 桌面侧栏任务摘要 -->
+    <string name="task_label_download">下载</string>
+    <string name="task_label_install">安装</string>
+    <string name="task_label_upgrade">升级</string>
+    <string name="task_summary_line_format">%1$s：运行 %2$d，待处理 %3$d，失败 %4$d，完成 %5$d</string>
 </resources>

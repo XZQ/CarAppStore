@@ -1,7 +1,9 @@
 package com.xzq.appstore.app
 
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
+import android.widget.TextView
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
@@ -12,8 +14,8 @@ import com.xzq.appstore.R
 import com.xzq.appstore.common.base.AppContainerProvider
 import com.xzq.appstore.data.model.TaskCenterStats
 import com.xzq.appstore.databinding.ActivityMainBinding
-import com.xzq.appstore.feature.detail.DetailFragment
 import com.xzq.appstore.feature.debug.DeveloperSettingsFragment
+import com.xzq.appstore.feature.detail.DetailFragment
 import com.xzq.appstore.feature.downloadmanager.DownloadManagerFragment
 import com.xzq.appstore.feature.home.HomeFragment
 import com.xzq.appstore.feature.installcenter.InstallCenterFragment
@@ -26,18 +28,21 @@ import kotlinx.coroutines.launch
 /**
  * MainActivity 是当前 app 壳层的主页面。
  *
- * 它的职责尽量控制在：
- * 1. 承载顶部导航与 Fragment 容器；
- * 2. 实现 MainNavigator；
- * 3. 统一处理页面切换时的标题与导航按钮态。
+ * 多端契约：
+ * - phone / sw600dp：只有 bottomNav 中的 4 个一级按钮（Home / Search / Download / MyApps）。
+ * - sw900dp-land：完整 navigationRail + 右侧 desktopSidePanel，附带
+ *   Upgrade/Install/Essential/Debug/DesktopDownload 与 tvDesktopSummary* 视图。
  *
- * M4 阶段把重复的 FragmentTransaction 收敛到了 navigateTo，
- * 这样壳层代码更像“统一装配 + 导航控制”，而不是到处散着重复事务代码。
+ * 因此 tvDesktopSummaryTitle/Body 与 btnNavUpgrade/Install/Essential/Debug/DesktopDownload
+ * 只在桌面壳层真实存在；本类用 [optionalButton] / [optionalTextView] 做 nullable 查找，
+ * 避免在 phone 布局里塞 0×0 占位视图（旧实现会导致按钮被设点击事件但用户看不见）。
  */
-class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.MainNavigator {
-
+class MainActivity :
+    AppCompatActivity(),
+    com.xzq.appstore.common.navigation.MainNavigator {
     /** 主页面的 ViewBinding。 */
     private lateinit var binding: ActivityMainBinding
+
     /** 从应用壳层获取的共享服务入口。 */
     private val appServices get() = (applicationContext as AppContainerProvider).appServices
 
@@ -80,7 +85,10 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
         openCatalog(CatalogPage.Game, binding.btnNavSearch)
     }
 
-    private fun openCatalog(page: CatalogPage, selectedButton: Button?) {
+    private fun openCatalog(
+        page: CatalogPage,
+        selectedButton: Button?,
+    ) {
         navigateTo(
             fragment = SearchFragment.newInstance(page),
             title = page.title,
@@ -93,7 +101,7 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
         navigateTo(
             fragment = DownloadManagerFragment.newInstance(),
             titleRes = R.string.title_download_manager,
-            selectedButton = binding.btnNavDesktopDownload,
+            selectedButton = optionalButton(R.id.btnNavDesktopDownload),
         )
     }
 
@@ -102,7 +110,7 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
         navigateTo(
             fragment = UpgradeFragment.newInstance(),
             titleRes = R.string.title_upgrade,
-            selectedButton = binding.btnNavUpgrade,
+            selectedButton = optionalButton(R.id.btnNavUpgrade),
         )
     }
 
@@ -111,7 +119,7 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
         navigateTo(
             fragment = InstallCenterFragment.newInstance(),
             titleRes = R.string.title_install_manager,
-            selectedButton = binding.btnNavInstall,
+            selectedButton = optionalButton(R.id.btnNavInstall),
         )
     }
 
@@ -120,7 +128,7 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
         navigateTo(
             fragment = DeveloperSettingsFragment.newInstance(),
             titleRes = R.string.title_developer_settings,
-            selectedButton = binding.btnNavDebug,
+            selectedButton = optionalButton(R.id.btnNavDebug),
         )
     }
 
@@ -145,19 +153,27 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
     /**
      * 统一绑定顶部导航点击事件。
      *
-     * 这样 onCreate 不会被一长串 setOnClickListener 淹没，
-     * 也更符合“壳层做装配”的角色。
+     * 桌面专属按钮（Upgrade/Install/Essential/Debug/DesktopDownload）只在桌面壳层存在，
+     * 因此通过 [optionalButton] nullable 查找后再绑定，避免 phone 布局被绑定到隐形按钮。
      */
     private fun bindNavigationClicks() {
         binding.btnNavHome.setOnClickListener { openHome() }
         binding.btnNavSearch.setOnClickListener { openGame() }
         binding.btnNavDownload.setOnClickListener { openSearch() }
-        binding.btnNavUpgrade.setOnClickListener { openCatalog(CatalogPage.Category, binding.btnNavUpgrade) }
-        binding.btnNavInstall.setOnClickListener { openCatalog(CatalogPage.Rank, binding.btnNavInstall) }
-        binding.btnNavEssential.setOnClickListener { openCatalog(CatalogPage.Essential, binding.btnNavEssential) }
         binding.btnNavMyApps.setOnClickListener { openMyApps() }
-        binding.btnNavDebug.setOnClickListener { openCatalog(CatalogPage.Activity, binding.btnNavDebug) }
-        binding.btnNavDesktopDownload.setOnClickListener { openDownloadManager() }
+        optionalButton(R.id.btnNavUpgrade)?.setOnClickListener {
+            openCatalog(CatalogPage.Category, optionalButton(R.id.btnNavUpgrade))
+        }
+        optionalButton(R.id.btnNavInstall)?.setOnClickListener {
+            openCatalog(CatalogPage.Rank, optionalButton(R.id.btnNavInstall))
+        }
+        optionalButton(R.id.btnNavEssential)?.setOnClickListener {
+            openCatalog(CatalogPage.Essential, optionalButton(R.id.btnNavEssential))
+        }
+        optionalButton(R.id.btnNavDebug)?.setOnClickListener {
+            openCatalog(CatalogPage.Activity, optionalButton(R.id.btnNavDebug))
+        }
+        optionalButton(R.id.btnNavDesktopDownload)?.setOnClickListener { openDownloadManager() }
     }
 
     /**
@@ -184,28 +200,38 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
     }
 
     private suspend fun updateTaskSummary() {
+        val titleView = optionalTextView(R.id.tvDesktopSummaryTitle) ?: return
+        val bodyView = optionalTextView(R.id.tvDesktopSummaryBody) ?: return
         val downloadStats = appServices.appManager.getDownloadTaskStats()
         val installStats = appServices.appManager.getInstallTaskStats()
         val upgradeStats = appServices.appManager.getUpgradeTaskStats()
-        binding.tvDesktopSummaryTitle.text = "任务总览"
-        binding.tvDesktopSummaryBody.text = buildTaskSummaryBody(downloadStats, installStats, upgradeStats)
+        titleView.text = getString(com.xzq.appstore.common.R.string.ui_task_summary)
+        bodyView.text = buildTaskSummaryBody(downloadStats, installStats, upgradeStats)
     }
 
     private fun buildTaskSummaryBody(
         downloadStats: TaskCenterStats,
         installStats: TaskCenterStats,
         upgradeStats: TaskCenterStats,
-    ): String {
-        return listOf(
-            formatTaskStats("下载", downloadStats),
-            formatTaskStats("安装", installStats),
-            formatTaskStats("升级", upgradeStats),
+    ): String =
+        listOf(
+            formatTaskStats(getString(R.string.task_label_download), downloadStats),
+            formatTaskStats(getString(R.string.task_label_install), installStats),
+            formatTaskStats(getString(R.string.task_label_upgrade), upgradeStats),
         ).joinToString("\n")
-    }
 
-    private fun formatTaskStats(label: String, stats: TaskCenterStats): String {
-        return "$label：运行 ${stats.activeCount}，待处理 ${stats.pendingCount}，失败 ${stats.failedCount}，完成 ${stats.completedCount}"
-    }
+    private fun formatTaskStats(
+        label: String,
+        stats: TaskCenterStats,
+    ): String =
+        getString(
+            R.string.task_summary_line_format,
+            label,
+            stats.activeCount,
+            stats.pendingCount,
+            stats.failedCount,
+            stats.completedCount,
+        )
 
     /**
      * 统一进行页面切换。
@@ -235,14 +261,14 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
         selectedButton: Button?,
         addToBackStack: Boolean = true,
     ) {
-        supportFragmentManager.beginTransaction()
+        supportFragmentManager
+            .beginTransaction()
             .replace(R.id.fragmentContainer, fragment)
             .apply {
                 if (addToBackStack) {
                     addToBackStack(null)
                 }
-            }
-            .commit()
+            }.commit()
 
         updateTitle(title)
         selectNav(selectedButton)
@@ -253,29 +279,35 @@ class MainActivity : AppCompatActivity(), com.xzq.appstore.common.navigation.Mai
         appServices.eventTracker.track("page_view_${title.toEventToken()}")
     }
 
-    private fun String.toEventToken(): String {
-        return trim().replace(Regex("\\s+"), "_").ifBlank { "unknown" }
-    }
+    private fun String.toEventToken(): String = trim().replace(Regex("\\s+"), "_").ifBlank { "unknown" }
 
     /**
      * 统一处理导航按钮选中态。
      *
-     * 壳层只维护一级导航按钮的显隐与选中，不感知业务状态。
+     * 壳层只维护一级导航按钮的显隐与选中，不感知业务状态；桌面专属按钮不存在时跳过。
      */
     private fun selectNav(selected: Button?) {
-        val buttons = listOf(
-            binding.btnNavHome,
-            binding.btnNavSearch,
-            binding.btnNavDownload,
-            binding.btnNavUpgrade,
-            binding.btnNavInstall,
-            binding.btnNavEssential,
-            binding.btnNavMyApps,
-            binding.btnNavDebug,
-            binding.btnNavDesktopDownload,
-        )
-        buttons.forEach { button ->
+        val ids =
+            listOf(
+                R.id.btnNavHome,
+                R.id.btnNavSearch,
+                R.id.btnNavDownload,
+                R.id.btnNavUpgrade,
+                R.id.btnNavInstall,
+                R.id.btnNavEssential,
+                R.id.btnNavMyApps,
+                R.id.btnNavDebug,
+                R.id.btnNavDesktopDownload,
+            )
+        ids.forEach { id ->
+            val button = optionalButton(id) ?: return@forEach
             button.isSelected = button == selected
         }
     }
+
+    /** 按 id 查找可选 Button，桌面专属按钮在 phone/sw600dp 布局中不存在时返回 null。 */
+    private fun optionalButton(id: Int): Button? = binding.root.findViewById<View?>(id) as? Button
+
+    /** 按 id 查找可选 TextView，桌面侧栏标题在 phone/sw600dp 布局中不存在时返回 null。 */
+    private fun optionalTextView(id: Int): TextView? = binding.root.findViewById<View?>(id) as? TextView
 }

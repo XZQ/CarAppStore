@@ -7,6 +7,7 @@ import com.xzq.appstore.domain.state.StateCenter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class MyAppViewModel(
@@ -14,9 +15,7 @@ class MyAppViewModel(
     private val appManager: AppManager,
     /** 用于监听全局状态变化。 */
     private val stateCenter: StateCenter,
-) :
-    BaseViewModel<MyAppUiState>(MyAppUiState()) {
-
+) : BaseViewModel<MyAppUiState>(MyAppUiState()) {
     /** “我的应用”状态订阅任务。 */
     private var observeJob: Job? = null
 
@@ -31,17 +30,18 @@ class MyAppViewModel(
     /** 监听页面全局状态变化，并在变化时刷新列表。 */
     private fun observeStateChanges() {
         if (observeJob != null) return
-        observeJob = stateCenter.observeAll()
-            .onEach {
-                refreshApps()
-            }
-            .launchIn(viewModelScope)
+        observeJob =
+            stateCenter
+                .observeAll()
+                .onEach {
+                    refreshApps()
+                }.launchIn(viewModelScope)
     }
 
     /** 重新加载“我的应用”列表。 */
     private suspend fun refreshApps(showLoading: Boolean = false) {
         if (showLoading) {
-            _uiState.value = _uiState.value.copy(screenState = MyAppScreenState.Loading)
+            _uiState.update { it.copy(screenState = MyAppScreenState.Loading) }
         }
         runCatching {
             val apps = appManager.getMyApps()
@@ -51,9 +51,10 @@ class MyAppViewModel(
             )
         }.onSuccess { _uiState.value = it }
             .onFailure { throwable ->
-                _uiState.value = MyAppUiState(
-                    screenState = MyAppScreenState.Error(throwable.message.orEmpty()),
-                )
+                _uiState.value =
+                    MyAppUiState(
+                        screenState = MyAppScreenState.Error(throwable.message.orEmpty()),
+                    )
             }
     }
 }

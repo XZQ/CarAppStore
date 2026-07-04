@@ -14,6 +14,7 @@ import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.install.InstallManager
 import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.PrimaryAction
+import com.xzq.appstore.domain.upgrade.UpgradeBatchResult
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,62 +33,67 @@ import java.nio.file.Files
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class InstallCenterViewModelTest {
-
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `load 有任务时会进入内容态`() = runTest {
-        val viewModel = InstallCenterViewModel(
-            appManager = FakeAppManager(),
-            stateCenter = DefaultStateCenter(),
-            installManager = RecordingInstallManager(),
-            upgradeManager = RecordingUpgradeManager(),
-            installSessionStore = InstallSessionStore(Files.createTempFile("install-center-load", ".json").toFile()),
-        )
+    fun `load 有任务时会进入内容态`() =
+        runTest {
+            val viewModel =
+                InstallCenterViewModel(
+                    appManager = FakeAppManager(),
+                    stateCenter = DefaultStateCenter(),
+                    installManager = RecordingInstallManager(),
+                    upgradeManager = RecordingUpgradeManager(),
+                    installSessionStore = InstallSessionStore(Files.createTempFile("install-center-load", ".json").toFile()),
+                )
 
-        viewModel.load()
-        advanceUntilIdle()
+            viewModel.load()
+            advanceUntilIdle()
 
-        assertEquals(InstallCenterScreenState.Content, viewModel.uiState.value.screenState)
-        assertEquals(1, viewModel.uiState.value.tasks.size)
-    }
-
-    @Test
-    fun `onPrimaryClick 为重试安装动作时会发起安装`() = runTest {
-        val installManager = RecordingInstallManager()
-        val viewModel = InstallCenterViewModel(
-            appManager = FakeAppManager(),
-            stateCenter = DefaultStateCenter(),
-            installManager = installManager,
-            upgradeManager = RecordingUpgradeManager(),
-            installSessionStore = InstallSessionStore(Files.createTempFile("install-center", ".json").toFile()),
-        )
-
-        viewModel.onPrimaryClick(TEST_RETRY_INSTALL_TASK.appId, TEST_RETRY_INSTALL_TASK.primaryAction)
-        advanceUntilIdle()
-
-        assertEquals(TEST_RETRY_INSTALL_TASK.appId, installManager.installedAppId)
-    }
+            assertEquals(InstallCenterScreenState.Content, viewModel.uiState.value.screenState)
+            assertEquals(1, viewModel.uiState.value.tasks.size)
+        }
 
     @Test
-    fun `load 失败时会进入错误态`() = runTest {
-        val viewModel = InstallCenterViewModel(
-            appManager = FailingAppManager(),
-            stateCenter = DefaultStateCenter(),
-            installManager = RecordingInstallManager(),
-            upgradeManager = RecordingUpgradeManager(),
-            installSessionStore = InstallSessionStore(Files.createTempFile("install-center-fail", ".json").toFile()),
-        )
+    fun `onPrimaryClick 为重试安装动作时会发起安装`() =
+        runTest {
+            val installManager = RecordingInstallManager()
+            val viewModel =
+                InstallCenterViewModel(
+                    appManager = FakeAppManager(),
+                    stateCenter = DefaultStateCenter(),
+                    installManager = installManager,
+                    upgradeManager = RecordingUpgradeManager(),
+                    installSessionStore = InstallSessionStore(Files.createTempFile("install-center", ".json").toFile()),
+                )
 
-        viewModel.load()
-        advanceUntilIdle()
+            viewModel.onPrimaryClick(TEST_RETRY_INSTALL_TASK.appId, TEST_RETRY_INSTALL_TASK.primaryAction)
+            advanceUntilIdle()
 
-        assertEquals(
-            InstallCenterScreenState.Error("install tasks unavailable"),
-            viewModel.uiState.value.screenState,
-        )
-    }
+            assertEquals(TEST_RETRY_INSTALL_TASK.appId, installManager.installedAppId)
+        }
+
+    @Test
+    fun `load 失败时会进入错误态`() =
+        runTest {
+            val viewModel =
+                InstallCenterViewModel(
+                    appManager = FailingAppManager(),
+                    stateCenter = DefaultStateCenter(),
+                    installManager = RecordingInstallManager(),
+                    upgradeManager = RecordingUpgradeManager(),
+                    installSessionStore = InstallSessionStore(Files.createTempFile("install-center-fail", ".json").toFile()),
+                )
+
+            viewModel.load()
+            advanceUntilIdle()
+
+            assertEquals(
+                InstallCenterScreenState.Error("install tasks unavailable"),
+                viewModel.uiState.value.screenState,
+            )
+        }
 
     private open class FakeAppManager : AppManager {
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
@@ -143,7 +149,7 @@ class InstallCenterViewModelTest {
 
         override suspend fun checkAllUpgrades(): List<String> = emptyList()
 
-        override suspend fun startBatchUpgrade(appIds: List<String>) = Unit
+        override suspend fun startBatchUpgrade(appIds: List<String>) = UpgradeBatchResult()
     }
 
     class MainDispatcherRule(
@@ -161,27 +167,29 @@ class InstallCenterViewModelTest {
 
     private companion object {
         /** 测试详情模型。 */
-        val TEST_APP_DETAIL = AppDetail(
-            appId = "demo.install.center",
-            packageName = "com.nio.demo.install.center",
-            name = "Install Center",
-            description = "install center test app",
-            versionName = "1.0.0",
-            apkUrl = "https://example.com/install-center.apk",
-        )
+        val TEST_APP_DETAIL =
+            AppDetail(
+                appId = "demo.install.center",
+                packageName = "com.nio.demo.install.center",
+                name = "Install Center",
+                description = "install center test app",
+                versionName = "1.0.0",
+                apkUrl = "https://example.com/install-center.apk",
+            )
 
         /** 可重试安装任务。 */
-        val TEST_RETRY_INSTALL_TASK = InstallTaskViewData(
-            appId = "demo.retry.install",
-            packageName = "com.nio.demo.retry.install",
-            name = "Retry Install",
-            versionName = "1.0.1",
-            stateText = "安装失败",
-            statusTone = StatusTone.ERROR,
-            overallStatus = TaskOverallStatus.FAILED,
-            primaryAction = PrimaryAction.RETRY_INSTALL,
-            reasonText = "安装中断",
-            sessionBucket = SessionBucket.FAILED,
-        )
+        val TEST_RETRY_INSTALL_TASK =
+            InstallTaskViewData(
+                appId = "demo.retry.install",
+                packageName = "com.nio.demo.retry.install",
+                name = "Retry Install",
+                versionName = "1.0.1",
+                stateText = "安装失败",
+                statusTone = StatusTone.ERROR,
+                overallStatus = TaskOverallStatus.FAILED,
+                primaryAction = PrimaryAction.RETRY_INSTALL,
+                reasonText = "安装中断",
+                sessionBucket = SessionBucket.FAILED,
+            )
     }
 }
