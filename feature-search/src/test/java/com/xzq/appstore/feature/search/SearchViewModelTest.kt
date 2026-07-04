@@ -1,19 +1,5 @@
 package com.xzq.appstore.feature.search
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Rule
-import org.junit.Test
-import org.junit.rules.TestWatcher
-import org.junit.runner.Description
 import com.xzq.appstore.common.ui.StatusTone
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppViewData
@@ -30,81 +16,100 @@ import com.xzq.appstore.domain.policy.PolicyResult
 import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TestWatcher
+import org.junit.runner.Description
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelTest {
-
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `onPrimaryClick 为恢复动作时会恢复下载`() = runTest {
-        val downloadManager = RecordingDownloadManager()
-        val installManager = RecordingInstallManager()
-        val upgradeManager = RecordingUpgradeManager()
-        val viewModel = SearchViewModel(
-            appManager = FakeAppManager(),
-            stateCenter = DefaultStateCenter(),
-            downloadManager = downloadManager,
-            installManager = installManager,
-            upgradeManager = upgradeManager,
-            policyCenter = FakePolicyCenter(),
-        )
+    fun `onPrimaryClick 为恢复动作时会恢复下载`() =
+        runTest {
+            val downloadManager = RecordingDownloadManager()
+            val installManager = RecordingInstallManager()
+            val upgradeManager = RecordingUpgradeManager()
+            val viewModel =
+                SearchViewModel(
+                    appManager = FakeAppManager(),
+                    stateCenter = DefaultStateCenter(),
+                    downloadManager = downloadManager,
+                    installManager = installManager,
+                    upgradeManager = upgradeManager,
+                    policyCenter = FakePolicyCenter(),
+                )
 
-        viewModel.onPrimaryClick(TEST_RESUME_APP)
-        advanceUntilIdle()
+            viewModel.onPrimaryClick(TEST_RESUME_APP)
+            advanceUntilIdle()
 
-        assertEquals(TEST_RESUME_APP.appId, downloadManager.resumedAppId)
-        assertNull(installManager.installedAppId)
-        assertNull(upgradeManager.startedUpgradeAppId)
-    }
-
-    @Test
-    fun `onPrimaryClick 为升级动作时会启动升级`() = runTest {
-        val downloadManager = RecordingDownloadManager()
-        val installManager = RecordingInstallManager()
-        val upgradeManager = RecordingUpgradeManager()
-        val viewModel = SearchViewModel(
-            appManager = FakeAppManager(),
-            stateCenter = DefaultStateCenter(),
-            downloadManager = downloadManager,
-            installManager = installManager,
-            upgradeManager = upgradeManager,
-            policyCenter = FakePolicyCenter(),
-        )
-
-        viewModel.onPrimaryClick(TEST_UPGRADE_APP)
-        advanceUntilIdle()
-
-        assertEquals(TEST_UPGRADE_APP.appId, upgradeManager.startedUpgradeAppId)
-        assertNull(downloadManager.startedAppId)
-        assertNull(installManager.installedAppId)
-    }
+            assertEquals(TEST_RESUME_APP.appId, downloadManager.resumedAppIds.single())
+            assertTrue(installManager.installedAppIds.isEmpty())
+            assertTrue(upgradeManager.startedUpgradeAppIds.isEmpty())
+        }
 
     @Test
-    fun `onPrimaryClick 为禁用动作时不会触发任何业务入口`() = runTest {
-        val downloadManager = RecordingDownloadManager()
-        val installManager = RecordingInstallManager()
-        val upgradeManager = RecordingUpgradeManager()
-        val viewModel = SearchViewModel(
-            appManager = FakeAppManager(),
-            stateCenter = DefaultStateCenter(),
-            downloadManager = downloadManager,
-            installManager = installManager,
-            upgradeManager = upgradeManager,
-            policyCenter = FakePolicyCenter(),
-        )
+    fun `onPrimaryClick 为升级动作时会启动升级`() =
+        runTest {
+            val downloadManager = RecordingDownloadManager()
+            val installManager = RecordingInstallManager()
+            val upgradeManager = RecordingUpgradeManager()
+            val viewModel =
+                SearchViewModel(
+                    appManager = FakeAppManager(),
+                    stateCenter = DefaultStateCenter(),
+                    downloadManager = downloadManager,
+                    installManager = installManager,
+                    upgradeManager = upgradeManager,
+                    policyCenter = FakePolicyCenter(),
+                )
 
-        viewModel.onPrimaryClick(TEST_DISABLED_APP)
-        advanceUntilIdle()
+            viewModel.onPrimaryClick(TEST_UPGRADE_APP)
+            advanceUntilIdle()
 
-        assertNull(downloadManager.startedAppId)
-        assertNull(downloadManager.resumedAppId)
-        assertNull(installManager.installedAppId)
-        assertNull(upgradeManager.startedUpgradeAppId)
-        assertNull(upgradeManager.checkedUpgradeAppId)
-    }
+            assertEquals(TEST_UPGRADE_APP.appId, upgradeManager.startedUpgradeAppIds.single())
+            assertTrue(downloadManager.startedAppIds.isEmpty())
+            assertTrue(installManager.installedAppIds.isEmpty())
+        }
+
+    @Test
+    fun `onPrimaryClick 为禁用动作时不会触发任何业务入口`() =
+        runTest {
+            val downloadManager = RecordingDownloadManager()
+            val installManager = RecordingInstallManager()
+            val upgradeManager = RecordingUpgradeManager()
+            val viewModel =
+                SearchViewModel(
+                    appManager = FakeAppManager(),
+                    stateCenter = DefaultStateCenter(),
+                    downloadManager = downloadManager,
+                    installManager = installManager,
+                    upgradeManager = upgradeManager,
+                    policyCenter = FakePolicyCenter(),
+                )
+
+            viewModel.onPrimaryClick(TEST_DISABLED_APP)
+            advanceUntilIdle()
+
+            assertTrue(downloadManager.startedAppIds.isEmpty())
+            assertTrue(downloadManager.resumedAppIds.isEmpty())
+            assertTrue(installManager.installedAppIds.isEmpty())
+            assertTrue(upgradeManager.startedUpgradeAppIds.isEmpty())
+            assertTrue(upgradeManager.checkedUpgradeAppIds.isEmpty())
+        }
 
     private class FakeAppManager : AppManager {
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
@@ -139,25 +144,28 @@ class SearchViewModelTest {
     }
 
     private class RecordingDownloadManager : DownloadManager {
-        /** 最近一次启动下载的 appId。 */
-        var startedAppId: String? = null
+        /** 累计记录所有启动下载请求，便于断言精确调用次数。 */
+        val startedAppIds = mutableListOf<String>()
 
-        /** 最近一次恢复下载的 appId。 */
-        var resumedAppId: String? = null
+        /** 累计记录所有恢复下载请求，便于断言精确调用次数。 */
+        val resumedAppIds = mutableListOf<String>()
 
         override suspend fun startDownload(appId: String) {
-            startedAppId = appId
+            startedAppIds.add(appId)
         }
 
         override suspend fun pauseDownload(appId: String) = Unit
 
         override suspend fun resumeDownload(appId: String) {
-            resumedAppId = appId
+            resumedAppIds.add(appId)
         }
 
         override suspend fun cancelDownload(appId: String) = Unit
 
-        override suspend fun removeTask(appId: String, clearFile: Boolean) = Unit
+        override suspend fun removeTask(
+            appId: String,
+            clearFile: Boolean,
+        ) = Unit
 
         override suspend fun clearCompletedTasks(): Int = 0
 
@@ -169,29 +177,29 @@ class SearchViewModelTest {
     }
 
     private class RecordingInstallManager : InstallManager {
-        /** 最近一次发起安装的 appId。 */
-        var installedAppId: String? = null
+        /** 累计记录所有安装请求，便于断言精确调用次数。 */
+        val installedAppIds = mutableListOf<String>()
 
         override suspend fun install(appId: String) {
-            installedAppId = appId
+            installedAppIds.add(appId)
         }
 
         override suspend fun clearFailed(appId: String) = Unit
     }
 
     private class RecordingUpgradeManager : UpgradeManager {
-        /** 最近一次检查升级的 appId。 */
-        var checkedUpgradeAppId: String? = null
+        /** 累计记录所有检查升级请求，便于断言精确调用次数。 */
+        val checkedUpgradeAppIds = mutableListOf<String>()
 
-        /** 最近一次发起升级的 appId。 */
-        var startedUpgradeAppId: String? = null
+        /** 累计记录所有启动升级请求，便于断言精确调用次数。 */
+        val startedUpgradeAppIds = mutableListOf<String>()
 
         override suspend fun startUpgrade(appId: String) {
-            startedUpgradeAppId = appId
+            startedUpgradeAppIds.add(appId)
         }
 
         override suspend fun checkUpgrade(appId: String): Boolean {
-            checkedUpgradeAppId = appId
+            checkedUpgradeAppIds.add(appId)
             return true
         }
 
@@ -202,7 +210,11 @@ class SearchViewModelTest {
 
     private class FakePolicyCenter : PolicyCenter {
         /** 测试策略流。 */
-        private val settingsFlow = MutableStateFlow(com.xzq.appstore.data.model.PolicySettings())
+        private val settingsFlow =
+            MutableStateFlow(
+                com.xzq.appstore.data.model
+                    .PolicySettings(),
+            )
 
         override fun canDownload(appId: String): PolicyResult = PolicyResult(true)
 
@@ -236,51 +248,55 @@ class SearchViewModelTest {
 
     private companion object {
         /** 测试详情模型。 */
-        val TEST_APP_DETAIL = AppDetail(
-            appId = "demo.search",
-            packageName = "com.nio.demo.search",
-            name = "Demo Search",
-            description = "demo search app",
-            versionName = "1.0.0",
-            apkUrl = "https://example.com/demo-search.apk",
-        )
+        val TEST_APP_DETAIL =
+            AppDetail(
+                appId = "demo.search",
+                packageName = "com.nio.demo.search",
+                name = "Demo Search",
+                description = "demo search app",
+                versionName = "1.0.0",
+                apkUrl = "https://example.com/demo-search.apk",
+            )
 
         /** 恢复动作卡片。 */
-        val TEST_RESUME_APP = AppViewData(
-            appId = "demo.resume",
-            name = "Demo Resume",
-            description = "resume test app",
-            versionName = "1.0.3",
-            packageName = "com.nio.demo.resume",
-            stateText = "已暂停",
-            statusTone = StatusTone.WARNING,
-            primaryAction = PrimaryAction.RESUME,
-            progress = 40,
-        )
+        val TEST_RESUME_APP =
+            AppViewData(
+                appId = "demo.resume",
+                name = "Demo Resume",
+                description = "resume test app",
+                versionName = "1.0.3",
+                packageName = "com.nio.demo.resume",
+                stateText = "已暂停",
+                statusTone = StatusTone.WARNING,
+                primaryAction = PrimaryAction.RESUME,
+                progress = 40,
+            )
 
         /** 升级动作卡片。 */
-        val TEST_UPGRADE_APP = AppViewData(
-            appId = "demo.upgrade",
-            name = "Demo Upgrade",
-            description = "upgrade test app",
-            versionName = "2.0.0",
-            packageName = "com.nio.demo.upgrade",
-            stateText = "可升级",
-            statusTone = StatusTone.WARNING,
-            primaryAction = PrimaryAction.UPGRADE,
-            installed = true,
-        )
+        val TEST_UPGRADE_APP =
+            AppViewData(
+                appId = "demo.upgrade",
+                name = "Demo Upgrade",
+                description = "upgrade test app",
+                versionName = "2.0.0",
+                packageName = "com.nio.demo.upgrade",
+                stateText = "可升级",
+                statusTone = StatusTone.WARNING,
+                primaryAction = PrimaryAction.UPGRADE,
+                installed = true,
+            )
 
         /** 禁用动作卡片。 */
-        val TEST_DISABLED_APP = AppViewData(
-            appId = "demo.disabled",
-            name = "Demo Disabled",
-            description = "disabled test app",
-            versionName = "2.0.1",
-            packageName = "com.nio.demo.disabled",
-            stateText = "处理中",
-            statusTone = StatusTone.INFO,
-            primaryAction = PrimaryAction.DISABLED,
-        )
+        val TEST_DISABLED_APP =
+            AppViewData(
+                appId = "demo.disabled",
+                name = "Demo Disabled",
+                description = "disabled test app",
+                versionName = "2.0.1",
+                packageName = "com.nio.demo.disabled",
+                stateText = "处理中",
+                statusTone = StatusTone.INFO,
+                primaryAction = PrimaryAction.DISABLED,
+            )
     }
 }

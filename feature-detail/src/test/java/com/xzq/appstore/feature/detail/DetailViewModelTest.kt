@@ -1,6 +1,5 @@
 package com.xzq.appstore.feature.detail
 
-import com.xzq.appstore.common.ui.StatusTone
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppViewData
 import com.xzq.appstore.data.model.DownloadPreferences
@@ -19,15 +18,15 @@ import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestWatcher
@@ -35,84 +34,89 @@ import org.junit.runner.Description
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DetailViewModelTest {
-
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `load 会加载详情并触发升级检查`() = runTest {
-        val appManager = FakeAppManager()
-        val upgradeManager = RecordingUpgradeManager()
-        val stateCenter = DefaultStateCenter()
-        val viewModel = DetailViewModel(
-            appManager = appManager,
-            downloadManager = RecordingDownloadManager(),
-            installManager = RecordingInstallManager(),
-            upgradeManager = upgradeManager,
-            stateCenter = stateCenter,
-            policyCenter = FakePolicyCenter(),
-        )
+    fun `load 会加载详情并触发升级检查`() =
+        runTest {
+            val appManager = FakeAppManager()
+            val upgradeManager = RecordingUpgradeManager()
+            val stateCenter = DefaultStateCenter()
+            val viewModel =
+                DetailViewModel(
+                    appManager = appManager,
+                    downloadManager = RecordingDownloadManager(),
+                    installManager = RecordingInstallManager(),
+                    upgradeManager = upgradeManager,
+                    stateCenter = stateCenter,
+                    policyCenter = FakePolicyCenter(),
+                )
 
-        viewModel.load(TEST_APP_DETAIL.appId)
-        advanceUntilIdle()
+            viewModel.load(TEST_APP_DETAIL.appId)
+            advanceUntilIdle()
 
-        assertEquals(TEST_APP_DETAIL, viewModel.uiState.value.appDetail)
-        assertEquals(TEST_APP_DETAIL.appId, upgradeManager.checkedUpgradeAppId)
-        assertEquals(PrimaryAction.DOWNLOAD, viewModel.uiState.value.primaryAction)
-    }
-
-    @Test
-    fun `onPrimaryClick 在打开动作时会使用详情包名打开应用`() = runTest {
-        val appManager = FakeAppManager()
-        val stateCenter = DefaultStateCenter()
-        val viewModel = DetailViewModel(
-            appManager = appManager,
-            downloadManager = RecordingDownloadManager(),
-            installManager = RecordingInstallManager(),
-            upgradeManager = RecordingUpgradeManager(),
-            stateCenter = stateCenter,
-            policyCenter = FakePolicyCenter(),
-        )
-
-        viewModel.load(TEST_APP_DETAIL.appId)
-        advanceUntilIdle()
-        stateCenter.syncInstalled(TEST_APP_DETAIL.appId, TEST_APP_DETAIL.versionName)
-        advanceUntilIdle()
-
-        viewModel.onPrimaryClick()
-        advanceUntilIdle()
-
-        assertEquals(TEST_APP_DETAIL.packageName, appManager.openedPackageName)
-    }
+            assertEquals(TEST_APP_DETAIL, viewModel.uiState.value.appDetail)
+            assertEquals(TEST_APP_DETAIL.appId, upgradeManager.checkedUpgradeAppIds.single())
+            assertEquals(PrimaryAction.DOWNLOAD, viewModel.uiState.value.primaryAction)
+        }
 
     @Test
-    fun `onPrimaryClick 在暂停状态时会恢复当前应用下载`() = runTest {
-        val downloadManager = RecordingDownloadManager()
-        val stateCenter = DefaultStateCenter()
-        val viewModel = DetailViewModel(
-            appManager = FakeAppManager(),
-            downloadManager = downloadManager,
-            installManager = RecordingInstallManager(),
-            upgradeManager = RecordingUpgradeManager(),
-            stateCenter = stateCenter,
-            policyCenter = FakePolicyCenter(),
-        )
+    fun `onPrimaryClick 在打开动作时会使用详情包名打开应用`() =
+        runTest {
+            val appManager = FakeAppManager()
+            val stateCenter = DefaultStateCenter()
+            val viewModel =
+                DetailViewModel(
+                    appManager = appManager,
+                    downloadManager = RecordingDownloadManager(),
+                    installManager = RecordingInstallManager(),
+                    upgradeManager = RecordingUpgradeManager(),
+                    stateCenter = stateCenter,
+                    policyCenter = FakePolicyCenter(),
+                )
 
-        viewModel.load(TEST_APP_DETAIL.appId)
-        advanceUntilIdle()
-        stateCenter.updateDownload(
-            appId = TEST_APP_DETAIL.appId,
-            status = DownloadStatus.PAUSED,
-            progress = TEST_PROGRESS,
-        )
-        advanceUntilIdle()
+            viewModel.load(TEST_APP_DETAIL.appId)
+            advanceUntilIdle()
+            stateCenter.syncInstalled(TEST_APP_DETAIL.appId, TEST_APP_DETAIL.versionName)
+            advanceUntilIdle()
 
-        viewModel.onPrimaryClick()
-        advanceUntilIdle()
+            viewModel.onPrimaryClick()
+            advanceUntilIdle()
 
-        assertEquals(TEST_APP_DETAIL.appId, downloadManager.resumedAppId)
-        assertNull(downloadManager.startedAppId)
-    }
+            assertEquals(TEST_APP_DETAIL.packageName, appManager.openedPackageName)
+        }
+
+    @Test
+    fun `onPrimaryClick 在暂停状态时会恢复当前应用下载`() =
+        runTest {
+            val downloadManager = RecordingDownloadManager()
+            val stateCenter = DefaultStateCenter()
+            val viewModel =
+                DetailViewModel(
+                    appManager = FakeAppManager(),
+                    downloadManager = downloadManager,
+                    installManager = RecordingInstallManager(),
+                    upgradeManager = RecordingUpgradeManager(),
+                    stateCenter = stateCenter,
+                    policyCenter = FakePolicyCenter(),
+                )
+
+            viewModel.load(TEST_APP_DETAIL.appId)
+            advanceUntilIdle()
+            stateCenter.updateDownload(
+                appId = TEST_APP_DETAIL.appId,
+                status = DownloadStatus.PAUSED,
+                progress = TEST_PROGRESS,
+            )
+            advanceUntilIdle()
+
+            viewModel.onPrimaryClick()
+            advanceUntilIdle()
+
+            assertEquals(TEST_APP_DETAIL.appId, downloadManager.resumedAppIds.single())
+            assertTrue(downloadManager.startedAppIds.isEmpty())
+        }
 
     private class FakeAppManager : AppManager {
         /** 最近一次被请求打开的包名。 */
@@ -153,25 +157,28 @@ class DetailViewModelTest {
     }
 
     private class RecordingDownloadManager : DownloadManager {
-        /** 最近一次启动下载的应用。 */
-        var startedAppId: String? = null
+        /** 累计记录所有启动下载请求，便于断言精确调用次数。 */
+        val startedAppIds = mutableListOf<String>()
 
-        /** 最近一次恢复下载的应用。 */
-        var resumedAppId: String? = null
+        /** 累计记录所有恢复下载请求，便于断言精确调用次数。 */
+        val resumedAppIds = mutableListOf<String>()
 
         override suspend fun startDownload(appId: String) {
-            startedAppId = appId
+            startedAppIds.add(appId)
         }
 
         override suspend fun pauseDownload(appId: String) = Unit
 
         override suspend fun resumeDownload(appId: String) {
-            resumedAppId = appId
+            resumedAppIds.add(appId)
         }
 
         override suspend fun cancelDownload(appId: String) = Unit
 
-        override suspend fun removeTask(appId: String, clearFile: Boolean) = Unit
+        override suspend fun removeTask(
+            appId: String,
+            clearFile: Boolean,
+        ) = Unit
 
         override suspend fun clearCompletedTasks(): Int = 0
 
@@ -183,24 +190,24 @@ class DetailViewModelTest {
     }
 
     private class RecordingInstallManager : InstallManager {
-        /** 最近一次发起安装的应用。 */
-        var installedAppId: String? = null
+        /** 累计记录所有安装请求，便于断言精确调用次数。 */
+        val installedAppIds = mutableListOf<String>()
 
         override suspend fun install(appId: String) {
-            installedAppId = appId
+            installedAppIds.add(appId)
         }
 
         override suspend fun clearFailed(appId: String) = Unit
     }
 
     private class RecordingUpgradeManager : UpgradeManager {
-        /** 最近一次检查升级的应用。 */
-        var checkedUpgradeAppId: String? = null
+        /** 累计记录所有检查升级请求，便于断言精确调用次数。 */
+        val checkedUpgradeAppIds = mutableListOf<String>()
 
         override suspend fun startUpgrade(appId: String) = Unit
 
         override suspend fun checkUpgrade(appId: String): Boolean {
-            checkedUpgradeAppId = appId
+            checkedUpgradeAppIds.add(appId)
             return true
         }
 
@@ -211,7 +218,11 @@ class DetailViewModelTest {
 
     private class FakePolicyCenter : PolicyCenter {
         /** 测试策略流。 */
-        private val settingsFlow = MutableStateFlow(com.xzq.appstore.data.model.PolicySettings())
+        private val settingsFlow =
+            MutableStateFlow(
+                com.xzq.appstore.data.model
+                    .PolicySettings(),
+            )
 
         override fun canDownload(appId: String): PolicyResult = PolicyResult(true)
 
@@ -248,13 +259,14 @@ class DetailViewModelTest {
         const val TEST_PROGRESS = 64
 
         /** 测试详情模型。 */
-        val TEST_APP_DETAIL = AppDetail(
-            appId = "demo.detail",
-            packageName = "com.nio.demo.detail",
-            name = "Demo Detail",
-            description = "detail test app",
-            versionName = "1.0.0",
-            apkUrl = "https://example.com/detail.apk",
-        )
+        val TEST_APP_DETAIL =
+            AppDetail(
+                appId = "demo.detail",
+                packageName = "com.nio.demo.detail",
+                name = "Demo Detail",
+                description = "detail test app",
+                versionName = "1.0.0",
+                apkUrl = "https://example.com/detail.apk",
+            )
     }
 }
