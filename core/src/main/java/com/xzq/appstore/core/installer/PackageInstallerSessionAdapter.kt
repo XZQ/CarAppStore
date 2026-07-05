@@ -117,7 +117,7 @@ class SystemPackageInstallerSessionAdapter(
 
     /** 判断当前设备是否满足真实安装会话能力要求。 */
     override fun supportsRealSession(): Boolean {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && appContext.packageManager.canRequestPackageInstalls()
+        return appContext.packageManager.canRequestPackageInstalls()
     }
 
     /** 创建安装结果广播接收器，将系统回调入队供主流程消费。 */

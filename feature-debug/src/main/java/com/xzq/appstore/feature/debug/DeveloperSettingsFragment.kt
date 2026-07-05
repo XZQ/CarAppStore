@@ -1,6 +1,8 @@
 package com.xzq.appstore.feature.debug
 
 import android.content.Context
+import android.content.pm.PackageInfo
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -169,7 +171,7 @@ class DeveloperSettingsFragment : BaseFragment() {
             getString(
                 R.string.ui_debug_version_format,
                 packageInfo.versionName,
-                packageInfo.longVersionCode.toInt(),
+                readVersionCode(packageInfo),
             )
         versionBinding.tvPackageName.text =
             getString(
@@ -215,6 +217,16 @@ class DeveloperSettingsFragment : BaseFragment() {
     }
 
     private fun eventLogFile(context: Context) = context.filesDir.resolve(EVENT_LOG_FILE_NAME)
+
+    /** 兼容 API 26/27 的版本号读取。 */
+    private fun readVersionCode(packageInfo: PackageInfo): Long {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.versionCode.toLong()
+        }
+    }
 
     /** 将布尔值转换为可读文案。 */
     private fun booleanText(value: Boolean): String = if (value) getString(R.string.ui_debug_yes) else getString(R.string.ui_debug_no)

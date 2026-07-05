@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.os.storage.StorageManager
 import com.xzq.appstore.core.logger.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -133,7 +134,7 @@ class AndroidPolicyRuntimeSignalProvider(
         return PolicyRuntimeSignals(
             wifiConnected = readWifiConnected(connectivityManager),
             parkingMode = readParkingMode(),
-            lowStorageMode = appContext.filesDir.usableSpace < MIN_REQUIRED_SPACE_BYTES,
+            lowStorageMode = readLowStorageMode(),
         )
     }
 
@@ -146,6 +147,18 @@ class AndroidPolicyRuntimeSignalProvider(
         }.getOrElse {
             logger.d(TAG, "read wifi state failed: ${it.message}")
             false
+        }
+
+    /** 使用系统可分配空间判断低存储，异常时回退到文件系统可用空间。 */
+    private fun readLowStorageMode(): Boolean =
+        runCatching {
+            val storageManager = appContext.getSystemService(StorageManager::class.java)
+            val appFilesDir = appContext.filesDir
+            val storageUuid = storageManager.getUuidForPath(appFilesDir)
+            storageManager.getAllocatableBytes(storageUuid) < MIN_REQUIRED_SPACE_BYTES
+        }.getOrElse {
+            logger.d(TAG, "read allocatable storage failed: ${it.message}")
+            appContext.filesDir.usableSpace < MIN_REQUIRED_SPACE_BYTES
         }
 
     /** 安全读取车况状态，OEM provider 异常时按非驻车处理。 */
