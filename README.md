@@ -20,6 +20,15 @@ CarAppStore 是一个多模块 Android/Kotlin 工程，用来沉淀车载应用�
 
 项目已经完成多端 UI 壳层和主要页面开发，不再只是静态 Demo。当前工程可以生成 APK，页面可以跑通本地目录、状态中心、策略门控、任务中心和安装/升级/下载主链路；真实联网目录、APK 下载源和生产环境验收是下一步接入重点。
 
+## 当前同步基线
+
+- 当前主分支：`main`
+- 已同步远端：`origin/main`
+- 最近代码验证基线：`56546df Fix lint blockers from first-principles audit`
+- 换机接手总览：[docs/29-换机接手与当前进度总览.md](docs/29-换机接手与当前进度总览.md)
+
+实际最新状态请以 `git status --short --branch` 和 `git log --oneline -5` 为准。
+
 ## 当前效果
 
 | 多端 UI | 首页与应用卡片 |
@@ -105,6 +114,7 @@ $env:JAVA_HOME="<your-jdk-17-path>"
 .\gradlew.bat testDebugUnitTest --no-daemon
 .\gradlew.bat compileDebugKotlin --no-daemon
 .\gradlew.bat :app:assembleDebug --no-daemon
+.\gradlew.bat lintDebug --no-daemon
 .\gradlew.bat :app:assembleRelease --no-daemon
 ```
 
@@ -114,6 +124,7 @@ macOS / Linux / Git Bash:
 ./gradlew testDebugUnitTest --no-daemon
 ./gradlew compileDebugKotlin --no-daemon
 ./gradlew :app:assembleDebug --no-daemon
+./gradlew lintDebug --no-daemon
 ./gradlew :app:assembleRelease --no-daemon
 ```
 
@@ -145,6 +156,7 @@ CarAppStore/
 
 | 文档 | 说明 |
 | --- | --- |
+| [换机接手与当前进度总览](docs/29-换机接手与当前进度总览.md) | 换电脑、重新 clone、交给新 Agent 时先确认的同步基线 |
 | [当前项目状态与接手指南](docs/21-当前项目状态与接手指南.md) | 当前阶段、测试覆盖、风险和接手顺序 |
 | [架构总览](docs/01-架构总览.md) | 整体分层与依赖方向 |
 | [七个业务模块详解](docs/03-七个业务模块详解.md) | 业务模块边界和职责 |
@@ -157,4 +169,4 @@ CarAppStore/
 
 ## 发布说明
 
-本仓库已经具备车载应用商店的主体 UI、工程分层和下载/安装/升级主链路底座。下一步重点是接入真实联网目录和 APK 下载源，并在目标车机上完成 OEM 车况、安装权限、Release 签名、埋点上传和真机回归。
+本仓库已经具备车载应用商店的主体 UI、工程分层、下载/安装/升级主链路、本地事件源和 release 构建入口。下一步重点是接入真实联网目录和 APK 下载源，并在目标车机上完成 OEM 车况、安装权限、生产签名、埋点上传和真机回归。

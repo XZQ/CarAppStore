@@ -8,7 +8,7 @@ Repository 是当前工程的数据聚合入口：
 - 生产实现是 `RealAppRepository`，代理到 3 个 DataSource（remote / local / system）
 - `FakeAppRepository` 仅用于测试环境，提供可控延迟
 
-**统一数据入口已经成立，远端数据仍为硬编码，待接入真实 API。**
+**统一数据入口已经成立，生产入口为 `RealAppRepository`；远端目录已有 HTTP/条件请求缓存/本地缓存/raw 资源回退链路，默认配置仍使用示例地址，待替换为真实 API。**
 
 ---
 
@@ -29,7 +29,7 @@ flowchart TD
     LOCAL --> FACADE[JsonBackedLocalStoreFacade]
     LOCAL --> VSTORE[VersionedJsonStore]
     SYSTEM --> PKGMGR[PackageManager]
-    REMOTE --> CATALOG[DownloadSourceCatalog + 硬编码应用数据]
+    REMOTE --> CATALOG[HTTP Catalog + Cache + raw fallback]
 ```
 
 ---
@@ -156,13 +156,14 @@ sequenceDiagram
 负责：
 
 - 提供首页应用列表、应用详情、升级信息
-- 当前数据仍为硬编码，待接入真实 API
+- 通过远端目录、条件请求缓存、本地缓存和 raw 资源回退提供目录数据
+- 默认配置仍是示例地址和内置目录，待外部后端替换为真实 API
 
 ---
 
 ## 7. 后续演进建议
 
-1. 从硬编码 remote 演进到真实 API
-2. 增加 Repository 层缓存策略
+1. 接入真实后端目录 API、鉴权、灰度头和错误码约定
+2. 用真实 APK CDN、checksum 和灰度策略替换示例下载源
 3. 评估 Room / SQLite 替代 JSON 存储
 4. 增加同步和冲突策略
