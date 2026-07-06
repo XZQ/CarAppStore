@@ -56,7 +56,7 @@
             android:paddingTop="@dimen/spacing_6dp"
             android:paddingEnd="@dimen/spacing_12dp"
             android:paddingBottom="@dimen/spacing_6dp"
-            android:textColor="@android:color/white"
+            android:textColor="@color/car_text_primary"
             android:textSize="@dimen/text_xs" />
     </LinearLayout>
 
@@ -69,7 +69,7 @@
         android:paddingTop="@dimen/spacing_5dp"
         android:paddingEnd="@dimen/spacing_10dp"
         android:paddingBottom="@dimen/spacing_5dp"
-        android:textColor="@android:color/white"
+        android:textColor="@color/car_text_primary"
         android:textSize="@dimen/text_2xs" />
 
     <TextView
@@ -122,7 +122,7 @@
         android:layout_marginTop="@dimen/spacing_10dp"
         android:background="@drawable/bg_card_alt"
         android:padding="@dimen/spacing_10dp"
-        android:textColor="@color/car_warning"
+        android:textColor="@color/car_text_primary"
         android:textSize="@dimen/text_sm_13"
         android:visibility="gone" />
 

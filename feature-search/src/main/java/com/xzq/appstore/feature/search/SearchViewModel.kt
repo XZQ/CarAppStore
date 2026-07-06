@@ -11,7 +11,9 @@ import com.xzq.appstore.domain.install.InstallManager
 import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -63,12 +65,14 @@ class SearchViewModel(
         viewModelScope.launch { refresh(keyword) }
     }
 
-    /** 监听页面全局状态变化，并在变化时刷新当前关键字结果。 */
+    /** 监听页面全局状态变化，并在变化时刷新当前关键字结果。
+     * 进度事件高频触发，用 debounce 合并，避免主线程反复全量重算。 */
     private fun observeStateChanges() {
         if (observeJob != null) return
         observeJob =
             stateCenter
                 .observeAll()
+                .debounce(REFRESH_DEBOUNCE_MS)
                 .onEach { refresh(_uiState.value.keyword) }
                 .launchIn(viewModelScope)
     }
@@ -79,6 +83,7 @@ class SearchViewModel(
         observePolicyJob =
             policyCenter
                 .observeSettings()
+                .debounce(REFRESH_DEBOUNCE_MS)
                 .onEach { refresh(_uiState.value.keyword) }
                 .launchIn(viewModelScope)
     }
@@ -94,33 +99,44 @@ class SearchViewModel(
         }
     }
 
-    /** 重新加载指定关键字的搜索结果与策略提示。 */
+    /** 重新加载指定关键字的搜索结果与策略提示。
+     * searchApps 涉及目录解析与本地存储读写，统一切到 IO 线程，避免阻塞主线程。 */
     private suspend fun refresh(keyword: String) {
-        runCatching {
-            val apps = appManager.searchApps(keyword)
-            val screen =
-                when {
-                    keyword.isBlank() && apps.isEmpty() -> SearchScreenState.Idle
-                    apps.isEmpty() -> SearchScreenState.Empty
-                    else -> SearchScreenState.Content
+        val result =
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val apps = appManager.searchApps(keyword)
+                    apps to appManager.getPolicyPrompt()
                 }
-            apps to screen
-        }.onSuccess { (apps, screen) ->
-            _uiState.update {
-                it.copy(
-                    apps = apps,
-                    policyPrompt = appManager.getPolicyPrompt(),
-                    screenState = screen,
-                )
             }
-        }.onFailure { throwable ->
-            _uiState.update {
-                it.copy(
-                    apps = emptyList(),
-                    policyPrompt = "",
-                    screenState = SearchScreenState.Error(throwable.message.orEmpty()),
-                )
+        result
+            .onSuccess { (apps, policyPrompt) ->
+                val screen =
+                    when {
+                        keyword.isBlank() && apps.isEmpty() -> SearchScreenState.Idle
+                        apps.isEmpty() -> SearchScreenState.Empty
+                        else -> SearchScreenState.Content
+                    }
+                _uiState.update {
+                    it.copy(
+                        apps = apps,
+                        policyPrompt = policyPrompt,
+                        screenState = screen,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        apps = emptyList(),
+                        policyPrompt = "",
+                        screenState = SearchScreenState.Error(throwable.message.orEmpty()),
+                    )
+                }
             }
-        }
+    }
+
+    private companion object {
+        /** 状态/策略变化刷新防抖窗口（毫秒）。 */
+        const val REFRESH_DEBOUNCE_MS = 300L
     }
 }

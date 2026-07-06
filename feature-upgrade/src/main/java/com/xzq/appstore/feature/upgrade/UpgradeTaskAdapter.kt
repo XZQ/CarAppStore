@@ -14,6 +14,7 @@ import com.xzq.appstore.common.ui.applyActionStyle
 import com.xzq.appstore.common.ui.applyTagStyle
 import com.xzq.appstore.common.ui.applyTaskCardBackground
 import com.xzq.appstore.data.model.UpgradeTaskViewData
+import com.xzq.appstore.common.base.AppIdDiffCallback
 import com.xzq.appstore.feature.upgrade.databinding.ItemUpgradeTaskBinding
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -68,10 +69,7 @@ class UpgradeTaskAdapter(
     }
 
     companion object {
-        /** 升级任务列表差异比较器。 */
-        private val DiffCallback = object : DiffUtil.ItemCallback<UpgradeTaskViewData>() {
-            override fun areItemsTheSame(oldItem: UpgradeTaskViewData, newItem: UpgradeTaskViewData): Boolean = oldItem.appId == newItem.appId
-            override fun areContentsTheSame(oldItem: UpgradeTaskViewData, newItem: UpgradeTaskViewData): Boolean = oldItem == newItem
-        }
+        /** 升级任务列表差异比较器（基于 appId 复用通用基类）。 */
+        private val DiffCallback = object : AppIdDiffCallback<UpgradeTaskViewData>({ it.appId }) {}
     }
 }

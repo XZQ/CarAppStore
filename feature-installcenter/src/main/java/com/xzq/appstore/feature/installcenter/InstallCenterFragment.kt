@@ -113,9 +113,7 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
 
     /** 订阅安装中心 UI 状态，并刷新会话信息和任务列表。 */
     private fun observeState() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.collect { state ->
+        observeCenterState(viewModel.uiState) { state ->
                     val showTaskPanels = state.screenState == InstallCenterScreenState.Content
                     val showChrome = state.screenState !is InstallCenterScreenState.Error
                     val subtitle =
@@ -227,8 +225,6 @@ class InstallCenterFragment : BaseTaskCenterFragment() {
                     )
 
                     adapter.submitList(state.tasks)
-                }
-            }
         }
     }
 

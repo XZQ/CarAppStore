@@ -4,6 +4,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import androidx.annotation.DrawableRes
+import androidx.core.content.ContextCompat
 import com.xzq.appstore.common.R
 
 import com.xzq.appstore.data.model.TaskOverallStatus
@@ -139,10 +140,17 @@ object CarUiStyle {
     }
 }
 
-/** 把状态标签样式应用到 TextView。 */
+/**
+ * 把状态标签样式应用到 TextView。
+ *
+ * 标签背景均为浅色系（info/success 浅绿、warning 浅黄、error 浅红、neutral 浅灰），
+ * 因此统一使用深色文字 [R.color.car_text_primary] 以保证对比度 ≥ 10:1，
+ * 修复此前「白字配浅底、状态几乎不可读」的问题。
+ */
 fun TextView.applyTagStyle(style: TagStyle) {
     text = style.text
     setBackgroundResource(style.backgroundRes)
+    setTextColor(ContextCompat.getColor(context, R.color.car_text_primary))
 }
 
 /** 把动作按钮样式应用到 Button。 */

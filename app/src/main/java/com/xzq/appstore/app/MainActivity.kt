@@ -10,6 +10,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.xzq.appstore.BuildConfig
 import com.xzq.appstore.R
 import com.xzq.appstore.common.base.AppContainerProvider
 import com.xzq.appstore.data.model.TaskCenterStats
@@ -170,8 +171,12 @@ class MainActivity :
         optionalButton(R.id.btnNavEssential)?.setOnClickListener {
             openCatalog(CatalogPage.Essential, optionalButton(R.id.btnNavEssential))
         }
-        optionalButton(R.id.btnNavDebug)?.setOnClickListener {
-            openCatalog(CatalogPage.Activity, optionalButton(R.id.btnNavDebug))
+        // 开发者设置仅调试构建可达，避免调试能力（切环境/清缓存/Mock 源）进入 release 包。
+        optionalButton(R.id.btnNavDebug)?.let { debugButton ->
+            debugButton.visibility = if (BuildConfig.DEBUG) View.VISIBLE else View.GONE
+            if (BuildConfig.DEBUG) {
+                debugButton.setOnClickListener { openDeveloperSettings() }
+            }
         }
         optionalButton(R.id.btnNavDesktopDownload)?.setOnClickListener { openDownloadManager() }
     }

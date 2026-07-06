@@ -149,8 +149,22 @@ class AppLocalDataSource(
             LocalStoreFallbackPolicy.preferFacade(facadePath, legacyPath)
         }
 
-    /** 获取指定应用默认的下载目标文件。 */
-    fun getOrCreateDownloadFile(appId: String): File = File(downloadDir, "$appId.apk")
+    /**
+     * 获取指定应用默认的下载目标文件。
+     *
+     * appId 来自远端目录 JSON，可能被恶意构造（含 "../" 等），因此先做白名单规范化，
+     * 仅保留 [A-Za-z0-9_-]，并断言最终路径仍在 [downloadDir] 之内，
+     * 防止路径穿越导致越权写入/删除私有目录外的文件。
+     */
+    fun getOrCreateDownloadFile(appId: String): File {
+        val safeId = appId.replace(Regex("[^A-Za-z0-9_-]"), "_")
+        val target = File(downloadDir, "$safeId.apk")
+        val dirCanonical = downloadDir.canonicalPath
+        check(target.canonicalPath.startsWith(dirCanonical)) {
+            "Blocked download path traversal: $appId -> ${target.canonicalPath}"
+        }
+        return target
+    }
 
     /** 获取当前策略设置。 */
     fun getPolicySettings(): PolicySettings =

@@ -105,9 +105,7 @@ class UpgradeFragment : BaseTaskCenterFragment() {
 
     /** 订阅升级中心 UI 状态，并刷新头部、扩展区和任务列表。 */
     private fun observeState() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.collect { state ->
+        observeCenterState(viewModel.uiState) { state ->
                     val showTaskPanels = state.screenState == UpgradeScreenState.Content
                     val showChrome = state.screenState !is UpgradeScreenState.Error
                     val subtitle =
@@ -207,8 +205,6 @@ class UpgradeFragment : BaseTaskCenterFragment() {
                         visible = showTaskPanels && state.tasks.isNotEmpty(),
                     )
                     adapter.submitList(state.tasks)
-                }
-            }
         }
     }
 

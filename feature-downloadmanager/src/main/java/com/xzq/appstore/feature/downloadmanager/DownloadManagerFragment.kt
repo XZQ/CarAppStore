@@ -132,9 +132,7 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
 
     /** 订阅下载中心 UI 状态，并刷新头部、扩展区和任务列表。 */
     private fun observeState() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.collect { state ->
+        observeCenterState(viewModel.uiState) { state ->
                     val showTaskPanels = state.screenState == DownloadManagerScreenState.Content
                     val showChrome = state.screenState !is DownloadManagerScreenState.Error
                     val subtitle =
@@ -245,8 +243,6 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
 
                     installAdapter.submitList(state.installTasks)
                     downloadAdapter.submitList(state.tasks)
-                }
-            }
         }
     }
 

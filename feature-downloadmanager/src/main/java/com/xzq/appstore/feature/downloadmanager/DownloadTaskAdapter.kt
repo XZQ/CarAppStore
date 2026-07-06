@@ -14,6 +14,7 @@ import com.xzq.appstore.common.ui.applyActionStyle
 import com.xzq.appstore.common.ui.applyTagStyle
 import com.xzq.appstore.common.ui.applyTaskCardBackground
 import com.xzq.appstore.data.model.DownloadTaskViewData
+import com.xzq.appstore.common.base.AppIdDiffCallback
 import com.xzq.appstore.feature.downloadmanager.databinding.ItemDownloadTaskBinding
 
 class DownloadTaskAdapter(
@@ -84,10 +85,7 @@ class DownloadTaskAdapter(
     }
 
     companion object {
-        /** 下载任务列表差异比较器。 */
-        private val DiffCallback = object : DiffUtil.ItemCallback<DownloadTaskViewData>() {
-            override fun areItemsTheSame(oldItem: DownloadTaskViewData, newItem: DownloadTaskViewData): Boolean = oldItem.appId == newItem.appId
-            override fun areContentsTheSame(oldItem: DownloadTaskViewData, newItem: DownloadTaskViewData): Boolean = oldItem == newItem
-        }
+        /** 下载任务列表差异比较器（基于 appId 复用通用基类）。 */
+        private val DiffCallback = object : AppIdDiffCallback<DownloadTaskViewData>({ it.appId }) {}
     }
 }

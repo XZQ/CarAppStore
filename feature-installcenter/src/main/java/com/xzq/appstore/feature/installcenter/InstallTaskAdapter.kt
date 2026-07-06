@@ -12,6 +12,7 @@ import com.xzq.appstore.common.ui.applyActionStyle
 import com.xzq.appstore.common.ui.applyTagStyle
 import com.xzq.appstore.common.ui.applyTaskCardBackground
 import com.xzq.appstore.data.model.InstallTaskViewData
+import com.xzq.appstore.common.base.AppIdDiffCallback
 import com.xzq.appstore.feature.installcenter.databinding.ItemInstallTaskBinding
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -88,17 +89,6 @@ class InstallTaskAdapter(
     }
 
     companion object {
-        private val DiffCallback =
-            object : DiffUtil.ItemCallback<InstallTaskViewData>() {
-                override fun areItemsTheSame(
-                    oldItem: InstallTaskViewData,
-                    newItem: InstallTaskViewData,
-                ): Boolean = oldItem.appId == newItem.appId
-
-                override fun areContentsTheSame(
-                    oldItem: InstallTaskViewData,
-                    newItem: InstallTaskViewData,
-                ): Boolean = oldItem == newItem
-            }
+        private val DiffCallback = object : AppIdDiffCallback<InstallTaskViewData>({ it.appId }) {}
     }
 }

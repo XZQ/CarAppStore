@@ -3,6 +3,10 @@ package com.xzq.appstore.common.base
 import android.view.View
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
 import com.xzq.appstore.common.ui.TaskCenterUiFormatter
 import com.xzq.appstore.data.model.TaskCenterActionUiState
 import com.xzq.appstore.data.model.TaskCenterEmptyUiState
@@ -241,5 +245,20 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
     ) {
         emptyPanelBinding.btnEmptyPrimary.setOnClickListener { onPrimary() }
         emptyPanelBinding.btnEmptySecondary.setOnClickListener { onSecondary?.invoke() }
+    }
+
+    /**
+     * 订阅任务中心 UI 状态流的通用脚手架：在 STARTED 生命周期内收集状态并回调。
+     * 三个任务中心 Fragment 的 observeState 差异仅在回调体内的字段绑定，外层协程骨架在此收敛。
+     */
+    protected fun <T> observeCenterState(
+            flow: Flow<T>,
+            onEach: (T) -> Unit,
+    ) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                flow.collect { onEach(it) }
+            }
+        }
     }
 }

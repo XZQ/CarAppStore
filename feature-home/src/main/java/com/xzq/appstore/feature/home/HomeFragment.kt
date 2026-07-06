@@ -330,10 +330,10 @@ class HomeFragment : BaseFragment() {
         private const val ICON_MINI_SIZE = 54
         private const val MARGIN_TOP_TEXT = 8
 
-        // 主动作按钮尺寸。
+        // 主动作按钮尺寸。车机场景下触控目标高度需 ≥ 48dp，避免颠簸中误触。
         private const val ACTION_WIDTH = 72
-        private const val ACTION_HEIGHT_LIST = 36
-        private const val ACTION_HEIGHT_MINI = 32
+        private const val ACTION_HEIGHT_LIST = 48
+        private const val ACTION_HEIGHT_MINI = 48
 
         // 文字字号（sp）。
         private const val TEXT_SIZE_LIST_TITLE = 16f
