@@ -86,6 +86,13 @@ class UpgradeFragment : BaseTaskCenterFragment() {
                 onTertiary = navigator::openMyApps,
             ),
         )
+        // 批量升级全选：勾选即对所有可运行升级项发起批量升级。
+        controlBinding.checkboxSelectAll.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                viewModel.onStartAllRunnable()
+                controlBinding.checkboxSelectAll.isChecked = false
+            }
+        }
         bindEmptyHandlers(
             emptyPanelBinding = binding.emptyPanel,
             onPrimary = navigator::openHome,
@@ -185,6 +192,22 @@ class UpgradeFragment : BaseTaskCenterFragment() {
                         failureBinding = binding.failurePanel,
                         onPrimary = viewModel::onRetryFailed,
                         onSecondary = viewModel::onStartAllRunnable,
+                    )
+
+                    // 弱网横幅跟随错误态展示；权限引导在可批量升级时提示开启未知来源权限。
+                    bindWeakNetPanel(
+                        weakNetBinding = binding.weakNetBanner,
+                        title = getString(R.string.ui_weak_net_title),
+                        desc = getString(R.string.ui_weak_net_desc),
+                        showPanel = state.screenState is UpgradeScreenState.Error,
+                    )
+                    bindPermissionPanel(
+                        permissionBinding = binding.permissionBanner,
+                        title = getString(R.string.ui_permission_title),
+                        desc = getString(R.string.ui_permission_desc),
+                        actionText = getString(R.string.ui_permission_action),
+                        showPanel = state.batchRunnableCount > 0,
+                        onAction = { },
                     )
 
                     bindEmptyPanel(

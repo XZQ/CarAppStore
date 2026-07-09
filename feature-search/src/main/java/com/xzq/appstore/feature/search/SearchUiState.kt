@@ -10,6 +10,8 @@ data class SearchUiState(
     val keyword: String = "",
     /** 页面当前展示的搜索结果。 */
     val apps: List<AppViewData> = emptyList(),
+    /** 输入关键词时展示的联想候选（独立于结果列表）。 */
+    val suggestions: List<AppViewData> = emptyList(),
     /** 列表上方展示的策略提示。 */
     val policyPrompt: String = "",
     /** 搜索页当前的显式状态机。 */

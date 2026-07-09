@@ -39,6 +39,16 @@
                 android:id="@+id/includeCachePanel"
                 layout="@layout/include_cache_panel" />
 
+            <!-- 埋点看板面板 -->
+            <include
+                android:id="@+id/includeAnalyticsPanel"
+                layout="@layout/include_analytics_panel" />
+
+            <!-- 灰度头面板 -->
+            <include
+                android:id="@+id/includeGrayscalePanel"
+                layout="@layout/include_grayscale_panel" />
+
             <!-- 说明面板 -->
             <include
                 android:id="@+id/includeDescriptionPanel"

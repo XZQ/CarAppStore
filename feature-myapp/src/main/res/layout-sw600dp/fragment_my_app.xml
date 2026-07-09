@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/car_bg"
+    android:orientation="vertical"
+    android:padding="@dimen/spacing_18dp">
+
+    <LinearLayout
+        android:id="@+id/profileHeader"
+        android:layout_width="match_parent"
+        android:layout_height="118dp"
+        android:background="@drawable/bg_card_alt"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="@dimen/spacing_20dp">
+
+        <TextView
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:background="@drawable/bg_tag_info"
+            android:gravity="center"
+            android:text="XZQ"
+            android:textColor="@color/car_text_primary"
+            android:textSize="@dimen/text_xl"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_18dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvMyAppTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="清风徐来"
+                android:textColor="@color/car_text_primary"
+                android:textSize="@dimen/text_3xl"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvMyAppSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_8dp"
+                android:text="正在加载应用资产"
+                android:textColor="@color/car_text_secondary"
+                android:textSize="@dimen/text_md" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="132dp"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_primary_button"
+            android:gravity="center"
+            android:text="车端账号"
+            android:textColor="@color/car_text_primary"
+            android:textSize="@dimen/text_md"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="@dimen/spacing_18dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="320dp"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:fillViewport="true"
+            android:paddingBottom="@dimen/spacing_12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvStatDownloads"
+                        style="@style/MyProfileStat"
+                        android:text="我的下载\n32" />
+
+                    <TextView
+                        android:id="@+id/tvStatFavorites"
+                        style="@style/MyProfileStat"
+                        android:layout_marginStart="@dimen/spacing_8dp"
+                        android:text="我的收藏\n128" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_8dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        style="@style/MyProfileStat"
+                        android:text="购买记录\n18" />
+
+                    <TextView
+                        style="@style/MyProfileStat"
+                        android:layout_marginStart="@dimen/spacing_8dp"
+                        android:text="优惠券\n6" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="58dp"
+                    android:layout_marginTop="@dimen/spacing_14dp"
+                    android:background="@drawable/bg_primary_button"
+                    android:gravity="center_vertical"
+                    android:paddingStart="@dimen/spacing_18dp"
+                    android:paddingEnd="@dimen/spacing_18dp"
+                    android:text="超级会员  尊享车端同步权益"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_lg"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_18dp"
+                    android:text="应用管理"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_lg"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btnInstallManager"
+                    style="@style/MyManagerCard"
+                    android:layout_width="match_parent"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:text="安装管理\n查看安装会话与失败恢复" />
+
+                <TextView
+                    android:id="@+id/btnDownloadManager"
+                    style="@style/MyManagerCard"
+                    android:layout_width="match_parent"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:text="下载管理\n暂停、重试与离线队列" />
+
+                <TextView
+                    android:id="@+id/btnUpgradeManager"
+                    style="@style/MyManagerCard"
+                    android:layout_width="match_parent"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:text="升级管理\n批量升级和版本策略" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="@dimen/spacing_18dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:fillViewport="true"
+            android:paddingBottom="@dimen/spacing_12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="常用服务"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_xl"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        style="@style/MyServiceRow"
+                        android:layout_width="0dp"
+                        android:layout_marginBottom="0dp"
+                        android:layout_weight="1"
+                        android:text="消息通知" />
+
+                    <TextView
+                        style="@style/MyServiceRow"
+                        android:layout_width="0dp"
+                        android:layout_marginStart="@dimen/spacing_10dp"
+                        android:layout_marginBottom="0dp"
+                        android:layout_weight="1"
+                        android:text="设置中心" />
+
+                    <TextView
+                        style="@style/MyServiceRow"
+                        android:layout_width="0dp"
+                        android:layout_marginStart="@dimen/spacing_10dp"
+                        android:layout_marginBottom="0dp"
+                        android:layout_weight="1"
+                        android:text="帮助反馈" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_18dp"
+                    android:text="最近安装"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_xl"
+                    android:textStyle="bold" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/recyclerMyApps"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:nestedScrollingEnabled="false" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnBackHome"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+</LinearLayout>

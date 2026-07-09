@@ -44,6 +44,14 @@
             <include
                 android:id="@+id/includeCachePanel"
                 layout="@layout/include_cache_panel" />
+
+            <include
+                android:id="@+id/includeAnalyticsPanel"
+                layout="@layout/include_analytics_panel" />
+
+            <include
+                android:id="@+id/includeGrayscalePanel"
+                layout="@layout/include_grayscale_panel" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

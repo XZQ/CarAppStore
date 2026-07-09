@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 埋点看板面板 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="@dimen/spacing_14dp"
+    android:background="@drawable/bg_panel"
+    android:orientation="vertical"
+    android:padding="@dimen/spacing_18dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/ui_debug_analytics"
+        android:textColor="@color/car_text_primary"
+        android:textSize="@dimen/text_xl"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_8dp"
+        android:text="@string/ui_debug_analytics_hint"
+        android:textColor="@color/car_text_muted"
+        android:textSize="@dimen/text_sm_13" />
+
+    <TextView
+        android:id="@+id/tvAnalyticsSummary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_14dp"
+        android:background="@drawable/bg_card_alt"
+        android:padding="@dimen/spacing_10dp"
+        android:text="@string/ui_debug_analytics_empty"
+        android:textColor="@color/car_text_secondary"
+        android:textSize="@dimen/text_sm" />
+
+    <TextView
+        android:id="@+id/tvAnalyticsBreakdown"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_10dp"
+        android:background="@drawable/bg_card_alt"
+        android:lineSpacingExtra="4dp"
+        android:padding="@dimen/spacing_10dp"
+        android:textColor="@color/car_text_secondary"
+        android:textSize="@dimen/text_sm_13"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/btnRefreshAnalytics"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_14dp"
+        android:background="@drawable/bg_secondary_button"
+        android:text="@string/ui_debug_analytics_refresh"
+        android:textAllCaps="false"
+        android:textColor="@color/car_text_primary" />
+</LinearLayout>

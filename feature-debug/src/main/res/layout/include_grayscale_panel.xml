@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 灰度头面板 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="@dimen/spacing_14dp"
+    android:background="@drawable/bg_panel"
+    android:orientation="vertical"
+    android:padding="@dimen/spacing_18dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/ui_debug_grayscale"
+        android:textColor="@color/car_text_primary"
+        android:textSize="@dimen/text_xl"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_8dp"
+        android:text="@string/ui_debug_grayscale_hint"
+        android:textColor="@color/car_text_muted"
+        android:textSize="@dimen/text_sm_13" />
+
+    <Switch
+        android:id="@+id/swGrayscaleEnabled"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_14dp"
+        android:text="@string/ui_debug_grayscale_enable"
+        android:textColor="@color/car_text_primary"
+        android:textSize="@dimen/text_md" />
+
+    <EditText
+        android:id="@+id/etGrayscaleHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_12dp"
+        android:background="@drawable/bg_card_alt"
+        android:hint="@string/ui_debug_grayscale_hint_input"
+        android:inputType="text"
+        android:padding="@dimen/spacing_12dp"
+        android:textColor="@color/car_text_primary"
+        android:textColorHint="@color/car_text_muted"
+        android:textSize="@dimen/text_md" />
+
+    <Button
+        android:id="@+id/btnApplyGrayscale"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_14dp"
+        android:background="@drawable/bg_primary_button"
+        android:text="@string/ui_debug_grayscale_apply"
+        android:textAllCaps="false"
+        android:textColor="@color/car_text_primary" />
+
+    <Button
+        android:id="@+id/btnClearGrayscale"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_10dp"
+        android:background="@drawable/bg_secondary_button"
+        android:text="@string/ui_debug_grayscale_clear"
+        android:textAllCaps="false"
+        android:textColor="@color/car_text_primary" />
+
+    <TextView
+        android:id="@+id/tvGrayscaleCurrent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_12dp"
+        android:background="@drawable/bg_card_alt"
+        android:lineSpacingExtra="3dp"
+        android:padding="@dimen/spacing_10dp"
+        android:text="@string/ui_debug_grayscale_current_empty"
+        android:textColor="@color/car_text_secondary"
+        android:textSize="@dimen/text_sm_13" />
+</LinearLayout>

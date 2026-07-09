@@ -213,6 +213,22 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
                         onSecondary = viewModel::onClearFailed,
                     )
 
+                    // 弱网横幅跟随错误态展示；权限引导在安装就绪时提示开启未知来源权限。
+                    bindWeakNetPanel(
+                        weakNetBinding = binding.weakNetBanner,
+                        title = getString(R.string.ui_weak_net_title),
+                        desc = getString(R.string.ui_weak_net_desc),
+                        showPanel = state.screenState is DownloadManagerScreenState.Error,
+                    )
+                    bindPermissionPanel(
+                        permissionBinding = binding.permissionBanner,
+                        title = getString(R.string.ui_permission_title),
+                        desc = getString(R.string.ui_permission_desc),
+                        actionText = getString(R.string.ui_permission_action),
+                        showPanel = state.readyInstallCount > 0,
+                        onAction = { },
+                    )
+
                     bindEmptyPanel(
                         emptyPanelBinding = binding.emptyPanel,
                         uiState =

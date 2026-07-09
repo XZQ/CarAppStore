@@ -97,6 +97,7 @@ class SearchFragment : BaseFragment() {
                     binding.tvPolicyPrompt.text = state.policyPrompt
                     binding.tvPolicyPrompt.visibility = if (state.policyPrompt.isBlank()) View.GONE else View.VISIBLE
                     renderResults(state.apps)
+                    renderSuggestions(state.suggestions, state.keyword)
                 }
             }
         }
@@ -123,6 +124,32 @@ class SearchFragment : BaseFragment() {
                 ),
             )
         }
+    }
+
+    /** 渲染搜索联想候选下拉：仅在有关键词且候选非空时显示，点击即填充并搜索。 */
+    private fun renderSuggestions(suggestions: List<AppViewData>, keyword: String) {
+        binding.suggestionPanel.removeAllViews()
+        if (keyword.isBlank() || suggestions.isEmpty()) {
+            binding.suggestionPanel.visibility = View.GONE
+            return
+        }
+        suggestions.forEach { app ->
+            val row =
+                TextView(requireContext()).apply {
+                    text = app.name
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
+                    textSize = 14f
+                    setPadding(dp(12), dp(12), dp(12), dp(12))
+                    setOnClickListener {
+                        binding.etSearch.setText(app.name)
+                        binding.etSearch.setSelection(app.name.length)
+                        viewModel.search(app.name)
+                    }
+                }
+            binding.suggestionPanel.addView(row)
+        }
+        binding.suggestionPanel.visibility = View.VISIBLE
     }
 
     private fun pickApps(

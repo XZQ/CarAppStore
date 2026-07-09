@@ -75,7 +75,12 @@ class DetailViewModel(
                 .observeSettings()
                 .onEach {
                     if (::currentAppId.isInitialized) {
-                        _uiState.update { it.copy(policyPrompt = appManager.getPolicyPrompt()) }
+                        _uiState.update {
+                            it.copy(
+                                policyPrompt = appManager.getPolicyPrompt(),
+                                interceptReason = computeInterceptReason(currentAppId),
+                            )
+                        }
                     }
                 }.launchIn(viewModelScope)
         viewModelScope.launch { loadDetail(appId) }
@@ -105,6 +110,7 @@ class DetailViewModel(
                     appDetail = detail,
                     screenState = DetailScreenState.Content,
                     policyPrompt = appManager.getPolicyPrompt(),
+                    interceptReason = computeInterceptReason(appId),
                 )
             }
         }.onFailure { throwable ->
@@ -113,8 +119,13 @@ class DetailViewModel(
                     appDetail = null,
                     screenState = DetailScreenState.Error(throwable.message.orEmpty()),
                     policyPrompt = "",
+                    interceptReason = "",
                 )
             }
         }
     }
+
+    /** 计算当前应用是否被策略拦截下载，返回拦截原因文案（未拦截时为空）。 */
+    private fun computeInterceptReason(appId: String): String =
+        policyCenter.canDownload(appId).let { result -> if (!result.allow) result.reason else "" }
 }

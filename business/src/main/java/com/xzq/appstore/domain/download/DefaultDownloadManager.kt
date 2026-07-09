@@ -25,6 +25,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 
@@ -43,9 +44,17 @@ class DefaultDownloadManager(
     private val tracker: EventTracker,
     /** 下载任务后台协程使用的调度器，测试时可注入 TestDispatcher 让异步任务确定性执行。 */
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** 同时进行的 APK 下载任务上限，默认 3（用户要求「最多同时下载 3 个 apk」）。 */
+    private val maxConcurrentDownloads: Int = DEFAULT_MAX_CONCURRENT_DOWNLOADS,
 ) : DownloadManager {
     /** 用于冷启动恢复下载任务的后台协程作用域。 */
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+
+    /**
+     * 下载并发信号量：同一时刻最多 [maxConcurrentDownloads] 个 APK 真正进入下载。
+     * 超额任务会阻塞在 WAITING 态，待有槽位空出后再开始下载，避免一次性拉满带宽与连接。
+     */
+    private val downloadConcurrencySemaphore = Semaphore(maxConcurrentDownloads)
 
     /** 保护活动下载任务注册表的并发访问。 */
     private val executionMutex = Mutex()
@@ -255,22 +264,29 @@ class DefaultDownloadManager(
         appId: String,
         control: DownloadExecutionControl,
     ) {
-        val (detail, targetFile, prepared) = prepareDownloadRecord(appId) ?: return
-        val request = buildDownloadRequest(prepared, detail, targetFile)
+        // 先争用并发槽位：未取得许可的任务保持在 WAITING 态排队，直到有下载槽位空出。
+        downloadConcurrencySemaphore.acquire()
         try {
-            fileDownloader.download(request, control) { event ->
-                handleDownloadEvent(appId, prepared, control, event)
-            }
-        } catch (t: Throwable) {
             if (control.isStopRequested()) return
-            // 兜底处理下载器未归一化的异常，避免任务停留在中间状态。
-            logger.d("DownloadManager", "download failed: $appId, ${t.message}")
-            markFailed(
-                appId = appId,
-                record = repository.getDownloadTask(appId) ?: prepared,
-                errorCode = DownloadFailureCode.UNKNOWN.name,
-                errorMessage = t.message ?: DownloadFailureCode.UNKNOWN.displayText,
-            )
+            val (detail, targetFile, prepared) = prepareDownloadRecord(appId) ?: return
+            val request = buildDownloadRequest(prepared, detail, targetFile)
+            try {
+                fileDownloader.download(request, control) { event ->
+                    handleDownloadEvent(appId, prepared, control, event)
+                }
+            } catch (t: Throwable) {
+                if (control.isStopRequested()) return
+                // 兜底处理下载器未归一化的异常，避免任务停留在中间状态。
+                logger.d("DownloadManager", "download failed: $appId, ${t.message}")
+                markFailed(
+                    appId = appId,
+                    record = repository.getDownloadTask(appId) ?: prepared,
+                    errorCode = DownloadFailureCode.UNKNOWN.name,
+                    errorMessage = t.message ?: DownloadFailureCode.UNKNOWN.displayText,
+                )
+            }
+        } finally {
+            downloadConcurrencySemaphore.release()
         }
     }
 
@@ -830,4 +846,9 @@ class DefaultDownloadManager(
             createdAt = now,
             updatedAt = now,
         )
+
+    private companion object {
+        /** 默认同时下载的 APK 数量上限（用户要求「最多同时下载 3 个 apk」）。 */
+        const val DEFAULT_MAX_CONCURRENT_DOWNLOADS = 3
+    }
 }

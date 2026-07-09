@@ -23,6 +23,8 @@ data class DetailUiState(
     val progress: Int = 0,
     /** 当前策略提示文案。 */
     val policyPrompt: String = "",
+    /** 当前策略拦截原因文案；为空表示未触发下载拦截。 */
+    val interceptReason: String = "",
 )
 
 /**

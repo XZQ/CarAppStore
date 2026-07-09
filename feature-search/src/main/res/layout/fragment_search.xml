@@ -33,6 +33,17 @@
             android:textColorHint="@color/car_text_muted"
             android:textSize="@dimen/text_md" />
 
+        <!-- 搜索联想下拉：输入关键词时展示候选应用，点击即填充并搜索 -->
+        <LinearLayout
+            android:id="@+id/suggestionPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_8dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="@dimen/spacing_6dp"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/tvPolicyPrompt"
             android:layout_width="match_parent"

@@ -10,6 +10,8 @@ enum class DownloadEnvironment {
     TEST,
     /** 生产环境。 */
     PROD,
+    /** 本地模拟环境：目录与 APK 均来自本机静态服务器，用于离线/无后端联调。 */
+    LOCAL_SIM,
 }
 
 data class DownloadEnvironmentConfig(
@@ -70,6 +72,15 @@ data class DownloadEnvironmentConfig(
                         BuildConfig.CARAPPSTORE_DOWNLOAD_PROD_BASE_URL,
                         "https://cdn.example.com/carapps",
                     ),
+                )
+                DownloadEnvironment.LOCAL_SIM -> DownloadEnvironmentConfig(
+                    environment = environment,
+                    defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
+                    allowMockSource = true,
+                    allowDirectHttp = true,
+                    catalogEndpointUrl = "http://10.0.2.2:8080/catalog.json",
+                    catalogRequestHeaders = configuredHeaders("carappstore-local"),
+                    downloadBaseUrl = "http://10.0.2.2:8080",
                 )
             }
         }

@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SearchViewModel(
     /** 搜索结果聚合入口。 */
@@ -40,6 +41,9 @@ class SearchViewModel(
     /** 搜索页策略订阅任务。 */
     private var observePolicyJob: Job? = null
 
+    /** 目录全量快照，用于生成搜索联想候选（避免每次输入都重新拉取目录）。 */
+    private var catalogSnapshot: List<AppViewData> = emptyList()
+
     /** 搜索结果和详情共用的主动作分发器。 */
     private val primaryActionExecutor =
         AppPrimaryActionExecutor(
@@ -53,6 +57,9 @@ class SearchViewModel(
     /** 初始化搜索页数据并开始监听状态变化。 */
     fun load() {
         viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) { appManager.searchApps("") }
+            }.onSuccess { catalogSnapshot = it }
             refresh(_uiState.value.keyword)
             observeStateChanges()
             observePolicyChanges()
@@ -117,9 +124,21 @@ class SearchViewModel(
                         apps.isEmpty() -> SearchScreenState.Empty
                         else -> SearchScreenState.Content
                     }
+                // 联想候选：基于目录快照按关键词（名称/包名）前缀或包含匹配，限制条数。
+                val suggestions =
+                    if (keyword.isBlank()) {
+                        emptyList()
+                    } else {
+                        catalogSnapshot
+                            .filter {
+                                it.name.contains(keyword, ignoreCase = true) ||
+                                    it.packageName?.contains(keyword, ignoreCase = true) == true
+                            }.take(SUGGESTION_LIMIT)
+                    }
                 _uiState.update {
                     it.copy(
                         apps = apps,
+                        suggestions = suggestions,
                         policyPrompt = policyPrompt,
                         screenState = screen,
                     )
@@ -138,5 +157,7 @@ class SearchViewModel(
     private companion object {
         /** 状态/策略变化刷新防抖窗口（毫秒）。 */
         const val REFRESH_DEBOUNCE_MS = 300L
+        /** 搜索联想候选最大条数。 */
+        const val SUGGESTION_LIMIT = 6
     }
 }

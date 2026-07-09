@@ -157,4 +157,8 @@
         android:textColor="@color/car_text_primary"
         android:textSize="@dimen/text_sm_13"
         android:visibility="gone" />
+
+    <include
+        android:id="@+id/policyIntercept"
+        layout="@layout/view_policy_intercept" />
 </LinearLayout>

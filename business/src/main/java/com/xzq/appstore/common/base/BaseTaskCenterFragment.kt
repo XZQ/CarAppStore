@@ -4,6 +4,7 @@ import android.view.View
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +21,8 @@ import com.xzq.appstore.common.databinding.ViewTaskCenterFailurePanelBinding
 import com.xzq.appstore.common.databinding.ViewTaskCenterExtensionSlotBinding
 import com.xzq.appstore.common.databinding.ViewTaskCenterHeaderBinding
 import com.xzq.appstore.common.databinding.ViewTaskCenterListBlockBinding
+import com.xzq.appstore.common.databinding.ViewWeakNetworkBannerBinding
+import com.xzq.appstore.common.databinding.ViewPermissionGuideBinding
 import com.xzq.appstore.common.ui.CommonUiText
 
 abstract class BaseTaskCenterFragment : BaseFragment() {
@@ -112,6 +115,40 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
         failureBinding.btnFailurePrimary.text = primaryText
         failureBinding.btnFailureSecondary.text = secondaryText
         failureBinding.btnFailureSecondary.visibility = if (showSecondary) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * 绑定弱网提示横幅的文案和显隐状态。
+     * 弱网横幅通常由网络异常信号驱动，这里仅负责展示与隐藏。
+     */
+    protected fun bindWeakNetPanel(
+            weakNetBinding: ViewWeakNetworkBannerBinding,
+            title: String,
+            desc: String,
+            showPanel: Boolean,
+    ) {
+        weakNetBinding.root.visibility = if (showPanel) View.VISIBLE else View.GONE
+        weakNetBinding.tvWeakNetTitle.text = title
+        weakNetBinding.tvWeakNetDesc.text = desc
+    }
+
+    /**
+     * 绑定安装权限引导面板的文案、按钮与显隐状态。
+     * 当有可立即执行的安装/升级任务但尚未授予安装权限时展示。
+     */
+    protected fun bindPermissionPanel(
+            permissionBinding: ViewPermissionGuideBinding,
+            title: String,
+            desc: String,
+            actionText: String,
+            showPanel: Boolean,
+            onAction: () -> Unit,
+    ) {
+        permissionBinding.root.visibility = if (showPanel) View.VISIBLE else View.GONE
+        permissionBinding.tvPermissionTitle.text = title
+        permissionBinding.tvPermissionDesc.text = desc
+        permissionBinding.btnPermissionAction.text = actionText
+        permissionBinding.btnPermissionAction.setOnClickListener { onAction() }
     }
 
     /** 绑定空态面板的文案和显隐状态。 */

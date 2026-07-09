@@ -41,6 +41,14 @@
                 layout="@layout/view_task_center_failure_panel" />
 
             <include
+                android:id="@+id/weakNetBanner"
+                layout="@layout/view_weak_network_banner" />
+
+            <include
+                android:id="@+id/permissionBanner"
+                layout="@layout/view_permission_guide" />
+
+            <include
                 android:id="@+id/emptyPanel"
                 layout="@layout/view_task_center_empty_panel" />
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="@dimen/spacing_12dp"
+    android:background="@drawable/bg_tag_warning"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="@dimen/spacing_14dp"
+    android:visibility="gone">
+
+    <TextView
+        android:id="@+id/tvWeakNetTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="@color/car_text_primary"
+        android:textSize="@dimen/text_sm"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvWeakNetDesc"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/spacing_12dp"
+        android:layout_weight="2"
+        android:textColor="@color/car_text_secondary"
+        android:textSize="@dimen/text_xs" />
+</LinearLayout>

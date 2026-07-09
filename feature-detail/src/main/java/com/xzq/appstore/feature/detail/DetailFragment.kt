@@ -64,6 +64,10 @@ class DetailFragment : BaseFragment() {
         binding.btnPrimaryAction.setOnClickListener { viewModel.onPrimaryClick() }
         binding.btnGoMyApps.setOnClickListener { navigator.openMyApps() }
         binding.btnBackHome.setOnClickListener { navigator.openHome() }
+        binding.includeDetailAppInfo.policyIntercept.btnInterceptAction.setOnClickListener {
+            appServices.eventTracker.track("policy_intercept_open_settings")
+            navigator.openDeveloperSettings()
+        }
     }
 
     /** 订阅详情页 UI 状态，并刷新详情信息与主动作。 */
@@ -118,6 +122,9 @@ class DetailFragment : BaseFragment() {
                         }
                     appInfoBinding.tvPolicyPrompt.text = state.policyPrompt
                     appInfoBinding.tvPolicyPrompt.visibility = if (state.policyPrompt.isBlank()) View.GONE else View.VISIBLE
+                    val interceptBinding = appInfoBinding.policyIntercept
+                    interceptBinding.tvInterceptReason.text = state.interceptReason
+                    interceptBinding.root.visibility = if (state.interceptReason.isBlank()) View.GONE else View.VISIBLE
                     binding.btnPrimaryAction.applyActionStyle(CarUiStyle.actionStyle(state.primaryAction))
                 }
             }

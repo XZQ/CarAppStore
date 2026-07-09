@@ -1,6 +1,7 @@
 package com.xzq.appstore.data.datasource.remote
 
 import android.content.Context
+import com.xzq.appstore.common.grayscale.GrayscaleHeaderStore
 import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppInfo
@@ -32,6 +33,7 @@ class AppRemoteDataSource(
         loader = catalogLoader,
         endpointUrl = catalogEndpointUrl,
         requestHeaders = catalogRequestHeaders,
+        grayscaleHeaderProvider = { GrayscaleHeaderStore.read(context.applicationContext) },
         httpClient = httpClient,
         cacheFile = catalogCacheFile,
         cacheMetadataFile = catalogCacheMetadataFile,

@@ -1,5 +1,6 @@
 package com.xzq.appstore.data.datasource.remote
 
+import com.xzq.appstore.common.grayscale.GrayscaleHeaderStore
 import com.xzq.appstore.core.logger.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -42,6 +43,8 @@ class ResilientAppCatalogSource(
     private val cacheMetadataFile: File?,
     /** 资源目录兜底源。 */
     private val fallbackSource: AppCatalogSource,
+    /** 实时提供灰度头配置，由调用方从共享存储读取。 */
+    private val grayscaleHeaderProvider: () -> GrayscaleHeaderStore.GrayscaleHeaderConfig,
     /** 日志入口。 */
     private val logger: AppLogger = AppLogger(),
 ) : AppCatalogSource {
@@ -61,11 +64,15 @@ class ResilientAppCatalogSource(
         if (endpointUrl.isNullOrBlank()) return null
         return runCatching {
             val cachedMetadata = cacheMetadataFile?.let(AppCatalogCacheMetadataStore::read)
+            // 实时读取开发者设置的灰度头，启用且标识非空时追加到目录请求头，
+            // 让后端按 rollout 过滤可见应用；读取失败（如上下文异常）则降级为不带灰度头。
+            val grayscaleHeader = runCatching { grayscaleHeaderProvider() }.getOrNull()?.let(GrayscaleHeaderStore::toHeader)
+            val effectiveHeaders = if (grayscaleHeader != null) requestHeaders + grayscaleHeader else requestHeaders
             val response =
                 httpClient.fetch(
                     AppCatalogHttpRequest(
                         endpointUrl = requireNotNull(endpointUrl),
-                        headers = requestHeaders,
+                        headers = effectiveHeaders,
                         eTag = cachedMetadata?.eTag,
                         lastModified = cachedMetadata?.lastModified,
                     ),

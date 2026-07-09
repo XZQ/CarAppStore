@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import com.xzq.appstore.common.R
 import com.xzq.appstore.common.base.BaseFragment
+import com.xzq.appstore.common.grayscale.GrayscaleHeaderStore
 import com.xzq.appstore.data.downloadenv.DownloadEnvironment
 import com.xzq.appstore.data.downloadenv.DownloadEnvironmentConfig
 import com.xzq.appstore.data.downloadenv.DownloadEnvironmentEntry
@@ -53,6 +54,8 @@ class DeveloperSettingsFragment : BaseFragment() {
         bindPolicySignalsSection()
         bindVersionInfoSection()
         bindCacheManagementSection()
+        bindAnalyticsSection()
+        bindGrayscaleSection()
     }
 
     /** 绑定下载环境切换按钮。 */
@@ -71,6 +74,10 @@ class DeveloperSettingsFragment : BaseFragment() {
             environmentProvider.setCurrentEnvironment(DownloadEnvironment.PROD)
             renderCurrentEnvironment()
         }
+        binding.includeEnvironmentPanel.btnEnvLocal.setOnClickListener {
+            environmentProvider.setCurrentEnvironment(DownloadEnvironment.LOCAL_SIM)
+            renderCurrentEnvironment()
+        }
     }
 
     /** 根据当前环境刷新页面展示文案。 */
@@ -84,6 +91,7 @@ class DeveloperSettingsFragment : BaseFragment() {
                 DownloadEnvironment.DEV -> getString(R.string.ui_download_environment_hint_dev)
                 DownloadEnvironment.TEST -> getString(R.string.ui_download_environment_hint_test)
                 DownloadEnvironment.PROD -> getString(R.string.ui_download_environment_hint_prod)
+                DownloadEnvironment.LOCAL_SIM -> getString(R.string.ui_download_environment_hint_local)
             }
         envBinding.tvCatalogSource.text =
             getString(
@@ -235,6 +243,105 @@ class DeveloperSettingsFragment : BaseFragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    /** 绑定埋点看板，加载并展示事件分类统计。 */
+    private fun bindAnalyticsSection() {
+        renderAnalytics()
+        binding.includeAnalyticsPanel.btnRefreshAnalytics.setOnClickListener {
+            renderAnalytics()
+        }
+    }
+
+    /** 读取本地事件日志并统计各类型打点次数。 */
+    private fun renderAnalytics() {
+        val context = context ?: return
+        val analyticsBinding = binding.includeAnalyticsPanel
+        val file = eventLogFile(context)
+        if (!file.exists()) {
+            analyticsBinding.tvAnalyticsSummary.text = getString(R.string.ui_debug_analytics_empty)
+            analyticsBinding.tvAnalyticsBreakdown.visibility = View.GONE
+            return
+        }
+        val counts = LinkedHashMap<String, Int>()
+        var total = 0
+        file.useLines(Charsets.UTF_8) { lines ->
+            for (raw in lines) {
+                val payload = raw.substringAfter('\t')
+                if (payload.isBlank()) continue
+                total++
+                val category = normalizeEventCategory(payload)
+                counts[category] = counts.getOrDefault(category, 0) + 1
+            }
+        }
+        analyticsBinding.tvAnalyticsSummary.text = getString(R.string.ui_debug_analytics_total_format, total)
+        val top = counts.entries.sortedByDescending { it.value }.take(8)
+        if (top.isEmpty()) {
+            analyticsBinding.tvAnalyticsBreakdown.visibility = View.GONE
+            return
+        }
+        analyticsBinding.tvAnalyticsBreakdown.text =
+            top.joinToString(separator = "\n") { "- ${it.key}: ${it.value}" }
+        analyticsBinding.tvAnalyticsBreakdown.visibility = View.VISIBLE
+    }
+
+    /** 将原始事件归一化为稳定分类：末尾为包名的尾段（含 '.'）会被剥离。 */
+    private fun normalizeEventCategory(event: String): String {
+        val lastUnderscore = event.lastIndexOf('_')
+        if (lastUnderscore > 0 && event.substring(lastUnderscore + 1).contains('.')) {
+            return event.substring(0, lastUnderscore)
+        }
+        return event
+    }
+
+    /** 绑定灰度头面板，回填已保存的灰度标识并支持应用与清除。 */
+    private fun bindGrayscaleSection() {
+        val grayscaleBinding = binding.includeGrayscalePanel
+        val (enabled, header) = loadGrayscaleHeader()
+        grayscaleBinding.swGrayscaleEnabled.isChecked = enabled
+        grayscaleBinding.etGrayscaleHeader.setText(header)
+        renderGrayscaleCurrent()
+        grayscaleBinding.btnApplyGrayscale.setOnClickListener {
+            val checked = grayscaleBinding.swGrayscaleEnabled.isChecked
+            val value = grayscaleBinding.etGrayscaleHeader.text.toString().trim()
+            saveGrayscaleHeader(checked, value)
+            renderGrayscaleCurrent()
+            Toast.makeText(requireContext(), getString(R.string.ui_debug_grayscale_applied), Toast.LENGTH_SHORT).show()
+        }
+        grayscaleBinding.btnClearGrayscale.setOnClickListener {
+            saveGrayscaleHeader(false, "")
+            grayscaleBinding.swGrayscaleEnabled.isChecked = false
+            grayscaleBinding.etGrayscaleHeader.setText("")
+            renderGrayscaleCurrent()
+        }
+    }
+
+    /** 根据已保存的灰度头刷新当前展示文案。 */
+    private fun renderGrayscaleCurrent() {
+        val (enabled, header) = loadGrayscaleHeader()
+        binding.includeGrayscalePanel.tvGrayscaleCurrent.text =
+            if (header.isBlank()) {
+                getString(R.string.ui_debug_grayscale_current_empty)
+            } else {
+                getString(
+                    R.string.ui_debug_grayscale_current_format,
+                    header,
+                    if (enabled) getString(R.string.ui_debug_yes) else getString(R.string.ui_debug_no),
+                )
+            }
+    }
+
+    /** 读取已保存的灰度头配置（启用开关 + 标识）。 */
+    private fun loadGrayscaleHeader(): Pair<Boolean, String> {
+        val context = context ?: return false to ""
+        val config = GrayscaleHeaderStore.read(context)
+        return config.enabled to config.tag
+    }
+
+    /** 持久化灰度头配置。 */
+    private fun saveGrayscaleHeader(enabled: Boolean, header: String) {
+        val context = context ?: return
+        GrayscaleHeaderStore.save(context, enabled, header)
     }
 
     companion object {

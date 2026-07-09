@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:fillViewport="true"
+    android:paddingBottom="@dimen/spacing_16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/topImmersivePanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_home_hero"
+            android:orientation="vertical"
+            android:padding="@dimen/spacing_16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvHomeTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="青柠应用商店"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_xl"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvHomeNotice"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/bg_home_chip"
+                    android:gravity="center"
+                    android:text="提醒"
+                    android:textColor="@color/car_accent"
+                    android:textSize="@dimen/text_xs"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvHomeSearch"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="@dimen/spacing_12dp"
+                android:background="@drawable/bg_search_input"
+                android:gravity="center_vertical"
+                android:paddingStart="@dimen/spacing_16dp"
+                android:paddingEnd="@dimen/spacing_16dp"
+                android:text="搜索应用或游戏"
+                android:textColor="@color/car_text_hint"
+                android:textSize="@dimen/text_sm" />
+
+            <TextView
+                android:id="@+id/tvPolicyPrompt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_10dp"
+                android:background="@drawable/bg_home_chip"
+                android:paddingStart="@dimen/spacing_12dp"
+                android:paddingTop="@dimen/spacing_8dp"
+                android:paddingEnd="@dimen/spacing_12dp"
+                android:paddingBottom="@dimen/spacing_8dp"
+                android:textColor="@color/car_text_secondary"
+                android:textSize="@dimen/text_xs" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/carouselPanel"
+            android:layout_width="match_parent"
+            android:layout_height="160dp"
+            android:layout_marginTop="@dimen/spacing_14dp"
+            android:background="@drawable/bg_home_banner"
+            android:orientation="vertical"
+            android:padding="@dimen/spacing_18dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="春日焕新季"
+                android:textColor="@color/car_text_primary"
+                android:textSize="@dimen/text_2xl"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvHomeSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_8dp"
+                android:textColor="@color/car_text_secondary"
+                android:textSize="@dimen/text_sm" />
+
+            <TextView
+                android:layout_width="92dp"
+                android:layout_height="38dp"
+                android:layout_marginTop="@dimen/spacing_18dp"
+                android:background="@drawable/bg_primary_button"
+                android:gravity="center"
+                android:text="立即探索"
+                android:textColor="@color/car_text_primary"
+                android:textSize="@dimen/text_sm"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/categoryRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_14dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView android:id="@+id/entryCategory" style="@style/HomeQuickEntry" android:text="分类" />
+            <TextView android:id="@+id/entryRank" style="@style/HomeQuickEntry" android:layout_marginStart="@dimen/spacing_10dp" android:text="排行" />
+            <TextView android:id="@+id/entryEssential" style="@style/HomeQuickEntry" android:layout_marginStart="@dimen/spacing_10dp" android:text="必备" />
+            <TextView android:id="@+id/entryFactory" style="@style/HomeQuickEntry" android:layout_marginStart="@dimen/spacing_10dp" android:text="活动" />
+        </LinearLayout>
+
+        <!-- 平板双列：今日推荐 | 热门榜单 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_16dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/todaySection"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bg_home_app_card"
+                android:orientation="vertical"
+                android:padding="@dimen/spacing_14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="今日推荐"
+                        android:textColor="@color/car_text_primary"
+                        android:textSize="@dimen/text_lg"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvTodayMore"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="查看更多"
+                        android:textColor="@color/car_accent"
+                        android:textSize="@dimen/text_sm" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/listTodayRecommend"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/rankSection"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/spacing_14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="热门榜单"
+                        android:textColor="@color/car_text_primary"
+                        android:textSize="@dimen/text_lg"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvRankMore"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="查看更多"
+                        android:textColor="@color/car_accent"
+                        android:textSize="@dimen/text_sm" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/listHotRank"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 平板双列：热门游戏 | 热门软件 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_14dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/gamesSection"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bg_home_app_card"
+                android:orientation="vertical"
+                android:padding="@dimen/spacing_14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="热门游戏"
+                        android:textColor="@color/car_text_primary"
+                        android:textSize="@dimen/text_lg"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvGamesMore"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="查看更多"
+                        android:textColor="@color/car_accent"
+                        android:textSize="@dimen/text_sm" />
+                </LinearLayout>
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/rowHotGames"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/softwareSection"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/spacing_14dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_home_app_card"
+                android:orientation="vertical"
+                android:padding="@dimen/spacing_14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="热门软件"
+                        android:textColor="@color/car_text_primary"
+                        android:textSize="@dimen/text_lg"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvReservationMore"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="查看更多"
+                        android:textColor="@color/car_accent"
+                        android:textSize="@dimen/text_sm" />
+                </LinearLayout>
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_10dp"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/rowNewGames"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/limitedActivitySection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_16dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="限时活动"
+                    android:textColor="@color/car_text_primary"
+                    android:textSize="@dimen/text_lg"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvActivityMore"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="查看更多"
+                    android:textColor="@color/car_accent"
+                    android:textSize="@dimen/text_sm" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvActivityBanner"
+                android:layout_width="match_parent"
+                android:layout_height="128dp"
+                android:layout_marginTop="@dimen/spacing_10dp"
+                android:background="@drawable/bg_home_activity"
+                android:gravity="center_vertical"
+                android:paddingStart="@dimen/spacing_18dp"
+                android:paddingEnd="@dimen/spacing_18dp"
+                android:text="周末狂欢 下载赢好礼\n最高领 100 元优惠券"
+                android:textColor="@color/car_text_primary"
+                android:textSize="@dimen/text_lg"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
