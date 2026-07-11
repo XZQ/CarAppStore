@@ -25,6 +25,7 @@ import com.xzq.appstore.data.datasource.local.AppLocalDataSource
 import com.xzq.appstore.data.datasource.remote.AppRemoteDataSource
 import com.xzq.appstore.data.datasource.remote.DownloadSourceCatalog
 import com.xzq.appstore.data.datasource.remote.HttpUrlConnectionAppCatalogHttpClient
+import com.xzq.appstore.data.datasource.system.AndroidStorageInfoProvider
 import com.xzq.appstore.data.datasource.system.AppSystemDataSource
 import com.xzq.appstore.data.downloadenv.DownloadEnvironment
 import com.xzq.appstore.data.downloadenv.DownloadEnvironmentEntry
@@ -45,7 +46,6 @@ import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.DefaultUpgradeManager
 import com.xzq.appstore.domain.upgrade.UpgradeManager
-import com.xzq.appstore.data.datasource.system.AndroidStorageInfoProvider
 
 /**
  * AppContainer 是当前 app 壳层的主装配入口。
