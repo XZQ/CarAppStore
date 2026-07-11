@@ -9,6 +9,7 @@
 - 目录接口正式地址
 - 鉴权方案或灰度头定义
 - 返回字段说明与错误码说明
+- 每个 APK 的正数 `versionCode` 和至少一个签名证书 SHA-256 摘要 `signerCertificateSha256`
 - 缓存策略：`ETag` / `Last-Modified` / `Cache-Control`
 - 降级策略：空目录、部分字段缺失、非 200 返回时的约定
 
@@ -20,6 +21,8 @@
 - `AppCatalogCacheMetadataStore`
 - `ResilientAppCatalogSource`
 - `AppRemoteDataSource`
+- `AppCatalogValidator`
+- `AndroidPackageIdentityVerifier` / `ApkIdentityValidator`
 
 ### 1.3 联调验收项
 
@@ -27,7 +30,8 @@
 - 304 返回时可直接复用缓存目录
 - 鉴权头或灰度头可以通过环境配置注入
 - 接口失败时能从缓存或资源目录回退
-- 关键字段缺失时不会导致页面直接崩溃
+- 非法 `appId` / `packageName`、重复标识、非法版本或签名摘要会拒绝整份来源并走缓存/raw 回退
+- 严格环境缺少 `versionCode` 或签名摘要时，APK 在创建安装 Session 前失败关闭
 
 ## 2. OEM 车况信号
 
@@ -60,6 +64,8 @@
 
 - 下载发起、暂停、恢复、失败重试
 - 安装确认页拉起与回调
+- APK 包名、版本代码和签名不匹配时不创建安装 Session
+- 成功回调后 PackageManager 实际包名和版本核对
 - 安装会话中断后的恢复
 - 升级链路串行执行与失败恢复
 

@@ -157,13 +157,15 @@ sequenceDiagram
 
 - 提供首页应用列表、应用详情、升级信息
 - 通过远端目录、条件请求缓存、本地缓存和 raw 资源回退提供目录数据
+- 解析 `versionCode` 和 `signerCertificateSha256`，并通过 `AppCatalogValidator` 校验标识、版本、签名格式及重复项
+- 任一目录条目非法时拒绝整份来源，让 `ResilientAppCatalogSource` 继续走缓存或 raw 回退，避免产生不完整目录
 - 默认配置仍是示例地址和内置目录，待外部后端替换为真实 API
 
 ---
 
 ## 7. 后续演进建议
 
-1. 接入真实后端目录 API、鉴权、灰度头和错误码约定
+1. 接入提供正数 `versionCode`、签名证书 SHA-256、鉴权、灰度头和错误码约定的真实后端目录 API
 2. 用真实 APK CDN、checksum 和灰度策略替换示例下载源
 3. 评估 Room / SQLite 替代 JSON 存储
 4. 增加同步和冲突策略

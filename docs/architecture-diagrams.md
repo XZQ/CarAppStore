@@ -23,3 +23,5 @@
 - 依赖注入固定为 `AppContainer` 手动装配，不引入 Hilt/Dagger。
 - 业务跨模块调用通过公开接口完成，避免直接访问其他模块内部实现。
 - `StateCenter` 是运行态统一来源，`Repository` 是数据聚合入口，`PolicyCenter` 是业务执行前置判断入口。
+- 目录入口由 `AppCatalogValidator` 拒绝非法标识和冲突数据，下载任务目录由 `DownloadStore` 做 canonical containment。
+- 安装链路在创建 Session 前通过 `AndroidPackageIdentityVerifier` 核对 APK 身份，成功回调后再以 PackageManager 事实收口。
