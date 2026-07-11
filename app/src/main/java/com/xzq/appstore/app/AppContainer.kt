@@ -8,6 +8,7 @@ import com.xzq.appstore.core.downloader.DownloadSourceResolverConfig
 import com.xzq.appstore.core.downloader.DownloadStore
 import com.xzq.appstore.core.downloader.RealFileDownloader
 import com.xzq.appstore.core.downloader.SimulatedFileDownloader
+import com.xzq.appstore.core.installer.AndroidInstallPermissionGateway
 import com.xzq.appstore.core.installer.InstallSessionStore
 import com.xzq.appstore.core.installer.InstallUserActionDispatcher
 import com.xzq.appstore.core.installer.RealPackageInstaller
@@ -16,6 +17,7 @@ import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.policy.AndroidPolicyRuntimeSignalProvider
 import com.xzq.appstore.core.policy.BroadcastVehicleStateSignalProvider
 import com.xzq.appstore.core.policy.StaticVehicleStateSignalProvider
+import com.xzq.appstore.core.policy.VehicleRuntimeState
 import com.xzq.appstore.core.policy.VehicleStateSignalProvider
 import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.core.tracker.FileEventTracker
@@ -24,6 +26,7 @@ import com.xzq.appstore.data.datasource.remote.AppRemoteDataSource
 import com.xzq.appstore.data.datasource.remote.DownloadSourceCatalog
 import com.xzq.appstore.data.datasource.remote.HttpUrlConnectionAppCatalogHttpClient
 import com.xzq.appstore.data.datasource.system.AppSystemDataSource
+import com.xzq.appstore.data.downloadenv.DownloadEnvironment
 import com.xzq.appstore.data.downloadenv.DownloadEnvironmentEntry
 import com.xzq.appstore.data.downloadenv.LocalDownloadEnvironmentProvider
 import com.xzq.appstore.data.local.store.JsonBackedLocalStoreFacade
@@ -42,6 +45,7 @@ import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.DefaultUpgradeManager
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import com.xzq.appstore.data.datasource.system.AndroidStorageInfoProvider
 
 /**
  * AppContainer 是当前 app 壳层的主装配入口。
@@ -54,9 +58,7 @@ import com.xzq.appstore.domain.upgrade.UpgradeManager
  * 当前 M4 阶段先不把它继续拆成更细的 bootstrap/assembly 对象，
  * 但已经把文件路径等细节收敛到 AppStoragePaths，减少壳层中的散乱引用。
  */
-class AppContainer(
-    context: Context,
-) : AppServices {
+class AppContainer(context: Context) : AppServices {
     /** 应用级上下文，避免持有页面级 context 导致泄漏。 */
     private val appContext = context.applicationContext
 
@@ -67,7 +69,7 @@ class AppContainer(
     val logger: AppLogger by lazy { AppLogger() }
 
     /** 打点器，供下载、安装、升级等链路复用。 */
-    override val eventTracker: EventTracker by lazy { FileEventTracker(storagePaths.eventLogFile) }
+    override val eventTracker: EventTracker by lazy { FileEventTracker(storagePaths.eventLogFile, logger = logger) }
 
     /** 统一数据层访问入口，当前默认采用结构化 JSON 落盘实现。 */
     val localStoreFacade: LocalStoreFacade by lazy {
@@ -75,7 +77,7 @@ class AppContainer(
     }
 
     /** 下载环境配置入口，当前优先从统一数据层读取，并保留兼容兜底逻辑。 */
-    val downloadEnvironmentProvider: LocalDownloadEnvironmentProvider by lazy {
+    override val downloadEnvironmentProvider: LocalDownloadEnvironmentProvider by lazy {
         LocalDownloadEnvironmentProvider(appContext, localStoreFacade)
     }
 
@@ -124,7 +126,9 @@ class AppContainer(
     private val vehicleStateSignalProvider: VehicleStateSignalProvider by lazy {
         val action = BuildConfig.CARAPPSTORE_OEM_VEHICLE_ACTION.trim()
         val parkingExtra = BuildConfig.CARAPPSTORE_OEM_PARKING_EXTRA.trim()
-        if (action.isNotBlank() && parkingExtra.isNotBlank()) {
+        if (BuildConfig.DEBUG && downloadEnvConfig.environment == DownloadEnvironment.LOCAL_SIM) {
+            StaticVehicleStateSignalProvider(VehicleRuntimeState(parkingMode = true, sourceName = "local-sim"))
+        } else if (action.isNotBlank() && parkingExtra.isNotBlank()) {
             BroadcastVehicleStateSignalProvider(
                 context = appContext,
                 action = action,
@@ -143,8 +147,7 @@ class AppContainer(
 
     /** 提供设备可用存储空间查询。 */
     private val storageInfoProvider by lazy {
-        com.xzq.appstore.data.datasource.system
-            .AndroidStorageInfoProvider(appContext)
+        AndroidStorageInfoProvider(appContext)
     }
 
     /** 全局策略中心。 */
@@ -157,14 +160,13 @@ class AppContainer(
     private val fileDownloader by lazy {
         RealFileDownloader(
             store = DownloadStore(storagePaths.downloadsDir),
-            sourceResolver =
-                DownloadSourceResolver(
-                    DownloadSourceResolverConfig(
-                        defaultSourcePolicy = downloadEnvConfig.defaultSourcePolicy,
-                        allowMockSource = downloadEnvConfig.allowMockSource,
-                        allowDirectHttp = downloadEnvConfig.allowDirectHttp,
-                    ),
+            sourceResolver = DownloadSourceResolver(
+                DownloadSourceResolverConfig(
+                    defaultSourcePolicy = downloadEnvConfig.defaultSourcePolicy,
+                    allowMockSource = downloadEnvConfig.allowMockSource,
+                    allowDirectHttp = downloadEnvConfig.allowDirectHttp,
                 ),
+            ),
             fallbackDownloader = SimulatedFileDownloader(),
         )
     }
@@ -185,6 +187,7 @@ class AppContainer(
         RealPackageInstaller(
             sessionAdapter = SystemPackageInstallerSessionAdapter(appContext, installUserActionDispatcher),
             sessionStore = installSessionStore,
+            permissionGateway = AndroidInstallPermissionGateway(appContext),
         )
     }
 

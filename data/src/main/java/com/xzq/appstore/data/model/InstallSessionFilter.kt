@@ -8,7 +8,8 @@ enum class InstallSessionFilter(
     ACTIVE(ModelText.SESSION_FILTER_ACTIVE),
     FAILED(ModelText.SESSION_FILTER_FAILED),
     RECOVERED(ModelText.SESSION_FILTER_RECOVERED),
-    COMPLETED(ModelText.SESSION_FILTER_COMPLETED);
+    COMPLETED(ModelText.SESSION_FILTER_COMPLETED),
+    ;
 
     /** 获取下一个会话筛选项。 */
     fun next(): InstallSessionFilter {

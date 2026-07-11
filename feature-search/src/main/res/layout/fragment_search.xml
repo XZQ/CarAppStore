@@ -100,7 +100,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_18dp"
-                android:text="历史记录"
+                android:text="@string/static_search_history"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_lg"
                 android:textStyle="bold" />
@@ -116,7 +116,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_18dp"
-                android:text="热门搜索"
+                android:text="@string/static_search_popular"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_lg"
                 android:textStyle="bold" />

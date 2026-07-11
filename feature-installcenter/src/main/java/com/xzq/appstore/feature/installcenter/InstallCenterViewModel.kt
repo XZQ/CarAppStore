@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.xzq.appstore.data.model.InstallTaskViewData
 
 class InstallCenterViewModel(
     /** 提供安装中心聚合任务数据。 */
@@ -41,12 +42,7 @@ class InstallCenterViewModel(
     private var selectedSessionFilter: InstallSessionFilter = InstallSessionFilter.ALL
 
     /** 安装中心单项任务主动作分发器。 */
-    private val primaryActionExecutor =
-        AppPrimaryActionExecutor(
-            appManager = appManager,
-            installManager = installManager,
-            upgradeManager = upgradeManager,
-        )
+    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, installManager = installManager, upgradeManager = upgradeManager)
 
     /** 初始化页面并开始观察安装状态变化。 */
     fun load() {
@@ -57,10 +53,7 @@ class InstallCenterViewModel(
     }
 
     /** 处理安装任务主按钮点击。 */
-    fun onPrimaryClick(
-        appId: String,
-        action: PrimaryAction,
-    ) {
+    fun onPrimaryClick(appId: String, action: PrimaryAction) {
         viewModelScope.launch {
             primaryActionExecutor.execute(appId = appId, action = action)
             refresh()
@@ -82,8 +75,7 @@ class InstallCenterViewModel(
     /** 批量启动所有当前可执行的安装任务。 */
     fun onBatchStartRunnable() {
         viewModelScope.launch {
-            appManager
-                .getInstallTasks()
+            appManager.getInstallTasks()
                 .filter { selectedFilter.matches(it.overallStatus) }
                 .filter { selectedSessionFilter.matches(it.sessionBucket) }
                 .filter { it.primaryAction == PrimaryAction.INSTALL || it.primaryAction == PrimaryAction.RETRY_INSTALL }
@@ -95,8 +87,7 @@ class InstallCenterViewModel(
     /** 批量重试当前筛选范围内的失败安装任务。 */
     fun onRetryFailed() {
         viewModelScope.launch {
-            appManager
-                .getInstallTasks()
+            appManager.getInstallTasks()
                 .filter { selectedSessionFilter.matches(it.sessionBucket) }
                 .filter { it.primaryAction == PrimaryAction.RETRY_INSTALL }
                 .forEach { primaryActionExecutor.execute(it.appId, it.primaryAction, it.packageName) }
@@ -107,11 +98,7 @@ class InstallCenterViewModel(
     /** 按安装会话维度批量重试可恢复会话。 */
     fun onRetryRetryableSessions() {
         viewModelScope.launch {
-            installSessionStore
-                .getRetryableSessions()
-                .map { it.appId }
-                .distinct()
-                .forEach { primaryActionExecutor.execute(it, PrimaryAction.RETRY_INSTALL) }
+            installSessionStore.getRetryableSessions().map { it.appId }.distinct().forEach { primaryActionExecutor.execute(it, PrimaryAction.RETRY_INSTALL) }
             refresh()
         }
     }
@@ -121,10 +108,7 @@ class InstallCenterViewModel(
         viewModelScope.launch {
             // 先清空失败会话，再把应用级失败态恢复成可继续操作的状态。
             installSessionStore.clearFailedSessions()
-            appManager
-                .getInstallTasks()
-                .filter { it.reasonText != null }
-                .forEach { installManager.clearFailed(it.appId) }
+            appManager.getInstallTasks().filter { it.reasonText != null }.forEach { installManager.clearFailed(it.appId) }
             refresh()
         }
     }
@@ -142,10 +126,7 @@ class InstallCenterViewModel(
     )
 
     /** 计算安装中心顶部控制区需要使用的摘要数据。 */
-    private fun summarize(
-        allTasks: List<com.xzq.appstore.data.model.InstallTaskViewData>,
-        visible: List<com.xzq.appstore.data.model.InstallTaskViewData>,
-    ): InstallCenterSummary {
+    private fun summarize(allTasks: List<InstallTaskViewData>, visible: List<InstallTaskViewData>): InstallCenterSummary {
         val failedCount = allTasks.count { !it.reasonText.isNullOrBlank() }
         val sessionFailedCount = allTasks.count { it.sessionBucket == SessionBucket.FAILED }
         val recoveredInterruptedCount = allTasks.count { it.sessionBucket == SessionBucket.RECOVERED }
@@ -160,12 +141,10 @@ class InstallCenterViewModel(
 
     /** 监听全局安装状态变化。 */
     private fun observeStateChanges() {
-        if (observeJob != null) return
-        observeJob =
-            stateCenter
-                .observeAll()
-                .onEach { refresh() }
-                .launchIn(viewModelScope)
+        if (observeJob != null) {
+            return
+        }
+        observeJob = stateCenter.observeAll().onEach { refresh() }.launchIn(viewModelScope)
     }
 
     /** 重新计算安装中心页面状态。 */
@@ -175,10 +154,7 @@ class InstallCenterViewModel(
         }
         runCatching {
             val allTasks = appManager.getInstallTasks()
-            val visible =
-                allTasks
-                    .filter { selectedFilter.matches(it.overallStatus) }
-                    .filter { selectedSessionFilter.matches(it.sessionBucket) }
+            val visible = allTasks.filter { selectedFilter.matches(it.overallStatus) }.filter { selectedSessionFilter.matches(it.sessionBucket) }
 
             // 基于全部任务和当前可见任务分别计算失败数、可执行数和会话分桶摘要。
             val summary = summarize(allTasks, visible)
@@ -196,28 +172,24 @@ class InstallCenterViewModel(
                 failedSessionCount = visible.count { it.sessionBucket == SessionBucket.FAILED },
                 recoveredSessionCount = visible.count { it.sessionBucket == SessionBucket.RECOVERED },
                 showFailurePanel = summary.failedCount > 0,
-                controlsUiState =
-                    InstallCenterControlsUiState(
-                        runnableCount = summary.runnableCount,
-                        failedCount = summary.failedCount + summary.recoveredSessionCount,
-                        retryableSessionCount = summary.retryableSessionCount,
-                        recoveredSessionCount = summary.recoveredSessionCount,
-                    ),
-                screenState =
-                    if (visible.isEmpty()) {
-                        InstallCenterScreenState.Empty
-                    } else {
-                        InstallCenterScreenState.Content
-                    },
+                controlsUiState = InstallCenterControlsUiState(
+                    runnableCount = summary.runnableCount,
+                    failedCount = summary.failedCount + summary.recoveredSessionCount,
+                    retryableSessionCount = summary.retryableSessionCount,
+                    recoveredSessionCount = summary.recoveredSessionCount,
+                ),
+                screenState = if (visible.isEmpty()) {
+                    InstallCenterScreenState.Empty
+                } else {
+                    InstallCenterScreenState.Content
+                },
             )
-        }.onSuccess { _uiState.value = it }
-            .onFailure { throwable ->
-                _uiState.value =
-                    InstallCenterUiState(
-                        selectedFilter = selectedFilter,
-                        selectedSessionFilter = selectedSessionFilter,
-                        screenState = InstallCenterScreenState.Error(throwable.message.orEmpty()),
-                    )
-            }
+        }.onSuccess { _uiState.value = it }.onFailure { throwable ->
+            _uiState.value = InstallCenterUiState(
+                selectedFilter = selectedFilter,
+                selectedSessionFilter = selectedSessionFilter,
+                screenState = InstallCenterScreenState.Error(throwable.message.orEmpty()),
+            )
+        }
     }
 }

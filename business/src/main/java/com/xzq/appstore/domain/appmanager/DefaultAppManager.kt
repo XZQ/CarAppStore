@@ -2,6 +2,8 @@ package com.xzq.appstore.domain.appmanager
 
 import com.xzq.appstore.common.result.VersionUtils
 import com.xzq.appstore.common.ui.CarUiStyle
+import com.xzq.appstore.core.installer.InstallSessionStatus
+import com.xzq.appstore.core.installer.InstallSessionStore
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppViewData
 import com.xzq.appstore.data.model.DownloadTaskViewData
@@ -10,13 +12,11 @@ import com.xzq.appstore.data.model.SessionBucket
 import com.xzq.appstore.data.model.TaskCenterStats
 import com.xzq.appstore.data.model.TaskOverallStatus
 import com.xzq.appstore.data.model.UpgradeTaskViewData
-import com.xzq.appstore.core.installer.InstallSessionStatus
-import com.xzq.appstore.core.installer.InstallSessionStore
 import com.xzq.appstore.data.repository.AppRepository
+import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.state.AppState
 import com.xzq.appstore.domain.state.DownloadStatus
 import com.xzq.appstore.domain.state.InstallStatus
-import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.state.UpgradeStatus
@@ -25,6 +25,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.xzq.appstore.core.installer.InstallerText
 
 class DefaultAppManager(
     /** 统一数据入口，负责读取应用列表、详情和任务记录。 */
@@ -64,7 +65,9 @@ class DefaultAppManager(
 
     override suspend fun getRecentlyUsedApps(): List<AppViewData> {
         val packages = repository.getRecentlyOpenedPackages()
-        if (packages.isEmpty()) return emptyList()
+        if (packages.isEmpty()) {
+            return emptyList()
+        }
         val appsByPackage = repository.getHomeApps().associateBy { it.packageName }
         return packages.mapNotNull { packageName ->
             val app = appsByPackage[packageName] ?: return@mapNotNull null
@@ -150,7 +153,9 @@ class DefaultAppManager(
         val normalized = keyword.trim()
         val apps = repository.getHomeApps()
         val source = getHomeApps()
-        if (normalized.isBlank()) return source
+        if (normalized.isBlank()) {
+            return source
+        }
         val matchedAppIds = apps.filter { app ->
             app.name.contains(normalized, ignoreCase = true) ||
                 app.description.contains(normalized, ignoreCase = true) ||
@@ -158,8 +163,7 @@ class DefaultAppManager(
                 app.editorialTag.contains(normalized, ignoreCase = true) ||
                 app.recommendedReason.contains(normalized, ignoreCase = true) ||
                 app.searchKeywords.any { keywordText -> keywordText.contains(normalized, ignoreCase = true) }
-        }.map { it.appId }
-            .toSet()
+        }.map { it.appId }.toSet()
         return source.filter { viewData ->
             viewData.appId in matchedAppIds
         }
@@ -172,8 +176,11 @@ class DefaultAppManager(
         installedApps.forEach { (appId, app) -> stateCenter.syncInstalled(appId, app.versionName) }
         val stateMap = stateCenter.observeAll().value
         val appIds = stateMap.filterValues { state ->
-            state.downloadStatus != DownloadStatus.IDLE || state.progress > 0 || state.localApkPath != null ||
-                (state.installStatus == InstallStatus.WAITING) || (state.installStatus == InstallStatus.FAILED)
+            state.downloadStatus != DownloadStatus.IDLE ||
+                state.progress > 0 ||
+                state.localApkPath != null ||
+                state.installStatus == InstallStatus.WAITING ||
+                state.installStatus == InstallStatus.FAILED
         }.keys
 
         return appIds.mapNotNull { appId ->
@@ -235,8 +242,7 @@ class DefaultAppManager(
     override suspend fun getInstallTasks(): List<InstallTaskViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
         val installedApps = repository.getInstalledApps().associateBy { it.appId }
-        val sessionsByAppId = stateCenter.observeAll().value.keys
-            .associateWith { appId -> installSessionStore.getLatestByAppId(appId) }
+        val sessionsByAppId = stateCenter.observeAll().value.keys.associateWith { appId -> installSessionStore.getLatestByAppId(appId) }
 
         return stateCenter.observeAll().value.values.mapNotNull { state ->
             // 只有等待安装、待确认、安装中和安装失败态才需要进入安装中心。
@@ -244,7 +250,9 @@ class DefaultAppManager(
                 state.installStatus == InstallStatus.PENDING_USER_ACTION ||
                 state.installStatus == InstallStatus.INSTALLING ||
                 state.installStatus == InstallStatus.FAILED
-            if (!relevant) return@mapNotNull null
+            if (!relevant) {
+                return@mapNotNull null
+            }
             val home = homeApps[state.appId]
             val installed = installedApps[state.appId]
             val session = sessionsByAppId[state.appId]
@@ -294,23 +302,15 @@ class DefaultAppManager(
     }
 
     /** 合并应用级失败信息和安装会话失败信息。 */
-    private fun mergeInstallFailureText(
-        appErrorCode: String?,
-        appErrorMessage: String?,
-        sessionFailureMessage: String?,
-        sessionStatus: String?,
-    ): String? {
+    private fun mergeInstallFailureText(appErrorCode: String?, appErrorMessage: String?, sessionFailureMessage: String?, sessionStatus: String?): String? {
         val appText = buildReasonText(appErrorCode, appErrorMessage)
         val sessionText = when {
             !sessionFailureMessage.isNullOrBlank() -> sessionFailureMessage
-            sessionStatus == InstallSessionStatus.RECOVERED_INTERRUPTED -> com.xzq.appstore.core.installer.InstallerText.SESSION_INTERRUPTED_RECOVERABLE
+            sessionStatus == InstallSessionStatus.RECOVERED_INTERRUPTED -> InstallerText.SESSION_INTERRUPTED_RECOVERABLE
             sessionStatus?.let { InstallSessionStatus.isFailed(it) } == true -> BusinessText.sessionFailed(sessionStatus)
             else -> null
         }
-        return listOfNotNull(appText, sessionText)
-            .distinct()
-            .joinToString("；")
-            .ifBlank { null }
+        return listOfNotNull(appText, sessionText).distinct().joinToString("；").ifBlank { null }
     }
 
     /** 获取升级管理页顶部应用卡片集合。 */
@@ -349,7 +349,9 @@ class DefaultAppManager(
                 state.installStatus == InstallStatus.FAILED ||
                 state.upgradeStatus == UpgradeStatus.FAILED
 
-            if (!relevant) return@mapNotNull null
+            if (!relevant) {
+                return@mapNotNull null
+            }
 
             val home = homeApps[installed.appId]
             UpgradeTaskViewData(
@@ -423,7 +425,9 @@ class DefaultAppManager(
         bannerUrl: String? = null,
         screenshotUrls: List<String>? = null,
     ): AppViewData? {
-        if (name.isNullOrBlank() || versionName.isNullOrBlank()) return null
+        if (name.isNullOrBlank() || versionName.isNullOrBlank()) {
+            return null
+        }
         val state = stateCenter.snapshot(appId)
         return AppViewData(
             appId = appId,
@@ -512,7 +516,9 @@ class DefaultAppManager(
 
     /** 组合失败码和失败文案。 */
     private fun buildReasonText(failureCode: String?, failureMessage: String?): String? {
-        if (failureMessage.isNullOrBlank() && failureCode.isNullOrBlank()) return null
+        if (failureMessage.isNullOrBlank() && failureCode.isNullOrBlank()) {
+            return null
+        }
         return listOfNotNull(
             failureCode?.takeIf { it.isNotBlank() },
             failureMessage?.takeIf { it.isNotBlank() },

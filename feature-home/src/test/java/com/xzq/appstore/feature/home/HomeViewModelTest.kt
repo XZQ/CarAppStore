@@ -31,6 +31,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
+import com.xzq.appstore.data.model.DownloadPreferences
+import com.xzq.appstore.data.model.PolicySettings
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
@@ -38,79 +40,73 @@ class HomeViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `onPrimaryClick 为下载动作时会启动下载`() =
-        runTest {
-            val appManager = FakeAppManager()
-            val downloadManager = RecordingDownloadManager()
-            val installManager = RecordingInstallManager()
-            val upgradeManager = RecordingUpgradeManager()
-            val viewModel =
-                HomeViewModel(
-                    appManager = appManager,
-                    stateCenter = DefaultStateCenter(),
-                    downloadManager = downloadManager,
-                    installManager = installManager,
-                    upgradeManager = upgradeManager,
-                    policyCenter = FakePolicyCenter(),
-                )
+    fun `onPrimaryClick 为下载动作时会启动下载`() = runTest {
+        val appManager = FakeAppManager()
+        val downloadManager = RecordingDownloadManager()
+        val installManager = RecordingInstallManager()
+        val upgradeManager = RecordingUpgradeManager()
+        val viewModel = HomeViewModel(
+            appManager = appManager,
+            stateCenter = DefaultStateCenter(),
+            downloadManager = downloadManager,
+            installManager = installManager,
+            upgradeManager = upgradeManager,
+            policyCenter = FakePolicyCenter(),
+        )
 
-            viewModel.onPrimaryClick(TEST_DOWNLOAD_APP)
-            advanceUntilIdle()
+        viewModel.onPrimaryClick(TEST_DOWNLOAD_APP)
+        advanceUntilIdle()
 
-            assertEquals(TEST_DOWNLOAD_APP.appId, downloadManager.startedAppIds.single())
-            assertTrue(installManager.installedAppIds.isEmpty())
-            assertTrue(upgradeManager.startedUpgradeAppIds.isEmpty())
-        }
+        assertEquals(TEST_DOWNLOAD_APP.appId, downloadManager.startedAppIds.single())
+        assertTrue(installManager.installedAppIds.isEmpty())
+        assertTrue(upgradeManager.startedUpgradeAppIds.isEmpty())
+    }
 
     @Test
-    fun `onPrimaryClick 为安装动作时会触发安装并刷新升级检查`() =
-        runTest {
-            val appManager = FakeAppManager()
-            val downloadManager = RecordingDownloadManager()
-            val installManager = RecordingInstallManager()
-            val upgradeManager = RecordingUpgradeManager()
-            val viewModel =
-                HomeViewModel(
-                    appManager = appManager,
-                    stateCenter = DefaultStateCenter(),
-                    downloadManager = downloadManager,
-                    installManager = installManager,
-                    upgradeManager = upgradeManager,
-                    policyCenter = FakePolicyCenter(),
-                )
+    fun `onPrimaryClick 为安装动作时会触发安装并刷新升级检查`() = runTest {
+        val appManager = FakeAppManager()
+        val downloadManager = RecordingDownloadManager()
+        val installManager = RecordingInstallManager()
+        val upgradeManager = RecordingUpgradeManager()
+        val viewModel = HomeViewModel(
+            appManager = appManager,
+            stateCenter = DefaultStateCenter(),
+            downloadManager = downloadManager,
+            installManager = installManager,
+            upgradeManager = upgradeManager,
+            policyCenter = FakePolicyCenter(),
+        )
 
-            viewModel.onPrimaryClick(TEST_INSTALL_APP)
-            advanceUntilIdle()
+        viewModel.onPrimaryClick(TEST_INSTALL_APP)
+        advanceUntilIdle()
 
-            assertEquals(TEST_INSTALL_APP.appId, installManager.installedAppIds.single())
-            assertEquals(TEST_INSTALL_APP.appId, upgradeManager.checkedUpgradeAppIds.single())
-            assertTrue(downloadManager.startedAppIds.isEmpty())
-        }
+        assertEquals(TEST_INSTALL_APP.appId, installManager.installedAppIds.single())
+        assertEquals(TEST_INSTALL_APP.appId, upgradeManager.checkedUpgradeAppIds.single())
+        assertTrue(downloadManager.startedAppIds.isEmpty())
+    }
 
     @Test
-    fun `onPrimaryClick 为打开动作时会直接打开目标应用`() =
-        runTest {
-            val appManager = FakeAppManager()
-            val downloadManager = RecordingDownloadManager()
-            val installManager = RecordingInstallManager()
-            val upgradeManager = RecordingUpgradeManager()
-            val viewModel =
-                HomeViewModel(
-                    appManager = appManager,
-                    stateCenter = DefaultStateCenter(),
-                    downloadManager = downloadManager,
-                    installManager = installManager,
-                    upgradeManager = upgradeManager,
-                    policyCenter = FakePolicyCenter(),
-                )
+    fun `onPrimaryClick 为打开动作时会直接打开目标应用`() = runTest {
+        val appManager = FakeAppManager()
+        val downloadManager = RecordingDownloadManager()
+        val installManager = RecordingInstallManager()
+        val upgradeManager = RecordingUpgradeManager()
+        val viewModel = HomeViewModel(
+            appManager = appManager,
+            stateCenter = DefaultStateCenter(),
+            downloadManager = downloadManager,
+            installManager = installManager,
+            upgradeManager = upgradeManager,
+            policyCenter = FakePolicyCenter(),
+        )
 
-            viewModel.onPrimaryClick(TEST_OPEN_APP)
-            advanceUntilIdle()
+        viewModel.onPrimaryClick(TEST_OPEN_APP)
+        advanceUntilIdle()
 
-            assertEquals(TEST_OPEN_APP.packageName, appManager.openedPackageName)
-            assertTrue(appManager.openResult)
-            assertTrue(downloadManager.startedAppIds.isEmpty())
-        }
+        assertEquals(TEST_OPEN_APP.packageName, appManager.openedPackageName)
+        assertTrue(appManager.openResult)
+        assertTrue(downloadManager.startedAppIds.isEmpty())
+    }
 
     private class FakeAppManager : AppManager {
         /** 最近一次被请求打开的包名。 */
@@ -171,10 +167,7 @@ class HomeViewModelTest {
 
         override suspend fun cancelDownload(appId: String) = Unit
 
-        override suspend fun removeTask(
-            appId: String,
-            clearFile: Boolean,
-        ) = Unit
+        override suspend fun removeTask(appId: String, clearFile: Boolean) = Unit
 
         override suspend fun clearCompletedTasks(): Int = 0
 
@@ -182,7 +175,7 @@ class HomeViewModelTest {
 
         override suspend fun getPreferences() = throw UnsupportedOperationException("not used in test")
 
-        override suspend fun updatePreferences(preferences: com.xzq.appstore.data.model.DownloadPreferences) = Unit
+        override suspend fun updatePreferences(preferences: DownloadPreferences) = Unit
     }
 
     private class RecordingInstallManager : InstallManager {
@@ -219,11 +212,7 @@ class HomeViewModelTest {
 
     private class FakePolicyCenter : PolicyCenter {
         /** 测试策略流。 */
-        private val settingsFlow =
-            MutableStateFlow(
-                com.xzq.appstore.data.model
-                    .PolicySettings(),
-            )
+        private val settingsFlow = MutableStateFlow(PolicySettings())
 
         override fun canDownload(appId: String): PolicyResult = PolicyResult(true)
 
@@ -237,7 +226,7 @@ class HomeViewModelTest {
 
         override fun getStoredSettings() = settingsFlow.value
 
-        override fun updateSettings(settings: com.xzq.appstore.data.model.PolicySettings) {
+        override fun updateSettings(settings: PolicySettings) {
             settingsFlow.value = settings
         }
     }
@@ -257,55 +246,51 @@ class HomeViewModelTest {
 
     private companion object {
         /** 测试详情模型。 */
-        val TEST_APP_DETAIL =
-            AppDetail(
-                appId = "demo.home",
-                packageName = "com.nio.demo.home",
-                name = "Demo Home",
-                description = "demo home app",
-                versionName = "1.0.0",
-                apkUrl = "https://example.com/demo-home.apk",
-            )
+        val TEST_APP_DETAIL = AppDetail(
+            appId = "demo.home",
+            packageName = "com.nio.demo.home",
+            name = "Demo Home",
+            description = "demo home app",
+            versionName = "1.0.0",
+            apkUrl = "https://example.com/demo-home.apk",
+        )
 
         /** 下载动作卡片。 */
-        val TEST_DOWNLOAD_APP =
-            AppViewData(
-                appId = "demo.download",
-                name = "Demo Download",
-                description = "download test app",
-                versionName = "1.0.0",
-                packageName = "com.nio.demo.download",
-                stateText = "待下载",
-                statusTone = StatusTone.NEUTRAL,
-                primaryAction = PrimaryAction.DOWNLOAD,
-            )
+        val TEST_DOWNLOAD_APP = AppViewData(
+            appId = "demo.download",
+            name = "Demo Download",
+            description = "download test app",
+            versionName = "1.0.0",
+            packageName = "com.nio.demo.download",
+            stateText = "待下载",
+            statusTone = StatusTone.NEUTRAL,
+            primaryAction = PrimaryAction.DOWNLOAD,
+        )
 
         /** 安装动作卡片。 */
-        val TEST_INSTALL_APP =
-            AppViewData(
-                appId = "demo.install",
-                name = "Demo Install",
-                description = "install test app",
-                versionName = "1.0.1",
-                packageName = "com.nio.demo.install",
-                stateText = "下载完成",
-                statusTone = StatusTone.WARNING,
-                primaryAction = PrimaryAction.INSTALL,
-                progress = 100,
-            )
+        val TEST_INSTALL_APP = AppViewData(
+            appId = "demo.install",
+            name = "Demo Install",
+            description = "install test app",
+            versionName = "1.0.1",
+            packageName = "com.nio.demo.install",
+            stateText = "下载完成",
+            statusTone = StatusTone.WARNING,
+            primaryAction = PrimaryAction.INSTALL,
+            progress = 100,
+        )
 
         /** 打开动作卡片。 */
-        val TEST_OPEN_APP =
-            AppViewData(
-                appId = "demo.open",
-                name = "Demo Open",
-                description = "open test app",
-                versionName = "1.0.2",
-                packageName = "com.nio.demo.open",
-                stateText = "已安装",
-                statusTone = StatusTone.SUCCESS,
-                primaryAction = PrimaryAction.OPEN,
-                installed = true,
-            )
+        val TEST_OPEN_APP = AppViewData(
+            appId = "demo.open",
+            name = "Demo Open",
+            description = "open test app",
+            versionName = "1.0.2",
+            packageName = "com.nio.demo.open",
+            stateText = "已安装",
+            statusTone = StatusTone.SUCCESS,
+            primaryAction = PrimaryAction.OPEN,
+            installed = true,
+        )
     }
 }

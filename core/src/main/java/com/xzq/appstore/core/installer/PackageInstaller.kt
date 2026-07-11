@@ -5,10 +5,7 @@ import java.io.File
 
 interface PackageInstaller {
     /** 执行一次安装请求，并通过事件回调持续上报安装进展。 */
-    suspend fun install(
-        request: InstallRequest,
-        onEvent: suspend (InstallEvent) -> Unit,
-    )
+    suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit)
 }
 
 data class InstallRequest(
@@ -23,22 +20,33 @@ data class InstallRequest(
 )
 
 enum class InstallFailureCode(val displayText: String) {
+    /** 未授予安装未知应用权限。 */
+    PERMISSION_REQUIRED("请先允许安装未知应用"),
+
     /** 安装前发现 APK 文件不存在。 */
     APK_MISSING(InstallerText.FAILURE_APK_MISSING),
+
     /** APK 文件无效或不可解析。 */
     APK_INVALID(InstallerText.FAILURE_APK_INVALID),
+
     /** 安装前被策略中心拦截。 */
     POLICY_BLOCKED(InstallerText.FAILURE_POLICY_BLOCKED),
+
     /** 创建系统安装会话失败。 */
     SESSION_CREATE_FAILED(InstallerText.FAILURE_SESSION_CREATE_FAILED),
+
     /** APK 写入系统安装会话失败。 */
     SESSION_WRITE_FAILED(InstallerText.FAILURE_SESSION_WRITE_FAILED),
+
     /** 提交系统安装会话失败。 */
     SESSION_COMMIT_FAILED(InstallerText.FAILURE_SESSION_COMMIT_FAILED),
+
     /** 当前环境不支持系统安装会话。 */
     SESSION_NOT_SUPPORTED(InstallerText.FAILURE_SESSION_NOT_SUPPORTED),
+
     /** 安装过程中发生中断。 */
     INSTALL_INTERRUPTED(InstallerText.FAILURE_INSTALL_INTERRUPTED),
+
     /** 未归类的未知安装失败。 */
     UNKNOWN(InstallerText.FAILURE_UNKNOWN),
 }
@@ -46,8 +54,10 @@ enum class InstallFailureCode(val displayText: String) {
 sealed class InstallEvent {
     /** 安装任务已进入等待执行阶段。 */
     object Waiting : InstallEvent()
+
     /** 系统安装会话已创建。 */
     data class SessionCreated(val sessionId: Int) : InstallEvent()
+
     /** 安装进度发生变化。 */
     data class Progress(val sessionId: Int, val progress: Int) : InstallEvent()
     data class PendingUserAction(
@@ -58,10 +68,13 @@ sealed class InstallEvent {
         /** 系统要求拉起的确认 Intent。 */
         val confirmationIntent: Intent? = null,
     ) : InstallEvent()
+
     /** 系统已经开始真正执行安装。 */
     object Installing : InstallEvent()
+
     /** 安装成功并返回最终版本号。 */
     data class Success(val installedVersion: String) : InstallEvent()
+
     /** 安装失败并返回归一化失败信息。 */
     data class Failed(val code: InstallFailureCode, val message: String) : InstallEvent()
 }

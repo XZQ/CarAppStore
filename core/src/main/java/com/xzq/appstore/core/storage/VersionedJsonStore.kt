@@ -37,25 +37,23 @@ class VersionedJsonStore(
      *
      * 如果发现旧 schema，会先完成迁移并自动回写。
      */
-    fun <T> read(block: (JSONObject) -> T): T =
-        fileLock.withLock {
-            val state = loadStateLocked()
-            if (state.shouldPersist) {
-                persistLocked(state.root)
-            }
-            block(JSONObject(state.root.toString()))
+    fun <T> read(block: (JSONObject) -> T): T = fileLock.withLock {
+        val state = loadStateLocked()
+        if (state.shouldPersist) {
+            persistLocked(state.root)
         }
+        block(JSONObject(state.root.toString()))
+    }
 
     /**
      * 在同一把锁内读取、修改并回写根节点。
      */
-    fun <T> update(block: (JSONObject) -> T): T =
-        fileLock.withLock {
-            val state = loadStateLocked()
-            val result = block(state.root)
-            persistLocked(state.root)
-            result
-        }
+    fun <T> update(block: (JSONObject) -> T): T = fileLock.withLock {
+        val state = loadStateLocked()
+        val result = block(state.root)
+        persistLocked(state.root)
+        result
+    }
 
     /** 描述一次加载后的根节点与是否需要回写。 */
     private class LoadState(
@@ -68,37 +66,38 @@ class VersionedJsonStore(
     /** 在锁内加载并标准化当前根节点。 */
     private fun loadStateLocked(): LoadState {
         val rawValue = readRawValueLocked() ?: return LoadState(createDefaultRoot(), false)
-        val root =
-            when (rawValue) {
-                is JSONObject -> rawValue
-                else -> migration(rawValue)
-            }
+        val root = when (rawValue) {
+            is JSONObject -> rawValue
+            else -> migration(rawValue)
+        }
         val currentVersion = root.optInt(KEY_SCHEMA_VERSION, SCHEMA_VERSION_UNKNOWN)
         // 版本不一致时统一走迁移逻辑，再补上最新 schemaVersion。
-        val normalizedRoot =
-            if (currentVersion == schemaVersion) {
-                root
-            } else {
-                migration(rawValue)
-            }.apply {
-                put(KEY_SCHEMA_VERSION, schemaVersion)
-            }
+        val normalizedRoot = if (currentVersion == schemaVersion) {
+            root
+        } else {
+            migration(rawValue)
+        }.apply {
+            put(KEY_SCHEMA_VERSION, schemaVersion)
+        }
         return LoadState(normalizedRoot, currentVersion != schemaVersion)
     }
 
     /** 在锁内读取原始 JSON 值。 */
     private fun readRawValueLocked(): Any? {
-        if (!storeFile.exists()) return null
+        if (!storeFile.exists()) {
+            return null
+        }
         val rawText = storeFile.readText(StandardCharsets.UTF_8)
-        if (rawText.isBlank()) return null
+        if (rawText.isBlank()) {
+            return null
+        }
         return runCatching { JSONTokener(rawText).nextValue() }.getOrNull()
     }
 
     /** 创建带 schemaVersion 的默认根节点。 */
-    private fun createDefaultRoot(): JSONObject =
-        defaultRootFactory().apply {
-            put(KEY_SCHEMA_VERSION, schemaVersion)
-        }
+    private fun createDefaultRoot(): JSONObject = defaultRootFactory().apply {
+        put(KEY_SCHEMA_VERSION, schemaVersion)
+    }
 
     /**
      * 通过临时文件原子覆盖写入方式持久化根节点。
@@ -108,10 +107,9 @@ class VersionedJsonStore(
      */
     private fun persistLocked(root: JSONObject) {
         storeFile.parentFile?.mkdirs()
-        val normalizedRoot =
-            JSONObject(root.toString()).apply {
-                put(KEY_SCHEMA_VERSION, schemaVersion)
-            }
+        val normalizedRoot = JSONObject(root.toString()).apply {
+            put(KEY_SCHEMA_VERSION, schemaVersion)
+        }
         val tempFile = File(storeFile.parentFile, storeFile.name + TEMP_FILE_SUFFIX)
         // 显式用 FileOutputStream + fd.sync 实现 fsync，避免 page cache 在断电时丢失。
         FileOutputStream(tempFile).use { fos ->
@@ -120,16 +118,10 @@ class VersionedJsonStore(
             runCatching { fos.fd.sync() }
         }
         // 优先走 Files.move(ATOMIC_MOVE)；失败再回退到 copyTo+delete。
-        val moved =
-            runCatching {
-                Files.move(
-                    tempFile.toPath(),
-                    storeFile.toPath(),
-                    StandardCopyOption.ATOMIC_MOVE,
-                    StandardCopyOption.REPLACE_EXISTING,
-                )
-                true
-            }.getOrElse { false }
+        val moved = runCatching {
+            Files.move(tempFile.toPath(), storeFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            true
+        }.getOrElse { false }
         if (!moved) {
             tempFile.copyTo(storeFile, overwrite = true)
             tempFile.delete()

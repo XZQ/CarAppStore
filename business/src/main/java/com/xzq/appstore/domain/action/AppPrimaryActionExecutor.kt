@@ -30,11 +30,7 @@ class AppPrimaryActionExecutor(
      * @param action 当前要执行的主动作
      * @param packageName 打开应用时使用的包名，可为空
      */
-    suspend fun execute(
-        appId: String,
-        action: PrimaryAction,
-        packageName: String? = null,
-    ) {
+    suspend fun execute(appId: String, action: PrimaryAction, packageName: String? = null) {
         tracker.track("primary_click_${action.name.lowercase()}_$appId")
         when (action) {
             PrimaryAction.DOWNLOAD, PrimaryAction.RETRY_DOWNLOAD -> downloadManager?.startDownload(appId)
@@ -44,6 +40,7 @@ class AppPrimaryActionExecutor(
                 installManager?.install(appId)
                 upgradeManager?.checkUpgrade(appId)
             }
+
             PrimaryAction.OPEN -> packageName?.let { appManager.openApp(it) }
             PrimaryAction.UPGRADE -> upgradeManager?.startUpgrade(appId)
             PrimaryAction.DISABLED -> Unit

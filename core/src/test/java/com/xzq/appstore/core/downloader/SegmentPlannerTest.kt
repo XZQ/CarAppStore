@@ -19,11 +19,7 @@ class SegmentPlannerTest {
     /** 已有分片时直接返回并按 index 排序，不重新规划。 */
     @Test
     fun testPlanWithExistingSegments_returnsExistingSorted() {
-        val existing = listOf(
-            createSegment(index = 2),
-            createSegment(index = 0),
-            createSegment(index = 1),
-        )
+        val existing = listOf(createSegment(index = 2), createSegment(index = 0), createSegment(index = 1))
         val result = planner.plan("task-1", tempDir, 10L * 1024L * 1024L, existingSegments = existing)
         // 返回的是按 index 升序排列的已有分片
         assertEquals(3, result.size)

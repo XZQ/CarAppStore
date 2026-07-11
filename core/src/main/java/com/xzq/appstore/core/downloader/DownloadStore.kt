@@ -48,7 +48,9 @@ class DownloadStore(
     /** 读取指定任务的远端元信息。 */
     fun readMeta(taskId: String): DownloadRemoteMeta? {
         val file = getTaskMetaFile(taskId)
-        if (!file.exists()) return null
+        if (!file.exists()) {
+            return null
+        }
         return metaStore(taskId).read { obj ->
             DownloadRemoteMeta(
                 contentLength = obj.optLong("contentLength", -1L),
@@ -87,7 +89,9 @@ class DownloadStore(
     /** 读取指定任务的全部分片记录。 */
     fun readSegments(taskId: String): List<DownloadSegmentRecord> {
         val file = getTaskMetaFile(taskId)
-        if (!file.exists()) return emptyList()
+        if (!file.exists()) {
+            return emptyList()
+        }
         return metaStore(taskId).read { obj ->
             val arr = obj.optJSONArray("segments") ?: JSONArray()
             buildList {

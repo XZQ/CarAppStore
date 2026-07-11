@@ -18,9 +18,7 @@ class AppRemoteCatalogLoader(
 
     /** 读取并解析 raw 目录中的远端目录。 */
     override fun loadFromResource(): List<RemoteCatalogItem> {
-        val rawText = appContext.resources.openRawResource(R.raw.app_store_catalog)
-            .bufferedReader(Charsets.UTF_8)
-            .use { it.readText() }
+        val rawText = appContext.resources.openRawResource(R.raw.app_store_catalog).bufferedReader(Charsets.UTF_8).use { it.readText() }
         return parse(rawText)
     }
 

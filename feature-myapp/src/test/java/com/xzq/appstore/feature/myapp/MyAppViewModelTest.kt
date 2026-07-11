@@ -32,10 +32,7 @@ class MyAppViewModelTest {
 
     @Test
     fun `load 有应用时会进入内容态`() = runTest {
-        val viewModel = MyAppViewModel(
-            appManager = FakeAppManager(apps = listOf(TEST_APP)),
-            stateCenter = DefaultStateCenter(),
-        )
+        val viewModel = MyAppViewModel(appManager = FakeAppManager(apps = listOf(TEST_APP)), stateCenter = DefaultStateCenter())
 
         viewModel.load()
         advanceUntilIdle()
@@ -46,18 +43,12 @@ class MyAppViewModelTest {
 
     @Test
     fun `load 失败时会进入错误态`() = runTest {
-        val viewModel = MyAppViewModel(
-            appManager = FailingAppManager(),
-            stateCenter = DefaultStateCenter(),
-        )
+        val viewModel = MyAppViewModel(appManager = FailingAppManager(), stateCenter = DefaultStateCenter())
 
         viewModel.load()
         advanceUntilIdle()
 
-        assertEquals(
-            MyAppScreenState.Error("my apps unavailable"),
-            viewModel.uiState.value.screenState,
-        )
+        assertEquals(MyAppScreenState.Error("my apps unavailable"), viewModel.uiState.value.screenState)
     }
 
     private open class FakeAppManager(

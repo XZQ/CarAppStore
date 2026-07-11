@@ -7,10 +7,7 @@ import kotlinx.coroutines.delay
  */
 class SimulatedPackageInstaller : PackageInstaller {
     /** 执行一次模拟安装。 */
-    override suspend fun install(
-        request: InstallRequest,
-        onEvent: suspend (InstallEvent) -> Unit,
-    ) {
+    override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) {
         onEvent(InstallEvent.Waiting)
         delay(180L)
 

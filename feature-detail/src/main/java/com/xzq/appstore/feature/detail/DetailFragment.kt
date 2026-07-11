@@ -17,10 +17,8 @@ import com.xzq.appstore.feature.detail.databinding.FragmentDetailBinding
 import kotlinx.coroutines.launch
 
 class DetailFragment : BaseFragment() {
-    /** 当前页面的 ViewBinding。 */
     private var _binding: FragmentDetailBinding? = null
 
-    /** 对外暴露的非空 Binding 访问入口。 */
     private val binding get() = requireNotNull(_binding) { "Binding 已销毁" }
 
     /** 当前详情页对应的应用标识。 */
@@ -42,20 +40,13 @@ class DetailFragment : BaseFragment() {
     }
 
     /** 创建详情页视图。 */
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?,
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentDetailBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     /** 初始化详情页标题、状态订阅和按钮事件。 */
-    override fun onViewCreated(
-        view: View,
-        savedInstanceState: Bundle?,
-    ) {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         navigator.updateTitle(getString(R.string.screen_detail_title))
         observeState()
@@ -79,47 +70,33 @@ class DetailFragment : BaseFragment() {
                     val taskStatusBinding = binding.includeDetailTaskStatus
                     appInfoBinding.tvDetailName.text = state.appDetail?.name ?: getString(R.string.screen_detail_empty_name)
                     appInfoBinding.tvDetailHero.text = buildHeroText(state)
-                    AppImageLoader.load(
-                        appInfoBinding.ivDetailHero,
-                        state.appDetail?.bannerUrl.orEmpty(),
-                        appInfoBinding.tvDetailHero,
-                    )
-                    appInfoBinding.tvDetailHero.visibility =
-                        if (state.screenState == DetailScreenState.Content) {
-                            View.VISIBLE
-                        } else {
-                            View.GONE
-                        }
-                    appInfoBinding.tvDetailInitial.text =
-                        state.appDetail
-                            ?.iconText
-                            ?.ifBlank {
-                                state.appDetail?.name.firstDisplayChar()
-                            }.orEmpty()
-                    AppImageLoader.load(
-                        appInfoBinding.ivDetailIcon,
-                        state.appDetail?.iconUrl.orEmpty(),
-                        appInfoBinding.tvDetailInitial,
-                    )
+                    AppImageLoader.load(appInfoBinding.ivDetailHero, state.appDetail?.bannerUrl.orEmpty(), appInfoBinding.tvDetailHero)
+                    appInfoBinding.tvDetailHero.visibility = if (state.screenState == DetailScreenState.Content) {
+                        View.VISIBLE
+                    } else {
+                        View.GONE
+                    }
+                    appInfoBinding.tvDetailInitial.text = state.appDetail?.iconText?.ifBlank {
+                        state.appDetail?.name.firstDisplayChar()
+                    }.orEmpty()
+                    AppImageLoader.load(appInfoBinding.ivDetailIcon, state.appDetail?.iconUrl.orEmpty(), appInfoBinding.tvDetailInitial)
                     appInfoBinding.tvDetailVersion.text = buildVersionText(state)
                     appInfoBinding.tvDetailDesc.text = buildDescriptionText(state)
                     bindScreenshots(state)
                     appInfoBinding.tvDetailMeta.text = buildMetaText(state)
-                    appInfoBinding.tvDetailMeta.visibility =
-                        if (state.screenState == DetailScreenState.Content) {
-                            View.VISIBLE
-                        } else {
-                            View.GONE
-                        }
+                    appInfoBinding.tvDetailMeta.visibility = if (state.screenState == DetailScreenState.Content) {
+                        View.VISIBLE
+                    } else {
+                        View.GONE
+                    }
                     taskStatusBinding.tvState.applyTagStyle(CarUiStyle.tagStyle(state.stateText, state.statusTone))
                     // 进度和主动作始终跟随状态中心与业务编排结果刷新。
                     taskStatusBinding.progressDownload.progress = state.progress
-                    taskStatusBinding.tvProgress.text =
-                        if (state.progress > 0) {
-                            getString(R.string.screen_detail_progress_format, state.progress)
-                        } else {
-                            getString(R.string.screen_detail_no_progress)
-                        }
+                    taskStatusBinding.tvProgress.text = if (state.progress > 0) {
+                        getString(R.string.screen_detail_progress_format, state.progress)
+                    } else {
+                        getString(R.string.screen_detail_no_progress)
+                    }
                     appInfoBinding.tvPolicyPrompt.text = state.policyPrompt
                     appInfoBinding.tvPolicyPrompt.visibility = if (state.policyPrompt.isBlank()) View.GONE else View.VISIBLE
                     val interceptBinding = appInfoBinding.policyIntercept
@@ -132,31 +109,24 @@ class DetailFragment : BaseFragment() {
     }
 
     /** 组装版本、副标题与状态文案。 */
-    private fun buildVersionText(state: DetailUiState): String =
-        when (val screenState = state.screenState) {
-            DetailScreenState.Loading -> getString(R.string.loading)
-            is DetailScreenState.Error ->
-                screenState.message.ifBlank {
-                    getString(R.string.screen_detail_error_hint)
-                }
-            DetailScreenState.Content -> {
-                val detail = state.appDetail
-                getString(
-                    R.string.screen_detail_version_meta_format,
-                    detail?.versionName.orEmpty(),
-                    detail?.sizeText.orEmpty(),
-                    detail?.lastUpdatedText.orEmpty(),
-                )
-            }
+    private fun buildVersionText(state: DetailUiState): String = when (val screenState = state.screenState) {
+        DetailScreenState.Loading -> getString(R.string.loading)
+        is DetailScreenState.Error -> screenState.message.ifBlank {
+            getString(R.string.screen_detail_error_hint)
         }
 
-    /** 组装详情页描述。 */
-    private fun buildDescriptionText(state: DetailUiState): String =
-        when (state.screenState) {
-            DetailScreenState.Loading -> getString(R.string.screen_detail_loading_hint)
-            is DetailScreenState.Error -> getString(R.string.screen_detail_error_hint)
-            DetailScreenState.Content -> state.appDetail?.description.orEmpty()
+        DetailScreenState.Content -> {
+            val detail = state.appDetail
+            getString(R.string.screen_detail_version_meta_format, detail?.versionName.orEmpty(), detail?.sizeText.orEmpty(), detail?.lastUpdatedText.orEmpty())
         }
+    }
+
+    /** 组装详情页描述。 */
+    private fun buildDescriptionText(state: DetailUiState): String = when (state.screenState) {
+        DetailScreenState.Loading -> getString(R.string.screen_detail_loading_hint)
+        is DetailScreenState.Error -> getString(R.string.screen_detail_error_hint)
+        DetailScreenState.Content -> state.appDetail?.description.orEmpty()
+    }
 
     private fun buildHeroText(state: DetailUiState): String {
         val detail = state.appDetail ?: return ""
@@ -164,11 +134,7 @@ class DetailFragment : BaseFragment() {
     }
 
     private fun bindScreenshots(state: DetailUiState) {
-        val screenshots =
-            state.appDetail
-                ?.screenshotUrls
-                .orEmpty()
-                .take(3)
+        val screenshots = state.appDetail?.screenshotUrls.orEmpty().take(3)
         val infoBinding = binding.includeDetailAppInfo
         val isContent = state.screenState == DetailScreenState.Content
         infoBinding.layoutScreenshots.visibility = if (isContent && screenshots.isNotEmpty()) View.VISIBLE else View.GONE
@@ -190,19 +156,12 @@ class DetailFragment : BaseFragment() {
             getString(R.string.screen_detail_compatibility_format, detail.compatibilitySummary),
             getString(R.string.screen_detail_permissions_format, detail.permissionsSummary),
             getString(R.string.screen_detail_update_summary_format, detail.updateSummary),
-        ).filterNot { it.substringAfter('：').isBlank() }
-            .joinToString("\n")
+        ).filterNot { it.substringAfter('：').isBlank() }.joinToString("\n")
     }
 
     /** 提取应用名称首个可见字符作为轻量图标。 */
-    private fun String?.firstDisplayChar(): String =
-        this
-            ?.trim()
-            ?.firstOrNull()
-            ?.toString()
-            .orEmpty()
+    private fun String?.firstDisplayChar(): String = this?.trim()?.firstOrNull()?.toString().orEmpty()
 
-    /** 释放详情页 Binding。 */
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
@@ -213,12 +172,10 @@ class DetailFragment : BaseFragment() {
         private const val ARG_APP_ID = "arg_app_id"
 
         /** 创建指定应用的详情页实例。 */
-        fun newInstance(appId: String) =
-            DetailFragment().apply {
-                arguments =
-                    Bundle().apply {
-                        putString(ARG_APP_ID, appId)
-                    }
+        fun newInstance(appId: String) = DetailFragment().apply {
+            arguments = Bundle().apply {
+                putString(ARG_APP_ID, appId)
             }
+        }
     }
 }

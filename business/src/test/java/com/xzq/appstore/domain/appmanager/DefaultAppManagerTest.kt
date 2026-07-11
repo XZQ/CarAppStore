@@ -63,12 +63,7 @@ class DefaultAppManagerTest {
 
     @Test
     fun `getMyApps 返回已安装应用和有任务的应用`() = runBlocking {
-        repository.installedApps += InstalledApp(
-            appId = "music.app",
-            packageName = "com.nio.music",
-            name = "车载音乐",
-            versionName = "1.0.0",
-        )
+        repository.installedApps += InstalledApp(appId = "music.app", packageName = "com.nio.music", name = "车载音乐", versionName = "1.0.0")
         stateCenter.updateDownload(
             appId = "nav.app",
             status = DownloadStatus.RUNNING,
@@ -88,18 +83,8 @@ class DefaultAppManagerTest {
 
     @Test
     fun `getUpgradeTasks 只返回可升级应用并生成正确统计`() = runBlocking {
-        repository.installedApps += InstalledApp(
-            appId = "music.app",
-            packageName = "com.nio.music",
-            name = "车载音乐",
-            versionName = "1.0.0",
-        )
-        repository.installedApps += InstalledApp(
-            appId = "podcast.app",
-            packageName = "com.nio.podcast",
-            name = "车载播客",
-            versionName = "2.0.0",
-        )
+        repository.installedApps += InstalledApp(appId = "music.app", packageName = "com.nio.music", name = "车载音乐", versionName = "1.0.0")
+        repository.installedApps += InstalledApp(appId = "podcast.app", packageName = "com.nio.podcast", name = "车载播客", versionName = "2.0.0")
 
         val manager = createManager()
         val tasks = manager.getUpgradeTasks()
@@ -114,33 +99,20 @@ class DefaultAppManagerTest {
 
     @Test
     fun `getPolicyPrompt 根据当前策略设置聚合提示文案`() {
-        policyCenter.settingsFlow.value = PolicySettings(
-            wifiConnected = false,
-            parkingMode = false,
-            lowStorageMode = true,
-        )
+        policyCenter.settingsFlow.value = PolicySettings(wifiConnected = false, parkingMode = false, lowStorageMode = true)
         val manager = createManager()
 
         val result = manager.getPolicyPrompt()
 
         assertEquals(
-            listOf(
-                BusinessText.POLICY_DOWNLOAD_CELLULAR,
-                BusinessText.POLICY_INSTALL_DRIVING,
-                BusinessText.POLICY_STORAGE_LIMITED,
-            ).joinToString("；"),
+            listOf(BusinessText.POLICY_DOWNLOAD_CELLULAR, BusinessText.POLICY_INSTALL_DRIVING, BusinessText.POLICY_STORAGE_LIMITED).joinToString("；"),
             result,
         )
     }
 
     /** 创建待测聚合层实例。 */
     private fun createManager(): DefaultAppManager {
-        return DefaultAppManager(
-            repository = repository,
-            stateCenter = stateCenter,
-            installSessionStore = installSessionStore,
-            policyCenter = policyCenter,
-        )
+        return DefaultAppManager(repository = repository, stateCenter = stateCenter, installSessionStore = installSessionStore, policyCenter = policyCenter)
     }
 
     /** 仅覆盖聚合层测试场景的仓库替身。 */
@@ -227,12 +199,14 @@ class DefaultAppManagerTest {
                     apkUrl = "https://example.com/$appId.apk",
                     hasUpgrade = true,
                 )
+
                 "podcast.app" -> UpgradeInfo(
                     appId = appId,
                     latestVersion = "2.0.0",
                     apkUrl = "https://example.com/$appId.apk",
                     hasUpgrade = false,
                 )
+
                 else -> UpgradeInfo(
                     appId = appId,
                     latestVersion = "2.0.0",

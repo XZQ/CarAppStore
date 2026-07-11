@@ -15,10 +15,7 @@ class AppCatalogGovernanceTest {
 
     @Test
     fun `allowed and blocked channels control visibility`() {
-        val governance = AppCatalogGovernance(
-            allowedChannels = listOf("carappstore-test"),
-            blockedChannels = listOf("carappstore-legacy"),
-        )
+        val governance = AppCatalogGovernance(allowedChannels = listOf("carappstore-test"), blockedChannels = listOf("carappstore-legacy"))
 
         assertTrue(governance.isVisible("app", "carappstore-test"))
         assertFalse(governance.isVisible("app", "carappstore-prod"))
@@ -33,10 +30,7 @@ class AppCatalogGovernanceTest {
 
     @Test
     fun `rollback state overrides displayed version`() {
-        val governance = AppCatalogGovernance(
-            listingState = CatalogListingState.ROLLBACK,
-            rollbackVersion = "1.9.0",
-        )
+        val governance = AppCatalogGovernance(listingState = CatalogListingState.ROLLBACK, rollbackVersion = "1.9.0")
 
         assertEquals("1.9.0", governance.effectiveVersion("2.0.0"))
     }

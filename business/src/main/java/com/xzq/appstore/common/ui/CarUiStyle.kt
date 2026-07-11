@@ -17,10 +17,13 @@ import com.xzq.appstore.domain.state.UpgradeStatus
 enum class ActionTone {
     /** 主按钮色调。 */
     PRIMARY,
+
     /** 成功动作色调。 */
     SUCCESS,
+
     /** 警示动作色调。 */
     WARNING,
+
     /** 禁用动作色调。 */
     DISABLED,
 }
@@ -117,14 +120,9 @@ object CarUiStyle {
             PrimaryAction.DISABLED -> CommonUiText.ACTION_PROCESSING
         }
         val tone = when (action) {
-            PrimaryAction.DOWNLOAD,
-            PrimaryAction.RESUME,
-            PrimaryAction.INSTALL,
-            PrimaryAction.UPGRADE -> ActionTone.PRIMARY
+            PrimaryAction.DOWNLOAD, PrimaryAction.RESUME, PrimaryAction.INSTALL, PrimaryAction.UPGRADE -> ActionTone.PRIMARY
             PrimaryAction.OPEN -> ActionTone.SUCCESS
-            PrimaryAction.PAUSE,
-            PrimaryAction.RETRY_DOWNLOAD,
-            PrimaryAction.RETRY_INSTALL -> ActionTone.WARNING
+            PrimaryAction.PAUSE, PrimaryAction.RETRY_DOWNLOAD, PrimaryAction.RETRY_INSTALL -> ActionTone.WARNING
             PrimaryAction.DISABLED -> ActionTone.DISABLED
         }
         return ActionStyle(

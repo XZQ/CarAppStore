@@ -38,280 +38,246 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class DefaultDownloadManagerTest {
     @Test
-    fun `startDownload 重复触发时只会启动一个活动任务`() =
-        runBlocking {
-            val harness = TestHarness()
+    fun `startDownload 重复触发时只会启动一个活动任务`() = runBlocking {
+        val harness = TestHarness()
 
-            harness.manager.startDownload(TEST_APP_ID)
-            harness.manager.startDownload(TEST_APP_ID)
+        harness.manager.startDownload(TEST_APP_ID)
+        harness.manager.startDownload(TEST_APP_ID)
 
-            assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-            waitUntil { harness.downloader.startCount.get() == 1 }
+        assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        waitUntil { harness.downloader.startCount.get() == 1 }
 
-            harness.manager.cancelDownload(TEST_APP_ID)
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED
-            }
-
-            assertEquals(1, harness.downloader.startCount.get())
+        harness.manager.cancelDownload(TEST_APP_ID)
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED
         }
 
+        assertEquals(1, harness.downloader.startCount.get())
+    }
+
     @Test
-    fun `pauseDownload 会让底层下载停止并保留已下载进度`() =
-        runBlocking {
-            val harness = TestHarness()
+    fun `pauseDownload 会让底层下载停止并保留已下载进度`() = runBlocking {
+        val harness = TestHarness()
 
-            harness.manager.startDownload(TEST_APP_ID)
-            assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.RUNNING
-            }
-
-            harness.manager.pauseDownload(TEST_APP_ID)
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.PAUSED &&
-                    harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.PAUSED
-            }
-
-            val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
-            assertEquals(DownloadStatus.PAUSED, task.status)
-            assertEquals(TEST_DOWNLOADED_BYTES.toInt() * 100 / TEST_TOTAL_BYTES.toInt(), task.progress)
-            assertEquals(TEST_DOWNLOADED_BYTES, task.downloadedBytes)
-            assertEquals(DownloadStatus.PAUSED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+        harness.manager.startDownload(TEST_APP_ID)
+        assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.RUNNING
         }
 
-    @Test
-    fun `cancelDownload 会让底层下载停止并清空本地产物引用`() =
-        runBlocking {
-            val harness = TestHarness()
+        harness.manager.pauseDownload(TEST_APP_ID)
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.PAUSED &&
+                harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.PAUSED
+        }
 
-            harness.repository.saveDownloadSegments(
-                TEST_APP_ID,
-                listOf(
-                    DownloadSegmentRecord(
-                        segmentId = "segment-1",
-                        taskId = "download-$TEST_APP_ID",
-                        index = 0,
-                        startByte = 0L,
-                        endByte = TEST_TOTAL_BYTES - 1L,
-                        downloadedBytes = TEST_DOWNLOADED_BYTES,
-                        status = "RUNNING",
-                        tmpFilePath = File(harness.workDir, "segment-1.tmp").absolutePath,
-                        retryCount = 0,
-                        createdAt = 1L,
-                        updatedAt = 1L,
-                    ),
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(DownloadStatus.PAUSED, task.status)
+        assertEquals(TEST_DOWNLOADED_BYTES.toInt() * 100 / TEST_TOTAL_BYTES.toInt(), task.progress)
+        assertEquals(TEST_DOWNLOADED_BYTES, task.downloadedBytes)
+        assertEquals(DownloadStatus.PAUSED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+    }
+
+    @Test
+    fun `cancelDownload 会让底层下载停止并清空本地产物引用`() = runBlocking {
+        val harness = TestHarness()
+
+        harness.repository.saveDownloadSegments(
+            TEST_APP_ID,
+            listOf(
+                DownloadSegmentRecord(
+                    segmentId = "segment-1",
+                    taskId = "download-$TEST_APP_ID",
+                    index = 0,
+                    startByte = 0L,
+                    endByte = TEST_TOTAL_BYTES - 1L,
+                    downloadedBytes = TEST_DOWNLOADED_BYTES,
+                    status = "RUNNING",
+                    tmpFilePath = File(harness.workDir, "segment-1.tmp").absolutePath,
+                    retryCount = 0,
+                    createdAt = 1L,
+                    updatedAt = 1L,
                 ),
-            )
-            harness.repository.saveDownloadedApk(TEST_APP_ID, File(harness.workDir, "stale.apk").absolutePath)
+            ),
+        )
+        harness.repository.saveDownloadedApk(TEST_APP_ID, File(harness.workDir, "stale.apk").absolutePath)
 
-            harness.manager.startDownload(TEST_APP_ID)
-            assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.RUNNING
-            }
-
-            harness.manager.cancelDownload(TEST_APP_ID)
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED
-            }
-
-            val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
-            assertEquals(DownloadStatus.CANCELED, task.status)
-            assertEquals(0, task.progress)
-            assertEquals(DownloadFailureCode.USER_CANCELED.name, task.failureCode)
-            assertTrue(harness.repository.getDownloadSegments(TEST_APP_ID).isEmpty())
-            assertNull(harness.repository.getDownloadedApk(TEST_APP_ID))
+        harness.manager.startDownload(TEST_APP_ID)
+        assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.RUNNING
         }
 
-    @Test
-    fun `resumeDownload 会基于已保存进度继续下载直到完成`() =
-        runBlocking {
-            val harness = TestHarness()
-
-            harness.manager.startDownload(TEST_APP_ID)
-            assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.RUNNING
-            }
-
-            harness.manager.pauseDownload(TEST_APP_ID)
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.PAUSED
-            }
-
-            harness.manager.resumeDownload(TEST_APP_ID)
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.COMPLETED
-            }
-
-            val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
-            assertEquals(DownloadStatus.COMPLETED, task.status)
-            assertEquals(100, task.progress)
-            assertEquals(TEST_TOTAL_BYTES, task.downloadedBytes)
-            assertEquals(2, harness.downloader.startCount.get())
-            assertNotNull(harness.repository.getDownloadedApk(TEST_APP_ID))
-            assertEquals(DownloadStatus.COMPLETED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+        harness.manager.cancelDownload(TEST_APP_ID)
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED
         }
 
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(DownloadStatus.CANCELED, task.status)
+        assertEquals(0, task.progress)
+        assertEquals(DownloadFailureCode.USER_CANCELED.name, task.failureCode)
+        assertTrue(harness.repository.getDownloadSegments(TEST_APP_ID).isEmpty())
+        assertNull(harness.repository.getDownloadedApk(TEST_APP_ID))
+    }
+
     @Test
-    fun `冷启动恢复时会把运行中任务归一化为暂停且不自动启动`() =
-        runBlocking {
-            val harness =
-                TestHarness(
-                    configureRepository = {
-                        saveDownloadPreferences(
-                            DownloadPreferences(
-                                autoResumeOnLaunch = false,
-                                autoRetryEnabled = true,
-                                maxAutoRetryCount = 2,
-                            ),
-                        )
-                        val targetFile = createPartialDownloadFileForTest()
-                        saveDownloadTask(
-                            buildDownloadTaskRecord(
-                                status = DownloadStatus.RUNNING,
-                                progress = 1,
-                                targetFilePath = targetFile.absolutePath,
-                                downloadedBytes = 1L,
-                                totalBytes = TEST_TOTAL_BYTES,
-                                retryCount = 0,
-                            ),
-                        )
-                    },
+    fun `resumeDownload 会基于已保存进度继续下载直到完成`() = runBlocking {
+        val harness = TestHarness()
+
+        harness.manager.startDownload(TEST_APP_ID)
+        assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.RUNNING
+        }
+
+        harness.manager.pauseDownload(TEST_APP_ID)
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.PAUSED
+        }
+
+        harness.manager.resumeDownload(TEST_APP_ID)
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.COMPLETED
+        }
+
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(DownloadStatus.COMPLETED, task.status)
+        assertEquals(100, task.progress)
+        assertEquals(TEST_TOTAL_BYTES, task.downloadedBytes)
+        assertEquals(2, harness.downloader.startCount.get())
+        assertNotNull(harness.repository.getDownloadedApk(TEST_APP_ID))
+        assertEquals(DownloadStatus.COMPLETED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+    }
+
+    @Test
+    fun `冷启动恢复时会把运行中任务归一化为暂停且不自动启动`() = runBlocking {
+        val harness = TestHarness(
+            configureRepository = {
+                saveDownloadPreferences(DownloadPreferences(autoResumeOnLaunch = false, autoRetryEnabled = true, maxAutoRetryCount = 2))
+                val targetFile = createPartialDownloadFileForTest()
+                saveDownloadTask(
+                    buildDownloadTaskRecord(
+                        status = DownloadStatus.RUNNING,
+                        progress = 1,
+                        targetFilePath = targetFile.absolutePath,
+                        downloadedBytes = 1L,
+                        totalBytes = TEST_TOTAL_BYTES,
+                        retryCount = 0,
+                    ),
                 )
+            },
+        )
 
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.PAUSED &&
-                    harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.PAUSED
-            }
-
-            val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
-            assertEquals(DownloadStatus.PAUSED, task.status)
-            assertEquals(TEST_DOWNLOADED_BYTES, task.downloadedBytes)
-            assertEquals(TEST_DOWNLOADED_BYTES.toInt() * 100 / TEST_TOTAL_BYTES.toInt(), task.progress)
-            assertEquals(0, harness.downloader.startCount.get())
-            assertEquals(DownloadStatus.PAUSED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.PAUSED &&
+                harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.PAUSED
         }
+
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(DownloadStatus.PAUSED, task.status)
+        assertEquals(TEST_DOWNLOADED_BYTES, task.downloadedBytes)
+        assertEquals(TEST_DOWNLOADED_BYTES.toInt() * 100 / TEST_TOTAL_BYTES.toInt(), task.progress)
+        assertEquals(0, harness.downloader.startCount.get())
+        assertEquals(DownloadStatus.PAUSED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+    }
 
     @Test
-    fun `冷启动恢复时会在开启自动恢复后继续执行暂停任务`() =
-        runBlocking {
-            val harness =
-                TestHarness(
-                    configureRepository = {
-                        saveDownloadPreferences(
-                            DownloadPreferences(
-                                autoResumeOnLaunch = true,
-                                autoRetryEnabled = true,
-                                maxAutoRetryCount = 2,
-                            ),
-                        )
-                        val targetFile = createPartialDownloadFileForTest()
-                        saveDownloadTask(
-                            buildDownloadTaskRecord(
-                                status = DownloadStatus.PAUSED,
-                                progress = 40,
-                                targetFilePath = targetFile.absolutePath,
-                                downloadedBytes = TEST_DOWNLOADED_BYTES,
-                                totalBytes = TEST_TOTAL_BYTES,
-                                retryCount = 0,
-                            ),
-                        )
-                    },
+    fun `冷启动恢复时会在开启自动恢复后继续执行暂停任务`() = runBlocking {
+        val harness = TestHarness(
+            configureRepository = {
+                saveDownloadPreferences(DownloadPreferences(autoResumeOnLaunch = true, autoRetryEnabled = true, maxAutoRetryCount = 2))
+                val targetFile = createPartialDownloadFileForTest()
+                saveDownloadTask(
+                    buildDownloadTaskRecord(
+                        status = DownloadStatus.PAUSED,
+                        progress = 40,
+                        targetFilePath = targetFile.absolutePath,
+                        downloadedBytes = TEST_DOWNLOADED_BYTES,
+                        totalBytes = TEST_TOTAL_BYTES,
+                        retryCount = 0,
+                    ),
                 )
+            },
+        )
 
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.COMPLETED
-            }
-
-            val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
-            assertEquals(1, harness.downloader.startCount.get())
-            assertEquals(DownloadStatus.COMPLETED, task.status)
-            assertEquals(100, task.progress)
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.COMPLETED
         }
+
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(1, harness.downloader.startCount.get())
+        assertEquals(DownloadStatus.COMPLETED, task.status)
+        assertEquals(100, task.progress)
+    }
 
     @Test
-    fun `冷启动恢复时会在开启自动重试后重试失败任务`() =
-        runBlocking {
-            val harness =
-                TestHarness(
-                    configureRepository = {
-                        saveDownloadPreferences(
-                            DownloadPreferences(
-                                autoResumeOnLaunch = false,
-                                autoRetryEnabled = true,
-                                maxAutoRetryCount = 2,
-                            ),
-                        )
-                        val targetFile = createPartialDownloadFileForTest()
-                        saveDownloadTask(
-                            buildDownloadTaskRecord(
-                                status = DownloadStatus.FAILED,
-                                progress = 40,
-                                targetFilePath = targetFile.absolutePath,
-                                downloadedBytes = TEST_DOWNLOADED_BYTES,
-                                totalBytes = TEST_TOTAL_BYTES,
-                                retryCount = 1,
-                            ),
-                        )
-                    },
+    fun `冷启动恢复时会在开启自动重试后重试失败任务`() = runBlocking {
+        val harness = TestHarness(
+            configureRepository = {
+                saveDownloadPreferences(DownloadPreferences(autoResumeOnLaunch = false, autoRetryEnabled = true, maxAutoRetryCount = 2))
+                val targetFile = createPartialDownloadFileForTest()
+                saveDownloadTask(
+                    buildDownloadTaskRecord(
+                        status = DownloadStatus.FAILED,
+                        progress = 40,
+                        targetFilePath = targetFile.absolutePath,
+                        downloadedBytes = TEST_DOWNLOADED_BYTES,
+                        totalBytes = TEST_TOTAL_BYTES,
+                        retryCount = 1,
+                    ),
                 )
+            },
+        )
 
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.COMPLETED
-            }
-
-            val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
-            assertEquals(1, harness.downloader.startCount.get())
-            assertEquals(DownloadStatus.COMPLETED, task.status)
-            assertEquals(100, task.progress)
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.COMPLETED
         }
+
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(1, harness.downloader.startCount.get())
+        assertEquals(DownloadStatus.COMPLETED, task.status)
+        assertEquals(100, task.progress)
+    }
 
     @Test
-    fun `冷启动恢复时会把丢失 APK 的已完成任务纠正为失败态`() =
-        runBlocking {
-            val harness =
-                TestHarness(
-                    configureRepository = {
-                        saveDownloadPreferences(
-                            DownloadPreferences(
-                                autoResumeOnLaunch = false,
-                                autoRetryEnabled = false,
-                                maxAutoRetryCount = 2,
-                            ),
-                        )
-                        val missingTargetFile = File(createMissingDownloadFilePathForTest())
-                        saveDownloadedApk(TEST_APP_ID, missingTargetFile.absolutePath)
-                        saveDownloadTask(
-                            buildDownloadTaskRecord(
-                                status = DownloadStatus.COMPLETED,
-                                progress = 100,
-                                targetFilePath = missingTargetFile.absolutePath,
-                                downloadedBytes = TEST_TOTAL_BYTES,
-                                totalBytes = TEST_TOTAL_BYTES,
-                                retryCount = 0,
-                            ),
-                        )
-                    },
+    fun `冷启动恢复时会把丢失 APK 的已完成任务纠正为失败态`() = runBlocking {
+        val harness = TestHarness(
+            configureRepository = {
+                saveDownloadPreferences(DownloadPreferences(autoResumeOnLaunch = false, autoRetryEnabled = false, maxAutoRetryCount = 2))
+                val missingTargetFile = File(createMissingDownloadFilePathForTest())
+                saveDownloadedApk(TEST_APP_ID, missingTargetFile.absolutePath)
+                saveDownloadTask(
+                    buildDownloadTaskRecord(
+                        status = DownloadStatus.COMPLETED,
+                        progress = 100,
+                        targetFilePath = missingTargetFile.absolutePath,
+                        downloadedBytes = TEST_TOTAL_BYTES,
+                        totalBytes = TEST_TOTAL_BYTES,
+                        retryCount = 0,
+                    ),
                 )
+            },
+        )
 
-            waitUntil {
-                harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.FAILED &&
-                    harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.FAILED
-            }
-
-            val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
-            assertEquals(0, harness.downloader.startCount.get())
-            assertEquals(DownloadStatus.FAILED, task.status)
-            assertEquals(DownloadFailureCode.FILE_MISSING.name, task.failureCode)
-            assertEquals(DownloadStatus.FAILED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+        waitUntil {
+            harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.FAILED &&
+                harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.FAILED
         }
+
+        val task = requireNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        assertEquals(0, harness.downloader.startCount.get())
+        assertEquals(DownloadStatus.FAILED, task.status)
+        assertEquals(DownloadFailureCode.FILE_MISSING.name, task.failureCode)
+        assertEquals(DownloadStatus.FAILED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+    }
 
     /** 等待条件成立，避免后台下载协程的异步写回造成断言竞争。 */
     private suspend fun waitUntil(predicate: suspend () -> Boolean) {
         repeat(MAX_WAIT_RETRY_COUNT) {
-            if (predicate()) return
+            if (predicate()) {
+                return
+            }
             delay(POLL_DELAY_MS)
         }
         throw AssertionError("condition not satisfied within timeout")
@@ -325,29 +291,28 @@ class DefaultDownloadManagerTest {
         downloadedBytes: Long,
         totalBytes: Long,
         retryCount: Int,
-    ): DownloadTaskRecord =
-        DownloadTaskRecord(
-            taskId = "download-$TEST_APP_ID",
-            appId = TEST_APP_ID,
-            status = status,
-            progress = progress,
-            targetFilePath = targetFilePath,
-            downloadedBytes = downloadedBytes,
-            totalBytes = totalBytes,
-            failureCode = if (status == DownloadStatus.FAILED) DownloadFailureCode.NETWORK_INTERRUPTED.name else null,
-            failureMessage = if (status == DownloadStatus.FAILED) DownloadFailureCode.NETWORK_INTERRUPTED.displayText else null,
-            retryCount = retryCount,
-            downloadUrl = "https://example.com/test.apk",
-            tempDirPath = null,
-            eTag = null,
-            lastModified = null,
-            supportsRange = true,
-            checksumType = null,
-            checksumValue = null,
-            segmentCount = 2,
-            createdAt = 1L,
-            updatedAt = 1L,
-        )
+    ): DownloadTaskRecord = DownloadTaskRecord(
+        taskId = "download-$TEST_APP_ID",
+        appId = TEST_APP_ID,
+        status = status,
+        progress = progress,
+        targetFilePath = targetFilePath,
+        downloadedBytes = downloadedBytes,
+        totalBytes = totalBytes,
+        failureCode = if (status == DownloadStatus.FAILED) DownloadFailureCode.NETWORK_INTERRUPTED.name else null,
+        failureMessage = if (status == DownloadStatus.FAILED) DownloadFailureCode.NETWORK_INTERRUPTED.displayText else null,
+        retryCount = retryCount,
+        downloadUrl = "https://example.com/test.apk",
+        tempDirPath = null,
+        eTag = null,
+        lastModified = null,
+        supportsRange = true,
+        checksumType = null,
+        checksumValue = null,
+        segmentCount = 2,
+        createdAt = 1L,
+        updatedAt = 1L,
+    )
 
     /** 测试下载管理器时使用的依赖集合。 */
     private class TestHarness(
@@ -376,16 +341,15 @@ class DefaultDownloadManagerTest {
             runBlocking {
                 repository.configureRepository()
             }
-            manager =
-                DefaultDownloadManager(
-                    repository = repository,
-                    stateCenter = stateCenter,
-                    policyCenter = AllowAllPolicyCenter(),
-                    fileDownloader = downloader,
-                    logger = QuietLogger(),
-                    tracker = QuietTracker(),
-                    dispatcher = dispatcher,
-                )
+            manager = DefaultDownloadManager(
+                repository = repository,
+                stateCenter = stateCenter,
+                policyCenter = AllowAllPolicyCenter(),
+                fileDownloader = downloader,
+                logger = QuietLogger(),
+                tracker = QuietTracker(),
+                dispatcher = dispatcher,
+            )
         }
     }
 
@@ -413,10 +377,7 @@ class DefaultDownloadManagerTest {
 
     /** 静默日志器，避免 JVM 单测中触发 Android Log。 */
     private class QuietLogger : AppLogger() {
-        override fun d(
-            tag: String,
-            message: String,
-        ) = Unit
+        override fun d(tag: String, message: String) = Unit
     }
 
     /** 静默打点器，避免 JVM 单测中触发 Android Log。 */
@@ -432,56 +393,27 @@ class DefaultDownloadManagerTest {
         /** 首次进入下载流程时发出的信号。 */
         val startedLatch = CountDownLatch(1)
 
-        override suspend fun download(
-            request: DownloadRequest,
-            control: DownloadExecutionControl,
-            onEvent: suspend (DownloadEvent) -> Unit,
-        ) {
+        override suspend fun download(request: DownloadRequest, control: DownloadExecutionControl, onEvent: suspend (DownloadEvent) -> Unit) {
             startCount.incrementAndGet()
             startedLatch.countDown()
-            val resumedBytes =
-                if (request.downloadedBytes >= TEST_DOWNLOADED_BYTES) {
-                    TEST_TOTAL_BYTES
-                } else {
-                    TEST_DOWNLOADED_BYTES
-                }
+            val resumedBytes = if (request.downloadedBytes >= TEST_DOWNLOADED_BYTES) {
+                TEST_TOTAL_BYTES
+            } else {
+                TEST_DOWNLOADED_BYTES
+            }
             onEvent(DownloadEvent.Waiting)
-            onEvent(
-                DownloadEvent.MetaReady(
-                    DownloadRemoteMeta(
-                        contentLength = TEST_TOTAL_BYTES,
-                        supportsRange = true,
-                    ),
-                ),
-            )
-            onEvent(
-                DownloadEvent.Running(
-                    downloadedBytes = resumedBytes,
-                    totalBytes = TEST_TOTAL_BYTES,
-                    speedBytesPerSec = TEST_SPEED_BYTES_PER_SECOND,
-                ),
-            )
+            onEvent(DownloadEvent.MetaReady(DownloadRemoteMeta(contentLength = TEST_TOTAL_BYTES, supportsRange = true)))
+            onEvent(DownloadEvent.Running(downloadedBytes = resumedBytes, totalBytes = TEST_TOTAL_BYTES, speedBytesPerSec = TEST_SPEED_BYTES_PER_SECOND))
 
             if (resumedBytes == TEST_TOTAL_BYTES) {
-                onEvent(
-                    DownloadEvent.Completed(
-                        file = request.targetFile,
-                        totalBytes = TEST_TOTAL_BYTES,
-                    ),
-                )
+                onEvent(DownloadEvent.Completed(file = request.targetFile, totalBytes = TEST_TOTAL_BYTES))
                 return
             }
 
             while (true) {
                 val stopReason = control.currentStopReason()
                 if (stopReason != null) {
-                    onEvent(
-                        DownloadEvent.Stopped(
-                            reason = stopReason,
-                            downloadedBytes = resumedBytes,
-                            totalBytes = TEST_TOTAL_BYTES,
-                        ),
-                    )
+                    onEvent(DownloadEvent.Stopped(reason = stopReason, downloadedBytes = resumedBytes, totalBytes = TEST_TOTAL_BYTES))
                     return
                 }
                 delay(POLL_DELAY_MS)
@@ -495,15 +427,14 @@ class DefaultDownloadManagerTest {
         private val workDir: File,
     ) : AppRepository {
         /** 当前测试应用详情。 */
-        private val detail =
-            AppDetail(
-                appId = TEST_APP_ID,
-                packageName = "com.nio.test",
-                name = "Test App",
-                description = "download manager test",
-                versionName = "1.0.0",
-                apkUrl = "https://example.com/test.apk",
-            )
+        private val detail = AppDetail(
+            appId = TEST_APP_ID,
+            packageName = "com.nio.test",
+            name = "Test App",
+            description = "download manager test",
+            versionName = "1.0.0",
+            apkUrl = "https://example.com/test.apk",
+        )
 
         /** 下载任务记录表。 */
         private val downloadTasks = linkedMapOf<String, DownloadTaskRecord>()
@@ -530,10 +461,7 @@ class DefaultDownloadManagerTest {
 
         override suspend fun isInstalled(appId: String): Boolean = false
 
-        override suspend fun saveDownloadedApk(
-            appId: String,
-            apkPath: String,
-        ) {
+        override suspend fun saveDownloadedApk(appId: String, apkPath: String) {
             downloadedApkPaths[appId] = apkPath
         }
 
@@ -543,18 +471,14 @@ class DefaultDownloadManagerTest {
             downloadedApkPaths.remove(appId)
         }
 
-        override suspend fun getUpgradeInfo(appId: String): UpgradeInfo =
-            UpgradeInfo(
-                appId = appId,
-                latestVersion = "1.0.1",
-                apkUrl = detail.apkUrl,
-                hasUpgrade = true,
-            )
+        override suspend fun getUpgradeInfo(appId: String): UpgradeInfo = UpgradeInfo(
+            appId = appId,
+            latestVersion = "1.0.1",
+            apkUrl = detail.apkUrl,
+            hasUpgrade = true,
+        )
 
-        override suspend fun stageUpgrade(
-            appId: String,
-            versionName: String,
-        ) {
+        override suspend fun stageUpgrade(appId: String, versionName: String) {
             stagedUpgradeVersions[appId] = versionName
         }
 
@@ -573,18 +497,12 @@ class DefaultDownloadManagerTest {
         }
 
         override suspend fun clearCompletedDownloadTasks(): Int {
-            val removableKeys =
-                downloadTasks.values
-                    .filter { it.status == DownloadStatus.COMPLETED }
-                    .map { it.appId }
+            val removableKeys = downloadTasks.values.filter { it.status == DownloadStatus.COMPLETED }.map { it.appId }
             removableKeys.forEach { downloadTasks.remove(it) }
             return removableKeys.size
         }
 
-        override suspend fun saveDownloadSegments(
-            appId: String,
-            segments: List<DownloadSegmentRecord>,
-        ) {
+        override suspend fun saveDownloadSegments(appId: String, segments: List<DownloadSegmentRecord>) {
             downloadSegments[appId] = segments
         }
 
@@ -596,11 +514,10 @@ class DefaultDownloadManagerTest {
         }
 
         /** 创建一份用于恢复测试的半下载 APK 文件。 */
-        suspend fun createPartialDownloadFileForTest(): File =
-            getOrCreateDownloadFile(TEST_APP_ID).apply {
-                parentFile?.mkdirs()
-                writeBytes(ByteArray(TEST_DOWNLOADED_BYTES.toInt()) { 1 })
-            }
+        suspend fun createPartialDownloadFileForTest(): File = getOrCreateDownloadFile(TEST_APP_ID).apply {
+            parentFile?.mkdirs()
+            writeBytes(ByteArray(TEST_DOWNLOADED_BYTES.toInt()) { 1 })
+        }
 
         /** 创建一条不存在的 APK 路径，用于模拟失效的完成记录。 */
         fun createMissingDownloadFilePathForTest(): String = File(workDir, "downloads/missing-$TEST_APP_ID.apk").absolutePath
@@ -617,39 +534,34 @@ class DefaultDownloadManagerTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun `startDownload 空白 appId 抛异常`() =
-        runBlocking {
-            val harness = TestHarness()
-            harness.manager.startDownload("")
-        }
+    fun `startDownload 空白 appId 抛异常`() = runBlocking {
+        val harness = TestHarness()
+        harness.manager.startDownload("")
+    }
 
     @Test(expected = IllegalArgumentException::class)
-    fun `pauseDownload 空白 appId 抛异常`() =
-        runBlocking {
-            val harness = TestHarness()
-            harness.manager.pauseDownload("")
-        }
+    fun `pauseDownload 空白 appId 抛异常`() = runBlocking {
+        val harness = TestHarness()
+        harness.manager.pauseDownload("")
+    }
 
     @Test(expected = IllegalArgumentException::class)
-    fun `resumeDownload 空白 appId 抛异常`() =
-        runBlocking {
-            val harness = TestHarness()
-            harness.manager.resumeDownload("")
-        }
+    fun `resumeDownload 空白 appId 抛异常`() = runBlocking {
+        val harness = TestHarness()
+        harness.manager.resumeDownload("")
+    }
 
     @Test(expected = IllegalArgumentException::class)
-    fun `cancelDownload 空白 appId 抛异常`() =
-        runBlocking {
-            val harness = TestHarness()
-            harness.manager.cancelDownload("")
-        }
+    fun `cancelDownload 空白 appId 抛异常`() = runBlocking {
+        val harness = TestHarness()
+        harness.manager.cancelDownload("")
+    }
 
     @Test(expected = IllegalArgumentException::class)
-    fun `removeTask 空白 appId 抛异常`() =
-        runBlocking {
-            val harness = TestHarness()
-            harness.manager.removeTask("", clearFile = false)
-        }
+    fun `removeTask 空白 appId 抛异常`() = runBlocking {
+        val harness = TestHarness()
+        harness.manager.removeTask("", clearFile = false)
+    }
 
     private companion object {
         /** 测试应用统一使用的 appId。 */

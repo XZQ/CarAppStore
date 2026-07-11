@@ -24,4 +24,10 @@ class App : Application(), AppContainerProvider {
         // 应用启动后立刻装配容器，保证后续页面能直接获取业务服务。
         appContainer = AppContainer(this)
     }
+
+    /** 关闭旧容器并按最新持久化配置重新装配全局依赖。 */
+    fun reloadAppContainer() {
+        appContainer.shutdown()
+        appContainer = AppContainer(this)
+    }
 }

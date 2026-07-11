@@ -22,6 +22,13 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import com.xzq.appstore.data.model.AppInfo
+import com.xzq.appstore.data.model.DownloadPreferences
+import com.xzq.appstore.data.model.DownloadSegmentRecord
+import com.xzq.appstore.data.model.DownloadTaskRecord
+import com.xzq.appstore.data.model.InstalledApp
+import com.xzq.appstore.data.model.PolicySettings
+import com.xzq.appstore.data.model.UpgradeInfo
 
 class DefaultInstallManagerTest {
 
@@ -38,10 +45,7 @@ class DefaultInstallManagerTest {
         installer = ControllablePackageInstaller()
     }
 
-    private fun createManager(
-        policyCenter: PolicyCenter = AllowAllPolicyCenter(),
-        packageInstaller: PackageInstaller = installer,
-    ): DefaultInstallManager {
+    private fun createManager(policyCenter: PolicyCenter = AllowAllPolicyCenter(), packageInstaller: PackageInstaller = installer): DefaultInstallManager {
         return DefaultInstallManager(
             repository = repository,
             stateCenter = stateCenter,
@@ -60,7 +64,7 @@ class DefaultInstallManagerTest {
 
         val state = stateCenter.snapshot(TEST_APP_ID)
         assertEquals(InstallStatus.FAILED, state.installStatus)
-        assertTrue(state.errorMessage!!.contains("安装受限"))
+        assertTrue(requireNotNull(state.errorMessage).contains("安装受限"))
     }
 
     @Test
@@ -182,28 +186,28 @@ class DefaultInstallManagerTest {
 
     private class AllowAllPolicyCenter : PolicyCenter {
         /** 测试策略流。 */
-        private val settingsFlow = MutableStateFlow(com.xzq.appstore.data.model.PolicySettings())
+        private val settingsFlow = MutableStateFlow(PolicySettings())
         override fun canDownload(appId: String) = PolicyResult(true)
         override fun canInstall(appId: String) = PolicyResult(true)
         override fun canUpgrade(appId: String) = PolicyResult(true)
         override fun observeSettings() = settingsFlow
         override fun getSettings() = settingsFlow.value
         override fun getStoredSettings() = settingsFlow.value
-        override fun updateSettings(settings: com.xzq.appstore.data.model.PolicySettings) {
+        override fun updateSettings(settings: PolicySettings) {
             settingsFlow.value = settings
         }
     }
 
     private class DenyAllPolicyCenter : PolicyCenter {
         /** 测试策略流。 */
-        private val settingsFlow = MutableStateFlow(com.xzq.appstore.data.model.PolicySettings())
+        private val settingsFlow = MutableStateFlow(PolicySettings())
         override fun canDownload(appId: String) = PolicyResult(false, "禁止下载")
         override fun canInstall(appId: String) = PolicyResult(false, "禁止安装")
         override fun canUpgrade(appId: String) = PolicyResult(false, "禁止升级")
         override fun observeSettings() = settingsFlow
         override fun getSettings() = settingsFlow.value
         override fun getStoredSettings() = settingsFlow.value
-        override fun updateSettings(settings: com.xzq.appstore.data.model.PolicySettings) {
+        override fun updateSettings(settings: PolicySettings) {
             settingsFlow.value = settings
         }
     }
@@ -222,10 +226,7 @@ class DefaultInstallManagerTest {
         var scenario: InstallScenario = InstallScenario.SUCCESS
         var capturedRequest: InstallRequest? = null
 
-        override suspend fun install(
-            request: InstallRequest,
-            onEvent: suspend (InstallEvent) -> Unit,
-        ) {
+        override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) {
             capturedRequest = request
             when (scenario) {
                 InstallScenario.SUCCESS -> {
@@ -236,15 +237,18 @@ class DefaultInstallManagerTest {
                     onEvent(InstallEvent.Progress(1, 50))
                     onEvent(InstallEvent.Success("1.0.0"))
                 }
+
                 InstallScenario.APK_INVALID -> {
                     onEvent(InstallEvent.Waiting)
                     onEvent(InstallEvent.Failed(InstallFailureCode.APK_INVALID, "APK 无效"))
                 }
+
                 InstallScenario.GENERIC_FAILURE -> {
                     onEvent(InstallEvent.Waiting)
                     onEvent(InstallEvent.SessionCreated(1))
                     onEvent(InstallEvent.Failed(InstallFailureCode.SESSION_COMMIT_FAILED, "提交失败"))
                 }
+
                 InstallScenario.SESSION_ERROR -> {
                     onEvent(InstallEvent.Waiting)
                     onEvent(InstallEvent.Failed(InstallFailureCode.SESSION_CREATE_FAILED, "会话创建失败"))
@@ -259,11 +263,16 @@ class DefaultInstallManagerTest {
         val installedApps = mutableSetOf<String>()
         val taskRemoved = mutableSetOf<String>()
 
-        fun saveApk(appId: String, path: String) { apkPaths[appId] = path }
-        fun getApk(appId: String): String? = apkPaths[appId]
-        fun stageUpgradeVersion(appId: String, version: String) { stagedVersions[appId] = version }
+        fun saveApk(appId: String, path: String) {
+            apkPaths[appId] = path
+        }
 
-        override suspend fun getHomeApps() = emptyList<com.xzq.appstore.data.model.AppInfo>()
+        fun getApk(appId: String): String? = apkPaths[appId]
+        fun stageUpgradeVersion(appId: String, version: String) {
+            stagedVersions[appId] = version
+        }
+
+        override suspend fun getHomeApps() = emptyList<AppInfo>()
         override suspend fun getAppDetail(appId: String) = AppDetail(
             appId = appId,
             packageName = "com.nio.test",
@@ -272,30 +281,46 @@ class DefaultInstallManagerTest {
             versionName = "1.0.0",
             apkUrl = "https://example.com/test.apk",
         )
-        override suspend fun getInstalledApps() = emptyList<com.xzq.appstore.data.model.InstalledApp>()
-        override suspend fun markInstalled(appId: String) { installedApps.add(appId) }
+
+        override suspend fun getInstalledApps() = emptyList<InstalledApp>()
+        override suspend fun markInstalled(appId: String) {
+            installedApps.add(appId)
+        }
+
         override suspend fun isInstalled(appId: String) = installedApps.contains(appId)
-        override suspend fun saveDownloadedApk(appId: String, apkPath: String) { apkPaths[appId] = apkPath }
+        override suspend fun saveDownloadedApk(appId: String, apkPath: String) {
+            apkPaths[appId] = apkPath
+        }
+
         override suspend fun getDownloadedApk(appId: String) = apkPaths[appId]
-        override suspend fun clearDownloadedApk(appId: String) { apkPaths.remove(appId) }
-        override suspend fun getUpgradeInfo(appId: String) = com.xzq.appstore.data.model.UpgradeInfo(
-            appId = appId, latestVersion = "2.0.0", apkUrl = "", hasUpgrade = true,
-        )
-        override suspend fun stageUpgrade(appId: String, versionName: String) { stagedVersions[appId] = versionName }
+        override suspend fun clearDownloadedApk(appId: String) {
+            apkPaths.remove(appId)
+        }
+
+        override suspend fun getUpgradeInfo(appId: String) = UpgradeInfo(appId = appId, latestVersion = "2.0.0", apkUrl = "", hasUpgrade = true)
+
+        override suspend fun stageUpgrade(appId: String, versionName: String) {
+            stagedVersions[appId] = versionName
+        }
+
         override suspend fun peekStagedUpgradeVersion(appId: String) = stagedVersions[appId]
-        override suspend fun saveDownloadTask(record: com.xzq.appstore.data.model.DownloadTaskRecord) = Unit
-        override suspend fun getDownloadTask(appId: String): com.xzq.appstore.data.model.DownloadTaskRecord? = null
-        override suspend fun getAllDownloadTasks() = emptyList<com.xzq.appstore.data.model.DownloadTaskRecord>()
-        override suspend fun removeDownloadTask(appId: String) { taskRemoved.add(appId) }
+        override suspend fun saveDownloadTask(record: DownloadTaskRecord) = Unit
+        override suspend fun getDownloadTask(appId: String): DownloadTaskRecord? = null
+        override suspend fun getAllDownloadTasks() = emptyList<DownloadTaskRecord>()
+        override suspend fun removeDownloadTask(appId: String) {
+            taskRemoved.add(appId)
+        }
+
         override suspend fun clearCompletedDownloadTasks() = 0
-        override suspend fun saveDownloadSegments(appId: String, segments: List<com.xzq.appstore.data.model.DownloadSegmentRecord>) = Unit
-        override suspend fun getDownloadSegments(appId: String) = emptyList<com.xzq.appstore.data.model.DownloadSegmentRecord>()
+        override suspend fun saveDownloadSegments(appId: String, segments: List<DownloadSegmentRecord>) = Unit
+        override suspend fun getDownloadSegments(appId: String) = emptyList<DownloadSegmentRecord>()
         override suspend fun getOrCreateDownloadFile(appId: String): File {
             return File(workDir, "downloads/$appId.apk").apply { parentFile?.mkdirs() }
         }
-        override suspend fun getDownloadPreferences() = com.xzq.appstore.data.model.DownloadPreferences()
-        override suspend fun saveDownloadPreferences(preferences: com.xzq.appstore.data.model.DownloadPreferences) = Unit
-        override fun getPolicySettings() = com.xzq.appstore.data.model.PolicySettings()
+
+        override suspend fun getDownloadPreferences() = DownloadPreferences()
+        override suspend fun saveDownloadPreferences(preferences: DownloadPreferences) = Unit
+        override fun getPolicySettings() = PolicySettings()
         override fun openApp(packageName: String) = false
     }
 }

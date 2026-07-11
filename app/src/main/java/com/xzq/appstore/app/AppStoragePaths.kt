@@ -14,25 +14,19 @@ class AppStoragePaths(context: Context) {
     private val appContext = context.applicationContext
 
     /** 统一数据层当前使用的结构化 JSON 落盘文件。 */
-    val structuredLocalStoreFile: File =
-        appContext.filesDir.resolve("structured_local_store.json")
+    val structuredLocalStoreFile: File = appContext.filesDir.resolve("structured_local_store.json")
 
     /** 安装会话兜底使用的 JSON 文件。 */
-    val installSessionsFile: File =
-        appContext.filesDir.resolve("install_sessions.json")
+    val installSessionsFile: File = appContext.filesDir.resolve("install_sessions.json")
 
     /** 下载器工作目录。 */
-    val downloadsDir: File =
-        appContext.filesDir.resolve("downloads")
+    val downloadsDir: File = appContext.filesDir.resolve("downloads")
 
     /** 远端商店目录缓存文件。 */
-    val remoteCatalogCacheFile: File =
-        appContext.filesDir.resolve("remote_catalog_cache.json")
+    val remoteCatalogCacheFile: File = appContext.filesDir.resolve("remote_catalog_cache.json")
 
     /** 远端商店目录缓存元数据文件。 */
-    val remoteCatalogCacheMetadataFile: File =
-        appContext.filesDir.resolve("remote_catalog_cache.meta.json")
+    val remoteCatalogCacheMetadataFile: File = appContext.filesDir.resolve("remote_catalog_cache.meta.json")
 
-    val eventLogFile: File =
-        appContext.filesDir.resolve("event_log.tsv")
+    val eventLogFile: File = appContext.filesDir.resolve("event_log.tsv")
 }

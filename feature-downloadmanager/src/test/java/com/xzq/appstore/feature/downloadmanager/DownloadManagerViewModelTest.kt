@@ -41,92 +41,85 @@ class DownloadManagerViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `load 有任务时会进入内容态`() =
-        runTest {
-            val viewModel =
-                DownloadManagerViewModel(
-                    appManager = FakeAppManager(),
-                    stateCenter = DefaultStateCenter(),
-                    downloadManager = RecordingDownloadManager(),
-                    installManager = RecordingInstallManager(),
-                    upgradeManager = RecordingUpgradeManager(),
-                    policyCenter = FakePolicyCenter(),
-                )
+    fun `load 有任务时会进入内容态`() = runTest {
+        val viewModel = DownloadManagerViewModel(
+            appManager = FakeAppManager(),
+            stateCenter = DefaultStateCenter(),
+            downloadManager = RecordingDownloadManager(),
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
 
-            viewModel.load()
-            advanceUntilIdle()
+        viewModel.load()
+        advanceUntilIdle()
 
-            assertEquals(DownloadManagerScreenState.Content, viewModel.uiState.value.screenState)
-            assertEquals(2, viewModel.uiState.value.visibleTaskCount)
-        }
-
-    @Test
-    fun `onPrimaryClick 为恢复动作时会恢复下载`() =
-        runTest {
-            val appManager = FakeAppManager()
-            val downloadManager = RecordingDownloadManager()
-            val installManager = RecordingInstallManager()
-            val viewModel =
-                DownloadManagerViewModel(
-                    appManager = appManager,
-                    stateCenter = DefaultStateCenter(),
-                    downloadManager = downloadManager,
-                    installManager = installManager,
-                    upgradeManager = RecordingUpgradeManager(),
-                    policyCenter = FakePolicyCenter(),
-                )
-
-            viewModel.onPrimaryClick(TEST_RESUME_TASK)
-            advanceUntilIdle()
-
-            assertEquals(TEST_RESUME_TASK.appId, downloadManager.resumedAppIds.single())
-            assertTrue(installManager.installedAppIds.isEmpty())
-        }
+        assertEquals(DownloadManagerScreenState.Content, viewModel.uiState.value.screenState)
+        assertEquals(2, viewModel.uiState.value.visibleTaskCount)
+    }
 
     @Test
-    fun `onInstallPrimaryClick 为打开动作时会打开应用`() =
-        runTest {
-            val appManager = FakeAppManager()
-            val downloadManager = RecordingDownloadManager()
-            val installManager = RecordingInstallManager()
-            val viewModel =
-                DownloadManagerViewModel(
-                    appManager = appManager,
-                    stateCenter = DefaultStateCenter(),
-                    downloadManager = downloadManager,
-                    installManager = installManager,
-                    upgradeManager = RecordingUpgradeManager(),
-                    policyCenter = FakePolicyCenter(),
-                )
+    fun `onPrimaryClick 为恢复动作时会恢复下载`() = runTest {
+        val appManager = FakeAppManager()
+        val downloadManager = RecordingDownloadManager()
+        val installManager = RecordingInstallManager()
+        val viewModel = DownloadManagerViewModel(
+            appManager = appManager,
+            stateCenter = DefaultStateCenter(),
+            downloadManager = downloadManager,
+            installManager = installManager,
+            upgradeManager = RecordingUpgradeManager(),
+            policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
 
-            viewModel.onInstallPrimaryClick(TEST_OPEN_INSTALL_TASK)
-            advanceUntilIdle()
+        viewModel.onPrimaryClick(TEST_RESUME_TASK)
+        advanceUntilIdle()
 
-            assertEquals(TEST_OPEN_INSTALL_TASK.packageName, appManager.openedPackageName)
-            assertTrue(downloadManager.resumedAppIds.isEmpty())
-        }
+        assertEquals(TEST_RESUME_TASK.appId, downloadManager.resumedAppIds.single())
+        assertTrue(installManager.installedAppIds.isEmpty())
+    }
 
     @Test
-    fun `load 失败时会进入错误态`() =
-        runTest {
-            val viewModel =
-                DownloadManagerViewModel(
-                    appManager = FailingAppManager(),
-                    stateCenter = DefaultStateCenter(),
-                    downloadManager = RecordingDownloadManager(),
-                    installManager = RecordingInstallManager(),
-                    upgradeManager = RecordingUpgradeManager(),
-                    policyCenter = FakePolicyCenter(),
-                )
+    fun `onInstallPrimaryClick 为打开动作时会打开应用`() = runTest {
+        val appManager = FakeAppManager()
+        val downloadManager = RecordingDownloadManager()
+        val installManager = RecordingInstallManager()
+        val viewModel = DownloadManagerViewModel(
+            appManager = appManager,
+            stateCenter = DefaultStateCenter(),
+            downloadManager = downloadManager,
+            installManager = installManager,
+            upgradeManager = RecordingUpgradeManager(),
+            policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
 
-            viewModel.load()
-            advanceUntilIdle()
+        viewModel.onInstallPrimaryClick(TEST_OPEN_INSTALL_TASK)
+        advanceUntilIdle()
 
-            assertEquals(
-                DownloadManagerScreenState.Error("download tasks unavailable"),
-                viewModel.uiState.value.screenState,
-            )
-        }
+        assertEquals(TEST_OPEN_INSTALL_TASK.packageName, appManager.openedPackageName)
+        assertTrue(downloadManager.resumedAppIds.isEmpty())
+    }
+
+    @Test
+    fun `load 失败时会进入错误态`() = runTest {
+        val viewModel = DownloadManagerViewModel(
+            appManager = FailingAppManager(),
+            stateCenter = DefaultStateCenter(),
+            downloadManager = RecordingDownloadManager(),
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+
+        viewModel.load()
+        advanceUntilIdle()
+
+        assertEquals(DownloadManagerScreenState.Error("download tasks unavailable"), viewModel.uiState.value.screenState)
+    }
 
     private open class FakeAppManager : AppManager {
         /** 最近一次被请求打开的包名。 */
@@ -184,10 +177,7 @@ class DownloadManagerViewModelTest {
 
         override suspend fun cancelDownload(appId: String) = Unit
 
-        override suspend fun removeTask(
-            appId: String,
-            clearFile: Boolean,
-        ) = Unit
+        override suspend fun removeTask(appId: String, clearFile: Boolean) = Unit
 
         override suspend fun clearCompletedTasks(): Int = 0
 
@@ -242,7 +232,7 @@ class DownloadManagerViewModelTest {
 
     class MainDispatcherRule(
         /** 测试主线程调度器。 */
-        private val dispatcher: TestDispatcher = StandardTestDispatcher(),
+        val dispatcher: TestDispatcher = StandardTestDispatcher(),
     ) : TestWatcher() {
         override fun starting(description: Description) {
             Dispatchers.setMain(dispatcher)
@@ -255,47 +245,44 @@ class DownloadManagerViewModelTest {
 
     private companion object {
         /** 测试详情模型。 */
-        val TEST_APP_DETAIL =
-            AppDetail(
-                appId = "demo.download.center",
-                packageName = "com.nio.demo.download.center",
-                name = "Download Center",
-                description = "download center test app",
-                versionName = "1.0.0",
-                apkUrl = "https://example.com/download-center.apk",
-            )
+        val TEST_APP_DETAIL = AppDetail(
+            appId = "demo.download.center",
+            packageName = "com.nio.demo.download.center",
+            name = "Download Center",
+            description = "download center test app",
+            versionName = "1.0.0",
+            apkUrl = "https://example.com/download-center.apk",
+        )
 
         /** 恢复下载任务。 */
-        val TEST_RESUME_TASK =
-            DownloadTaskViewData(
-                appId = "demo.resume.task",
-                name = "Resume Task",
-                versionName = "1.0.0",
-                stateText = "已暂停",
-                statusTone = StatusTone.WARNING,
-                overallStatus = TaskOverallStatus.ACTIVE,
-                progress = 42,
-                primaryAction = PrimaryAction.RESUME,
-                sizeText = "42MB/100MB",
-                speedText = "0KB/s",
-                timeText = "刚刚",
-                pathText = "/data/demo.apk",
-                secondaryActionText = "移除",
-                showSecondaryAction = true,
-                installed = false,
-            )
+        val TEST_RESUME_TASK = DownloadTaskViewData(
+            appId = "demo.resume.task",
+            name = "Resume Task",
+            versionName = "1.0.0",
+            stateText = "已暂停",
+            statusTone = StatusTone.WARNING,
+            overallStatus = TaskOverallStatus.ACTIVE,
+            progress = 42,
+            primaryAction = PrimaryAction.RESUME,
+            sizeText = "42MB/100MB",
+            speedText = "0KB/s",
+            timeText = "刚刚",
+            pathText = "/data/demo.apk",
+            secondaryActionText = "移除",
+            showSecondaryAction = true,
+            installed = false,
+        )
 
         /** 打开安装任务。 */
-        val TEST_OPEN_INSTALL_TASK =
-            InstallTaskViewData(
-                appId = "demo.install.open",
-                packageName = "com.nio.demo.install.open",
-                name = "Installed App",
-                versionName = "2.0.0",
-                stateText = "已安装",
-                statusTone = StatusTone.SUCCESS,
-                overallStatus = TaskOverallStatus.COMPLETED,
-                primaryAction = PrimaryAction.OPEN,
-            )
+        val TEST_OPEN_INSTALL_TASK = InstallTaskViewData(
+            appId = "demo.install.open",
+            packageName = "com.nio.demo.install.open",
+            name = "Installed App",
+            versionName = "2.0.0",
+            stateText = "已安装",
+            statusTone = StatusTone.SUCCESS,
+            overallStatus = TaskOverallStatus.COMPLETED,
+            primaryAction = PrimaryAction.OPEN,
+        )
     }
 }

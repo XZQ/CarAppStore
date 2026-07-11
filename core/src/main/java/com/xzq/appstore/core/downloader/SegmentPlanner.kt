@@ -18,7 +18,9 @@ class SegmentPlanner(
         existingSegments: List<DownloadSegmentRecord> = emptyList(),
     ): List<DownloadSegmentRecord> {
         // 冷启动恢复时优先复用已有分片，避免重复切片。
-        if (existingSegments.isNotEmpty()) return existingSegments.sortedBy { it.index }
+        if (existingSegments.isNotEmpty()) {
+            return existingSegments.sortedBy { it.index }
+        }
         if (totalBytes <= 0L) {
             // 文件大小未知时退化为单分片顺序下载。
             val now = System.currentTimeMillis()
@@ -78,18 +80,25 @@ class SegmentPlanner(
     private companion object {
         /** 大文件阈值：16MB，超过此值拆成 4 分片。 */
         private const val LARGE_FILE_THRESHOLD = 16L * 1024L * 1024L
+
         /** 中等文件阈值：8MB，超过此值拆成 3 分片。 */
         private const val MEDIUM_FILE_THRESHOLD = 8L * 1024L * 1024L
+
         /** 小文件阈值：4MB，超过此值拆成 2 分片。 */
         private const val SMALL_FILE_THRESHOLD = 4L * 1024L * 1024L
+
         /** 默认分片大小：2MB。 */
         private const val DEFAULT_CHUNK_SIZE_BYTES = 2L * 1024L * 1024L
+
         /** 默认最小分片大小：512KB。 */
         private const val DEFAULT_MIN_SEGMENT_SIZE_BYTES = 512L * 1024L
+
         /** 大文件分片数。 */
         private const val SEGMENT_COUNT_FOR_LARGE = 4
+
         /** 中等文件分片数。 */
         private const val SEGMENT_COUNT_FOR_MEDIUM = 3
+
         /** 小文件分片数。 */
         private const val SEGMENT_COUNT_FOR_SMALL = 2
     }

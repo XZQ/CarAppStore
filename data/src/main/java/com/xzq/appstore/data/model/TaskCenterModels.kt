@@ -3,10 +3,13 @@ package com.xzq.appstore.data.model
 enum class TaskOverallStatus {
     /** 待处理任务。 */
     PENDING,
+
     /** 执行中任务。 */
     ACTIVE,
+
     /** 失败任务。 */
     FAILED,
+
     /** 已完成任务。 */
     COMPLETED,
 }
@@ -19,7 +22,8 @@ enum class TaskCenterFilter(
     PENDING(ModelText.FILTER_PENDING),
     ACTIVE(ModelText.FILTER_ACTIVE),
     FAILED(ModelText.FILTER_FAILED),
-    COMPLETED(ModelText.FILTER_COMPLETED);
+    COMPLETED(ModelText.FILTER_COMPLETED),
+    ;
 
     /** 获取下一个任务筛选项。 */
     fun next(): TaskCenterFilter = when (this) {

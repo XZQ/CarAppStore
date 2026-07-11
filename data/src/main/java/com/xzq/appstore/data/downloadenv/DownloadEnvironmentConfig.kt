@@ -6,10 +6,13 @@ import com.xzq.appstore.data.BuildConfig
 enum class DownloadEnvironment {
     /** 开发环境。 */
     DEV,
+
     /** 测试环境。 */
     TEST,
+
     /** 生产环境。 */
     PROD,
+
     /** 本地模拟环境：目录与 APK 均来自本机静态服务器，用于离线/无后端联调。 */
     LOCAL_SIM,
 }
@@ -43,6 +46,7 @@ data class DownloadEnvironmentConfig(
                     catalogRequestHeaders = configuredHeaders("carappstore-dev"),
                     downloadBaseUrl = configuredDownloadBaseUrl(BuildConfig.CARAPPSTORE_DOWNLOAD_DEV_BASE_URL, "https://example.com"),
                 )
+
                 DownloadEnvironment.TEST -> DownloadEnvironmentConfig(
                     environment = environment,
                     defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
@@ -58,6 +62,7 @@ data class DownloadEnvironmentConfig(
                         "https://test-download.example.org",
                     ),
                 )
+
                 DownloadEnvironment.PROD -> DownloadEnvironmentConfig(
                     environment = environment,
                     defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
@@ -73,6 +78,7 @@ data class DownloadEnvironmentConfig(
                         "https://cdn.example.com/carapps",
                     ),
                 )
+
                 DownloadEnvironment.LOCAL_SIM -> DownloadEnvironmentConfig(
                     environment = environment,
                     defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
@@ -94,10 +100,7 @@ data class DownloadEnvironmentConfig(
         }
 
         private fun configuredHeaders(channel: String): Map<String, String> {
-            val headers = linkedMapOf(
-                "X-Client-Channel" to channel,
-                "X-Client-Platform" to "android-car",
-            )
+            val headers = linkedMapOf("X-Client-Channel" to channel, "X-Client-Platform" to "android-car")
             val authHeader = BuildConfig.CARAPPSTORE_CATALOG_AUTH_HEADER.trim()
             val authValue = BuildConfig.CARAPPSTORE_CATALOG_AUTH_VALUE.trim()
             if (authHeader.isNotBlank() && authValue.isNotBlank()) {

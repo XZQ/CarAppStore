@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Bundle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -45,25 +46,18 @@ class BroadcastVehicleStateSignalProvider(
     private val appContext = context.applicationContext
     private val stateFlow = MutableStateFlow(initialState)
 
-    private val receiver =
-        object : BroadcastReceiver() {
-            override fun onReceive(
-                context: Context,
-                intent: Intent,
-            ) {
-                if (intent.action != action) return
-                stateFlow.value =
-                    VehicleRuntimeState(
-                        parkingMode =
-                            VehicleSignalValueParser.booleanExtra(
-                                intent.extras?.get(parkingExtraName),
-                                stateFlow.value.parkingMode,
-                            ),
-                        sourceName = "broadcast:$action",
-                        powerOn = optionalBooleanExtra(intent, powerExtraName, stateFlow.value.powerOn),
-                    )
+    private val receiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != action) {
+                return
             }
+            stateFlow.value = VehicleRuntimeState(
+                parkingMode = VehicleSignalValueParser.booleanExtra(intent.extras?.rawExtra(parkingExtraName), stateFlow.value.parkingMode),
+                sourceName = "broadcast:$action",
+                powerOn = optionalBooleanExtra(intent, powerExtraName, stateFlow.value.powerOn),
+            )
         }
+    }
 
     init {
         require(action.isNotBlank()) { "vehicle broadcast action must not be blank" }
@@ -85,34 +79,31 @@ class BroadcastVehicleStateSignalProvider(
         runCatching { appContext.unregisterReceiver(receiver) }
     }
 
-    private fun optionalBooleanExtra(
-        intent: Intent,
-        name: String,
-        fallback: Boolean?,
-    ): Boolean? {
-        if (name.isBlank() || !intent.hasExtra(name)) return fallback
-        return VehicleSignalValueParser.booleanExtra(intent.extras?.get(name), fallback ?: false)
+    private fun optionalBooleanExtra(intent: Intent, name: String, fallback: Boolean?): Boolean? {
+        if (name.isBlank() || !intent.hasExtra(name)) {
+            return fallback
+        }
+        return VehicleSignalValueParser.booleanExtra(intent.extras?.rawExtra(name), fallback ?: false)
     }
 }
 
-object VehicleSignalValueParser {
-    fun booleanExtra(
-        value: Any?,
-        fallback: Boolean,
-    ): Boolean =
-        when (value) {
-            is Boolean -> value
-            is Number -> value.toInt() != 0
-            is String -> stringToBoolean(value) ?: fallback
-            else -> fallback
-        }
+/** OEM 广播的字段类型不固定，需要保留原始值交给统一解析器兼容 Boolean、Number 和 String。 */
+@Suppress("DEPRECATION")
+private fun Bundle.rawExtra(name: String): Any? = get(name)
 
-    private fun stringToBoolean(value: String): Boolean? =
-        when (value.trim().lowercase()) {
-            "true", "1", "yes", "y", "on", "park", "parked", "parking", "p" -> true
-            "false", "0", "no", "n", "off", "drive", "driving", "d", "moving" -> false
-            else -> null
-        }
+object VehicleSignalValueParser {
+    fun booleanExtra(value: Any?, fallback: Boolean): Boolean = when (value) {
+        is Boolean -> value
+        is Number -> value.toInt() != 0
+        is String -> stringToBoolean(value) ?: fallback
+        else -> fallback
+    }
+
+    private fun stringToBoolean(value: String): Boolean? = when (value.trim().lowercase()) {
+        "true", "1", "yes", "y", "on", "park", "parked", "parking", "p" -> true
+        "false", "0", "no", "n", "off", "drive", "driving", "d", "moving" -> false
+        else -> null
+    }
 }
 
 /**

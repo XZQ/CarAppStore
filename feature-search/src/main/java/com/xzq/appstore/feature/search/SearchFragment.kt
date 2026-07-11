@@ -39,19 +39,12 @@ class SearchFragment : BaseFragment() {
         )
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?,
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentSearchBinding.inflate(inflater, container, false)
         return binding.root
     }
 
-    override fun onViewCreated(
-        view: View,
-        savedInstanceState: Bundle?,
-    ) {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         navigator.updateTitle(page.title)
         binding.tvCatalogTitle.text = page.title
@@ -105,24 +98,15 @@ class SearchFragment : BaseFragment() {
 
     private fun renderResults(apps: List<AppViewData>) {
         binding.listCatalogResults.removeAllViews()
-        val picked =
-            pickApps(
-                apps,
-                count =
-                    when (page) {
-                        CatalogPage.Game, CatalogPage.Rank -> 6
-                        else -> 5
-                    },
-            )
+        val picked = pickApps(
+            apps,
+            count = when (page) {
+                CatalogPage.Game, CatalogPage.Rank -> 6
+                else -> 5
+            },
+        )
         picked.forEachIndexed { index, app ->
-            binding.listCatalogResults.addView(
-                createAppRow(
-                    app,
-                    showIndex = page == CatalogPage.Rank || page == CatalogPage.Game,
-                    index =
-                        index + 1,
-                ),
-            )
+            binding.listCatalogResults.addView(createAppRow(app, showIndex = page == CatalogPage.Rank || page == CatalogPage.Game, index = index + 1))
         }
     }
 
@@ -134,37 +118,32 @@ class SearchFragment : BaseFragment() {
             return
         }
         suggestions.forEach { app ->
-            val row =
-                TextView(requireContext()).apply {
-                    text = app.name
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
-                    textSize = 14f
-                    setPadding(dp(12), dp(12), dp(12), dp(12))
-                    setOnClickListener {
-                        binding.etSearch.setText(app.name)
-                        binding.etSearch.setSelection(app.name.length)
-                        viewModel.search(app.name)
-                    }
+            val row = TextView(requireContext()).apply {
+                text = app.name
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
+                textSize = 14f
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                setOnClickListener {
+                    binding.etSearch.setText(app.name)
+                    binding.etSearch.setSelection(app.name.length)
+                    viewModel.search(app.name)
                 }
+            }
             binding.suggestionPanel.addView(row)
         }
         binding.suggestionPanel.visibility = View.VISIBLE
     }
 
-    private fun pickApps(
-        apps: List<AppViewData>,
-        count: Int,
-    ): List<AppViewData> {
-        if (apps.isEmpty()) return emptyList()
+    private fun pickApps(apps: List<AppViewData>, count: Int): List<AppViewData> {
+        if (apps.isEmpty()) {
+            return emptyList()
+        }
         val offset = page.ordinal
         return (0 until count).map { apps[(offset + it) % apps.size] }
     }
 
-    private fun renderInlineChips(
-        container: LinearLayout,
-        chips: List<String>,
-    ) {
+    private fun renderInlineChips(container: LinearLayout, chips: List<String>) {
         container.removeAllViews()
         chips.forEach { label ->
             container.addView(
@@ -175,22 +154,16 @@ class SearchFragment : BaseFragment() {
         }
     }
 
-    private fun renderChipRows(
-        container: LinearLayout,
-        chips: List<String>,
-    ) {
+    private fun renderChipRows(container: LinearLayout, chips: List<String>) {
         container.removeAllViews()
         chips.chunked(3).forEach { rowChips ->
-            val row =
-                LinearLayout(requireContext()).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    layoutParams =
-                        LinearLayout
-                            .LayoutParams(
-                                LinearLayout.LayoutParams.MATCH_PARENT,
-                                LinearLayout.LayoutParams.WRAP_CONTENT,
-                            ).apply { bottomMargin = dp(8) }
-                }
+            val row = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = dp(8) }
+            }
             rowChips.forEach { label ->
                 row.addView(
                     createChip(label).apply {
@@ -202,121 +175,97 @@ class SearchFragment : BaseFragment() {
         }
     }
 
-    private fun createChip(label: String): TextView =
-        TextView(requireContext()).apply {
-            text = label
-            gravity = android.view.Gravity.CENTER
-            setBackgroundResource(CommonR.drawable.bg_home_chip)
-            setTextColor(resources.getColor(CommonR.color.car_text_secondary, null))
-            textSize = 12f
-        }
+    private fun createChip(label: String): TextView = TextView(requireContext()).apply {
+        text = label
+        gravity = android.view.Gravity.CENTER
+        setBackgroundResource(CommonR.drawable.bg_home_chip)
+        setTextColor(resources.getColor(CommonR.color.car_text_secondary, null))
+        textSize = 12f
+    }
 
-    private fun createAppRow(
-        app: AppViewData,
-        showIndex: Boolean,
-        index: Int,
-    ): View =
-        LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            setBackgroundResource(CommonR.drawable.bg_home_app_card)
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            setOnClickListener { navigator.openDetail(app.appId) }
-            layoutParams =
-                LinearLayout
-                    .LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ).apply { bottomMargin = dp(10) }
-            if (showIndex) {
+    private fun createAppRow(app: AppViewData, showIndex: Boolean, index: Int): View = LinearLayout(requireContext()).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = android.view.Gravity.CENTER_VERTICAL
+        setBackgroundResource(CommonR.drawable.bg_home_app_card)
+        setPadding(dp(12), dp(10), dp(12), dp(10))
+        setOnClickListener { navigator.openDetail(app.appId) }
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { bottomMargin = dp(10) }
+        if (showIndex) {
+            addView(
+                TextView(requireContext()).apply {
+                    text = index.toString()
+                    gravity = android.view.Gravity.CENTER
+                    setTextColor(resources.getColor(CommonR.color.car_accent, null))
+                    textSize = 16f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    layoutParams = LinearLayout.LayoutParams(dp(28), dp(48)).apply { rightMargin = dp(8) }
+                },
+            )
+        }
+        addView(createIcon(app))
+        addView(
+            LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    leftMargin = dp(12)
+                    rightMargin = dp(10)
+                }
                 addView(
                     TextView(requireContext()).apply {
-                        text = index.toString()
-                        gravity = android.view.Gravity.CENTER
-                        setTextColor(resources.getColor(CommonR.color.car_accent, null))
+                        text = app.name
+                        setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
                         textSize = 16f
                         typeface = android.graphics.Typeface.DEFAULT_BOLD
-                        layoutParams = LinearLayout.LayoutParams(dp(28), dp(48)).apply { rightMargin = dp(8) }
+                        maxLines = 1
                     },
                 )
-            }
-            addView(createIcon(app))
-            addView(
-                LinearLayout(requireContext()).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams =
-                        LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                            leftMargin = dp(12)
-                            rightMargin = dp(10)
-                        }
-                    addView(
-                        TextView(requireContext()).apply {
-                            text = app.name
-                            setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
-                            textSize = 16f
-                            typeface = android.graphics.Typeface.DEFAULT_BOLD
-                            maxLines = 1
-                        },
-                    )
-                    addView(
-                        TextView(requireContext()).apply {
-                            text = "${app.description}  ·  ${app.versionName}"
-                            setTextColor(resources.getColor(CommonR.color.car_text_secondary, null))
-                            textSize = 12f
-                            maxLines = 1
-                        },
-                    )
-                },
-            )
-            addView(
-                TextView(requireContext()).apply {
-                    gravity = android.view.Gravity.CENTER
-                    textSize = 12f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    applyActionStyle(CarUiStyle.actionStyle(app.primaryAction))
-                    setOnClickListener { viewModel.onPrimaryClick(app) }
-                    layoutParams = LinearLayout.LayoutParams(dp(76), dp(36))
-                },
-            )
-        }
+                addView(
+                    TextView(requireContext()).apply {
+                        text = "${app.description}  ·  ${app.versionName}"
+                        setTextColor(resources.getColor(CommonR.color.car_text_secondary, null))
+                        textSize = 12f
+                        maxLines = 1
+                    },
+                )
+            },
+        )
+        addView(
+            TextView(requireContext()).apply {
+                gravity = android.view.Gravity.CENTER
+                textSize = 12f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                applyActionStyle(CarUiStyle.actionStyle(app.primaryAction))
+                setOnClickListener { viewModel.onPrimaryClick(app) }
+                layoutParams = LinearLayout.LayoutParams(dp(76), dp(36))
+            },
+        )
+    }
 
-    private fun createIcon(app: AppViewData): View =
-        FrameLayout(requireContext()).apply {
-            setBackgroundResource(CommonR.drawable.bg_home_app_icon)
-            layoutParams = LinearLayout.LayoutParams(dp(50), dp(50))
-            val image =
-                ImageView(requireContext()).apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    visibility = View.GONE
-                    layoutParams =
-                        FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                        )
-                }
-            val fallback =
-                TextView(requireContext()).apply {
-                    text =
-                        app.iconText.ifBlank {
-                            app.name
-                                .firstOrNull()
-                                ?.toString()
-                                .orEmpty()
-                        }
-                    gravity = android.view.Gravity.CENTER
-                    setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
-                    textSize = 15f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    layoutParams =
-                        FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                        )
-                }
-            addView(image)
-            addView(fallback)
-            AppImageLoader.load(image, app.iconUrl, fallback)
+    private fun createIcon(app: AppViewData): View = FrameLayout(requireContext()).apply {
+        setBackgroundResource(CommonR.drawable.bg_home_app_icon)
+        layoutParams = LinearLayout.LayoutParams(dp(50), dp(50))
+        val image = ImageView(requireContext()).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            visibility = View.GONE
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         }
+        val fallback = TextView(requireContext()).apply {
+            text = app.iconText.ifBlank {
+                app.name.firstOrNull()?.toString().orEmpty()
+            }
+            gravity = android.view.Gravity.CENTER
+            setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
+            textSize = 15f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        }
+        addView(image)
+        addView(fallback)
+        AppImageLoader.load(image, app.iconUrl, fallback)
+    }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
@@ -328,9 +277,8 @@ class SearchFragment : BaseFragment() {
     companion object {
         private const val ARG_PAGE = "catalog_page"
 
-        fun newInstance(page: CatalogPage = CatalogPage.Software) =
-            SearchFragment().apply {
-                arguments = Bundle().apply { putString(ARG_PAGE, page.argument) }
-            }
+        fun newInstance(page: CatalogPage = CatalogPage.Software) = SearchFragment().apply {
+            arguments = Bundle().apply { putString(ARG_PAGE, page.argument) }
+        }
     }
 }

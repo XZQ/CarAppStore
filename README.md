@@ -18,13 +18,13 @@
 
 CarAppStore 是一个多模块 Android/Kotlin 工程，用来沉淀车载应用商店的核心链路：应用目录、首页推荐、搜索、详情、我的应用、下载、安装、升级、状态归约、策略门控、应用管理和任务中心。
 
-项目已经完成多端 UI 壳层和主要页面开发，不再只是静态 Demo。当前工程可以生成 APK，页面可以跑通本地目录、状态中心、策略门控、任务中心和安装/升级/下载主链路；真实联网目录、APK 下载源和生产环境验收是下一步接入重点。
+项目已经完成多端 UI 壳层和主要页面开发，不再只是静态 Demo。当前工程可生成 Debug/Release APK，页面可跑通目录、状态中心、策略门控、任务中心和下载/安装/升级主链路；真实联网目录、APK 下载源和生产环境验收仍是下一步接入重点。
 
 ## 当前同步基线
 
 - 当前主分支：`main`
 - 已同步远端：`origin/main`
-- 最近代码验证基线：`56546df Fix lint blockers from first-principles audit`
+- 当前工作区验证：2026-07-10 已在 JDK 17 下通过 `testDebugUnitTest`、`lintDebug`、`:app:assembleDebug` 与 `:app:assembleRelease`；本次为未提交工作区变更，提交基线请以 Git 历史为准。
 - 换机接手总览：[docs/29-换机接手与当前进度总览.md](docs/29-换机接手与当前进度总览.md)
 
 实际最新状态请以 `git status --short --branch` 和 `git log --oneline -5` 为准。
@@ -94,15 +94,15 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 | 远端目录 API | 客户端链路、缓存回退、鉴权头和 Gradle/环境变量注入已完成；默认配置仍使用示例地址，需要替换为真实后端地址和协议 |
 | APK 联网下载源 | 下载器、任务状态、断点续传和校验链路已具备；真实 APK CDN、checksum 和灰度策略下一步接入 |
 | OEM 车况信号 | 已定义 `VehicleStateSignalProvider` 接口，并支持广播型 OEM 接入；未接真实协议时按安全默认值处理 |
-| 真机安装行为 | 已接 Android `PackageInstaller`；不同车机 ROM 的确认页、回调码和权限行为需要实机验证 |
+| 真机安装行为 | 已接 Android `PackageInstaller`，并在创建会话前检查“允许安装未知应用”权限；不同车机 ROM 的确认页、回调码和权限行为仍需实机验证 |
 | 运营观测 | 本地事件落盘已接入；上传服务、告警看板和隐私合规字段需要接生产平台 |
 
 ## 环境要求
 
 - Android Studio 或命令行 Android Gradle 环境
 - JDK/JBR 17
-- Android Gradle Plugin 8.4.2
-- Kotlin 1.9.24
+- Android Gradle Plugin 8.13.2
+- Kotlin 2.0.0
 - compileSdk 34，minSdk 26
 
 ## 构建与测试

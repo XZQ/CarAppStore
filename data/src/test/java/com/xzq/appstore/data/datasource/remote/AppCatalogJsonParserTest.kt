@@ -1,8 +1,8 @@
 package com.xzq.appstore.data.datasource.remote
 
+import com.xzq.appstore.core.downloader.DownloadSourcePolicy
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import com.xzq.appstore.core.downloader.DownloadSourcePolicy
 
 class AppCatalogJsonParserTest {
 

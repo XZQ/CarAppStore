@@ -14,10 +14,7 @@ class DownloadSourceResolver(
     private val config: DownloadSourceResolverConfig,
 ) {
     /** 根据请求策略和环境能力决定实际要使用的下载源。 */
-    fun resolve(
-        requestedPolicy: DownloadSourcePolicy?,
-        url: String,
-    ): DownloadSourceDecision {
+    fun resolve(requestedPolicy: DownloadSourcePolicy?, url: String): DownloadSourceDecision {
         val effective = requestedPolicy ?: config.defaultSourcePolicy
         return when (effective) {
             DownloadSourcePolicy.DIRECT_HTTP -> {
@@ -40,8 +37,7 @@ class DownloadSourceResolver(
                 }
             }
 
-            DownloadSourcePolicy.FALLBACK_SIMULATED ->
-                DownloadSourceDecision(DownloadSourcePolicy.FALLBACK_SIMULATED, DownloaderText.FALLBACK_SIMULATED)
+            DownloadSourcePolicy.FALLBACK_SIMULATED -> DownloadSourceDecision(DownloadSourcePolicy.FALLBACK_SIMULATED, DownloaderText.FALLBACK_SIMULATED)
         }
     }
 }

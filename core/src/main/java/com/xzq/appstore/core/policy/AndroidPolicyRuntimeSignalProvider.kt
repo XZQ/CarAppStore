@@ -42,35 +42,27 @@ class AndroidPolicyRuntimeSignalProvider(
     private val signalsFlow = MutableStateFlow(readSignals())
 
     /** 网络能力监听器，用于实时刷新 Wi‑Fi 状态。 */
-    private val networkCallback =
-        object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) = refreshSignals()
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = refreshSignals()
 
-            override fun onLost(network: Network) = refreshSignals()
+        override fun onLost(network: Network) = refreshSignals()
 
-            override fun onCapabilitiesChanged(
-                network: Network,
-                networkCapabilities: NetworkCapabilities,
-            ) {
-                refreshSignals()
-            }
+        override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+            refreshSignals()
         }
+    }
 
     /** 存储状态广播接收器，用于实时刷新低存储标记。 */
     @Suppress("DEPRECATION")
-    private val storageReceiver =
-        object : BroadcastReceiver() {
-            override fun onReceive(
-                context: Context,
-                intent: Intent,
-            ) {
-                when (intent.action) {
-                    Intent.ACTION_DEVICE_STORAGE_LOW,
-                    Intent.ACTION_DEVICE_STORAGE_OK,
+    private val storageReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_DEVICE_STORAGE_LOW,
+                Intent.ACTION_DEVICE_STORAGE_OK,
                     -> refreshSignals()
-                }
             }
         }
+    }
 
     init {
         registerObservers()
@@ -87,12 +79,9 @@ class AndroidPolicyRuntimeSignalProvider(
     fun close() {
         signalScope.cancel()
         runCatching {
-            appContext
-                .getSystemService(ConnectivityManager::class.java)
-                ?.unregisterNetworkCallback(networkCallback)
+            appContext.getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(networkCallback)
         }.onFailure { logger.d(TAG, "unregister network callback failed: ${it.message}") }
-        runCatching { appContext.unregisterReceiver(storageReceiver) }
-            .onFailure { logger.d(TAG, "unregister storage receiver failed: ${it.message}") }
+        runCatching { appContext.unregisterReceiver(storageReceiver) }.onFailure { logger.d(TAG, "unregister storage receiver failed: ${it.message}") }
         vehicleStateSignalProvider.close()
     }
 
@@ -105,11 +94,10 @@ class AndroidPolicyRuntimeSignalProvider(
         }.onFailure { logger.d(TAG, "register network callback failed: ${it.message}") }
 
         runCatching {
-            val filter =
-                IntentFilter().apply {
-                    addAction(Intent.ACTION_DEVICE_STORAGE_LOW)
-                    addAction(Intent.ACTION_DEVICE_STORAGE_OK)
-                }
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_DEVICE_STORAGE_LOW)
+                addAction(Intent.ACTION_DEVICE_STORAGE_OK)
+            }
             appContext.registerReceiver(storageReceiver, filter)
         }.onFailure { logger.d(TAG, "register storage receiver failed: ${it.message}") }
     }
@@ -139,36 +127,33 @@ class AndroidPolicyRuntimeSignalProvider(
     }
 
     /** 安全读取 Wi-Fi 状态，避免系统权限或 OEM 服务异常导致应用启动崩溃。 */
-    private fun readWifiConnected(connectivityManager: ConnectivityManager?): Boolean =
-        runCatching {
-            val activeNetwork = connectivityManager?.activeNetwork
-            val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
-            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-        }.getOrElse {
-            logger.d(TAG, "read wifi state failed: ${it.message}")
-            false
-        }
+    private fun readWifiConnected(connectivityManager: ConnectivityManager?): Boolean = runCatching {
+        val activeNetwork = connectivityManager?.activeNetwork
+        val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
+        capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+    }.getOrElse {
+        logger.d(TAG, "read wifi state failed: ${it.message}")
+        false
+    }
 
     /** 使用系统可分配空间判断低存储，异常时回退到文件系统可用空间。 */
-    private fun readLowStorageMode(): Boolean =
-        runCatching {
-            val storageManager = appContext.getSystemService(StorageManager::class.java)
-            val appFilesDir = appContext.filesDir
-            val storageUuid = storageManager.getUuidForPath(appFilesDir)
-            storageManager.getAllocatableBytes(storageUuid) < MIN_REQUIRED_SPACE_BYTES
-        }.getOrElse {
-            logger.d(TAG, "read allocatable storage failed: ${it.message}")
-            appContext.filesDir.usableSpace < MIN_REQUIRED_SPACE_BYTES
-        }
+    private fun readLowStorageMode(): Boolean = runCatching {
+        val storageManager = appContext.getSystemService(StorageManager::class.java)
+        val appFilesDir = appContext.filesDir
+        val storageUuid = storageManager.getUuidForPath(appFilesDir)
+        storageManager.getAllocatableBytes(storageUuid) < MIN_REQUIRED_SPACE_BYTES
+    }.getOrElse {
+        logger.d(TAG, "read allocatable storage failed: ${it.message}")
+        appContext.filesDir.usableSpace < MIN_REQUIRED_SPACE_BYTES
+    }
 
     /** 安全读取车况状态，OEM provider 异常时按非驻车处理。 */
-    private fun readParkingMode(): Boolean =
-        runCatching {
-            vehicleStateSignalProvider.currentVehicleState().parkingMode
-        }.getOrElse {
-            logger.d(TAG, "read vehicle state failed: ${it.message}")
-            false
-        }
+    private fun readParkingMode(): Boolean = runCatching {
+        vehicleStateSignalProvider.currentVehicleState().parkingMode
+    }.getOrElse {
+        logger.d(TAG, "read vehicle state failed: ${it.message}")
+        false
+    }
 
     private companion object {
         private const val TAG = "AndroidPolicyRuntimeSignalProvider"

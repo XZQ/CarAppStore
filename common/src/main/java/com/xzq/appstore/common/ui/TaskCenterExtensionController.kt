@@ -3,6 +3,7 @@ package com.xzq.appstore.common.ui
 interface TaskCenterExtensionController<UiState, Handlers> {
     /** 根据扩展区状态绑定界面内容。 */
     fun bind(uiState: UiState)
+
     /** 绑定扩展区的交互回调。 */
     fun bindHandlers(handlers: Handlers)
 }
@@ -47,12 +48,7 @@ abstract class BaseThreeActionExtensionController<UiState>(
 ) : TaskCenterExtensionController<UiState, ThreeActionHandlers> {
 
     /** 绑定三动作扩展区的公共文案。 */
-    protected fun bindCommon(
-        summary: String,
-        primaryText: String,
-        secondaryText: String,
-        tertiaryText: String,
-    ) {
+    protected fun bindCommon(summary: String, primaryText: String, secondaryText: String, tertiaryText: String) {
         setSummary(summary)
         setPrimaryText(primaryText)
         setSecondaryText(secondaryText)
@@ -93,14 +89,7 @@ abstract class BaseFiveActionExtensionController<UiState>(
 ) : TaskCenterExtensionController<UiState, FiveActionHandlers> {
 
     /** 绑定五动作扩展区的公共文案。 */
-    protected fun bindCommon(
-        summary: String,
-        firstText: String,
-        secondText: String,
-        thirdText: String,
-        fourthText: String,
-        fifthText: String,
-    ) {
+    protected fun bindCommon(summary: String, firstText: String, secondText: String, thirdText: String, fourthText: String, fifthText: String) {
         setSummary(summary)
         setFirstText(firstText)
         setSecondText(secondText)

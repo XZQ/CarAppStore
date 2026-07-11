@@ -33,14 +33,13 @@ class HomeViewModel(
     private var observePolicyJob: Job? = null
 
     /** 首页卡片和详情页共用的主动作分发器。 */
-    private val primaryActionExecutor =
-        AppPrimaryActionExecutor(
-            appManager = appManager,
-            downloadManager = downloadManager,
-            installManager = installManager,
-            upgradeManager = upgradeManager,
-            tracker = eventTracker,
-        )
+    private val primaryActionExecutor = AppPrimaryActionExecutor(
+        appManager = appManager,
+        downloadManager = downloadManager,
+        installManager = installManager,
+        upgradeManager = upgradeManager,
+        tracker = eventTracker,
+    )
 
     /** 初始化首页数据，并监听任务状态和策略变化。 */
     fun load() {
@@ -54,32 +53,24 @@ class HomeViewModel(
     /** 执行首页卡片主动作。 */
     fun onPrimaryClick(item: AppViewData) {
         viewModelScope.launch {
-            primaryActionExecutor.execute(
-                appId = item.appId,
-                action = item.primaryAction,
-                packageName = item.packageName,
-            )
+            primaryActionExecutor.execute(appId = item.appId, action = item.primaryAction, packageName = item.packageName)
         }
     }
 
     /** 监听页面全局状态变化，并刷新推荐列表。 */
     private fun observeStateChanges() {
-        if (observeJob != null) return
-        observeJob =
-            stateCenter
-                .observeAll()
-                .onEach { refresh() }
-                .launchIn(viewModelScope)
+        if (observeJob != null) {
+            return
+        }
+        observeJob = stateCenter.observeAll().onEach { refresh() }.launchIn(viewModelScope)
     }
 
     /** 监听页面策略变化，并刷新策略提示。 */
     private fun observePolicyChanges() {
-        if (observePolicyJob != null) return
-        observePolicyJob =
-            policyCenter
-                .observeSettings()
-                .onEach { refresh() }
-                .launchIn(viewModelScope)
+        if (observePolicyJob != null) {
+            return
+        }
+        observePolicyJob = policyCenter.observeSettings().onEach { refresh() }.launchIn(viewModelScope)
     }
 
     /** 重新拉取首页推荐应用与策略提示。 */
@@ -97,14 +88,8 @@ class HomeViewModel(
                 policyPrompt = appManager.getPolicyPrompt(),
                 screenState = if (apps.isEmpty()) HomeScreenState.Empty else HomeScreenState.Content,
             )
-        }.onSuccess { _uiState.value = it }
-            .onFailure { throwable ->
-                _uiState.value =
-                    HomeUiState(
-                        loading = false,
-                        policyPrompt = "",
-                        screenState = HomeScreenState.Error(throwable.message.orEmpty()),
-                    )
-            }
+        }.onSuccess { _uiState.value = it }.onFailure { throwable ->
+            _uiState.value = HomeUiState(loading = false, policyPrompt = "", screenState = HomeScreenState.Error(throwable.message.orEmpty()))
+        }
     }
 }

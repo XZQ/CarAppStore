@@ -78,38 +78,36 @@ class DefaultInstallManager(
         stateCenter.resetError(appId)
 
         // 消费安装器事件，并把系统会话阶段翻译成业务层运行态。
-        packageInstaller.install(
-            InstallRequest(
-                appId = appId,
-                packageName = detail.packageName,
-                targetVersion = targetVersion,
-                apkFile = apkFile,
-            )
-        ) { event ->
+        packageInstaller.install(InstallRequest(appId = appId, packageName = detail.packageName, targetVersion = targetVersion, apkFile = apkFile)) { event ->
             when (event) {
                 InstallEvent.Waiting -> {
                     // 安装器进入等待态时，页面先展示“等待安装”。
                     stateCenter.updateInstall(appId, InstallStatus.WAITING)
                 }
+
                 is InstallEvent.SessionCreated -> {
                     // 系统会话创建成功后，记录日志并继续保持等待态。
                     logger.d("InstallManager", "session created: ${event.sessionId} for $appId")
                     stateCenter.updateInstall(appId, InstallStatus.WAITING)
                 }
+
                 is InstallEvent.PendingUserAction -> {
                     // 进入系统确认阶段后，页面要明确展示“等待用户确认”。
                     logger.d("InstallManager", "session pending user action: ${event.sessionId} for $appId")
                     stateCenter.updateInstall(appId, InstallStatus.PENDING_USER_ACTION)
                 }
+
                 InstallEvent.Installing -> {
                     // 系统真正开始安装时切换到安装中状态。
                     stateCenter.updateInstall(appId, InstallStatus.INSTALLING)
                 }
+
                 is InstallEvent.Progress -> {
                     // 当前业务层暂不持久化百分比，但仍记录日志并维持安装中状态。
                     stateCenter.updateInstall(appId, InstallStatus.INSTALLING)
                     logger.d("InstallManager", "install progress: $appId -> ${event.progress}%")
                 }
+
                 is InstallEvent.Success -> {
                     // 安装成功后要同时更新已安装记录、清理下载任务并同步页面主状态。
                     repository.markInstalled(appId)
@@ -118,6 +116,7 @@ class DefaultInstallManager(
                     stateCenter.updateDownload(appId, DownloadStatus.COMPLETED, progress = 100, localApkPath = apkPath)
                     tracker.track("install_success_$appId")
                 }
+
                 is InstallEvent.Failed -> {
                     // APK 缺失或损坏时，需要同时把下载状态打回失败，提示用户重新下载。
                     if (event.code == InstallFailureCode.APK_MISSING || event.code == InstallFailureCode.APK_INVALID) {
@@ -152,37 +151,13 @@ class DefaultInstallManager(
         val hasValidApk = apkFile?.exists() == true && apkFile.length() > 0
         if (hasValidApk) {
             // 本地 APK 仍然可用时，保留下载完成态，让用户可以直接重新安装。
-            stateCenter.updateDownload(
-                appId,
-                DownloadStatus.COMPLETED,
-                progress = 100,
-                localApkPath = apkPath,
-                errorMessage = null,
-                errorCode = null,
-            )
-            stateCenter.updateInstall(
-                appId,
-                InstallStatus.WAITING,
-                errorMessage = null,
-                errorCode = null,
-            )
+            stateCenter.updateDownload(appId, DownloadStatus.COMPLETED, progress = 100, localApkPath = apkPath, errorMessage = null, errorCode = null)
+            stateCenter.updateInstall(appId, InstallStatus.WAITING, errorMessage = null, errorCode = null)
         } else {
             // 本地 APK 已经失效时，直接把下载态和安装态都复位，避免误导用户。
             repository.clearDownloadedApk(appId)
-            stateCenter.updateInstall(
-                appId,
-                InstallStatus.NOT_INSTALLED,
-                errorMessage = null,
-                errorCode = null,
-            )
-            stateCenter.updateDownload(
-                appId,
-                DownloadStatus.IDLE,
-                progress = 0,
-                localApkPath = null,
-                errorMessage = null,
-                errorCode = null,
-            )
+            stateCenter.updateInstall(appId, InstallStatus.NOT_INSTALLED, errorMessage = null, errorCode = null)
+            stateCenter.updateDownload(appId, DownloadStatus.IDLE, progress = 0, localApkPath = null, errorMessage = null, errorCode = null)
         }
         // 最后统一清空错误展示，保证页面从失败态中退出来。
         stateCenter.resetError(appId)

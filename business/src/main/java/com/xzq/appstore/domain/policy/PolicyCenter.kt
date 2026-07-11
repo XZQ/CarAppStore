@@ -19,10 +19,7 @@ interface PolicyCenter {
      * 当 [apkAlreadyDownloaded] 为 true 时跳过下载链路校验（如 Wi-Fi），
      * 仅校验安装条件，避免在 APK 已落盘的情况下因无关条件误拦。
      */
-    fun canUpgrade(
-        appId: String,
-        apkAlreadyDownloaded: Boolean,
-    ): PolicyResult = if (apkAlreadyDownloaded) canInstall(appId) else canUpgrade(appId)
+    fun canUpgrade(appId: String, apkAlreadyDownloaded: Boolean): PolicyResult = if (apkAlreadyDownloaded) canInstall(appId) else canUpgrade(appId)
 
     /** 观察当前生效的策略设置。 */
     fun observeSettings(): StateFlow<PolicySettings>

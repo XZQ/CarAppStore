@@ -33,13 +33,7 @@ class InstallSessionStore(
     }
 
     /** 更新指定安装会话的状态和失败信息。 */
-    fun updateStatus(
-        sessionId: Int,
-        status: String,
-        progress: Int,
-        failureCode: String? = null,
-        failureMessage: String? = null,
-    ) {
+    fun updateStatus(sessionId: Int, status: String, progress: Int, failureCode: String? = null, failureMessage: String? = null) {
         val current = get(sessionId) ?: return
         save(
             current.copy(
@@ -123,6 +117,7 @@ class InstallSessionStore(
                 val sessions = rawValue.optJSONArray(KEY_SESSIONS) ?: JSONArray()
                 put(KEY_SESSIONS, JSONArray(sessions.toString()))
             }
+
             else -> createEmptyRoot()
         }
     }

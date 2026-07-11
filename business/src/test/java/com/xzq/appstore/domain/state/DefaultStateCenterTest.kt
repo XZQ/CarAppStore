@@ -30,14 +30,7 @@ class DefaultStateCenterTest {
     @Test
     fun `updateDownload 正确更新下载维度状态`() {
         val center = DefaultStateCenter()
-        center.updateDownload(
-            "app.test",
-            DownloadStatus.RUNNING,
-            progress = 50,
-            localApkPath = null,
-            errorMessage = null,
-            errorCode = null,
-        )
+        center.updateDownload("app.test", DownloadStatus.RUNNING, progress = 50, localApkPath = null, errorMessage = null, errorCode = null)
         val state = center.snapshot("app.test")
         assertEquals(DownloadStatus.RUNNING, state.downloadStatus)
         assertEquals(50, state.progress)
@@ -109,15 +102,14 @@ class DefaultStateCenterTest {
     }
 
     @Test
-    fun `observe 返回的 StateFlow 随更新变化`() =
-        runBlocking {
-            val center = DefaultStateCenter()
-            val flow = center.observe("app.test")
-            assertEquals(DownloadStatus.IDLE, flow.value.downloadStatus)
+    fun `observe 返回的 StateFlow 随更新变化`() = runBlocking {
+        val center = DefaultStateCenter()
+        val flow = center.observe("app.test")
+        assertEquals(DownloadStatus.IDLE, flow.value.downloadStatus)
 
-            center.updateDownload("app.test", DownloadStatus.WAITING)
-            assertEquals(DownloadStatus.WAITING, flow.value.downloadStatus)
-        }
+        center.updateDownload("app.test", DownloadStatus.WAITING)
+        assertEquals(DownloadStatus.WAITING, flow.value.downloadStatus)
+    }
 
     @Test
     fun `observeAll 包含所有已操作应用的状态`() {
@@ -134,180 +126,112 @@ class DefaultStateCenterTest {
 
     @Test
     fun `StateReducer 下载完成时主动作为 INSTALL`() {
-        val state =
-            StateReducer.reduce(
-                AppState(
-                    appId = "test",
-                    downloadStatus = DownloadStatus.COMPLETED,
-                    installStatus = InstallStatus.NOT_INSTALLED,
-                ),
-            )
+        val state = StateReducer.reduce(AppState(appId = "test", downloadStatus = DownloadStatus.COMPLETED, installStatus = InstallStatus.NOT_INSTALLED))
         assertEquals(PrimaryAction.INSTALL, state.primaryAction)
     }
 
     @Test
     fun `StateReducer 已安装无升级时主动作为 OPEN`() {
-        val state =
-            StateReducer.reduce(
-                AppState(
-                    appId = "test",
-                    installStatus = InstallStatus.INSTALLED,
-                    upgradeStatus = UpgradeStatus.NONE,
-                ),
-            )
+        val state = StateReducer.reduce(AppState(appId = "test", installStatus = InstallStatus.INSTALLED, upgradeStatus = UpgradeStatus.NONE))
         assertEquals(PrimaryAction.OPEN, state.primaryAction)
     }
 
     @Test
     fun `StateReducer 已安装有升级时主动作为 UPGRADE`() {
-        val state =
-            StateReducer.reduce(
-                AppState(
-                    appId = "test",
-                    installStatus = InstallStatus.INSTALLED,
-                    upgradeStatus = UpgradeStatus.AVAILABLE,
-                ),
-            )
+        val state = StateReducer.reduce(AppState(appId = "test", installStatus = InstallStatus.INSTALLED, upgradeStatus = UpgradeStatus.AVAILABLE))
         assertEquals(PrimaryAction.UPGRADE, state.primaryAction)
     }
 
     @Test
     fun `StateReducer 下载失败时主动作为 RETRY_DOWNLOAD`() {
-        val state =
-            StateReducer.reduce(
-                AppState(
-                    appId = "test",
-                    downloadStatus = DownloadStatus.FAILED,
-                ),
-            )
+        val state = StateReducer.reduce(AppState(appId = "test", downloadStatus = DownloadStatus.FAILED))
         assertEquals(PrimaryAction.RETRY_DOWNLOAD, state.primaryAction)
     }
 
     @Test
     fun `StateReducer 安装失败时主动作为 RETRY_INSTALL`() {
-        val state =
-            StateReducer.reduce(
-                AppState(
-                    appId = "test",
-                    installStatus = InstallStatus.FAILED,
-                ),
-            )
+        val state = StateReducer.reduce(AppState(appId = "test", installStatus = InstallStatus.FAILED))
         assertEquals(PrimaryAction.RETRY_INSTALL, state.primaryAction)
     }
 
     @Test
     fun `StateReducer 暂停时主动作为 RESUME`() {
-        val state =
-            StateReducer.reduce(
-                AppState(
-                    appId = "test",
-                    downloadStatus = DownloadStatus.PAUSED,
-                ),
-            )
+        val state = StateReducer.reduce(AppState(appId = "test", downloadStatus = DownloadStatus.PAUSED))
         assertEquals(PrimaryAction.RESUME, state.primaryAction)
     }
 
     @Test
     fun `StateReducer 升级中时主动作为 DISABLED`() {
-        val state =
-            StateReducer.reduce(
-                AppState(
-                    appId = "test",
-                    upgradeStatus = UpgradeStatus.UPGRADING,
-                ),
-            )
+        val state = StateReducer.reduce(AppState(appId = "test", upgradeStatus = UpgradeStatus.UPGRADING))
         assertEquals(PrimaryAction.DISABLED, state.primaryAction)
     }
 
     @Test
     fun `StateReducer 等待系统确认时主动作为 DISABLED`() {
-        val state =
-            StateReducer.reduce(
-                AppState(
-                    appId = "test",
-                    installStatus = InstallStatus.PENDING_USER_ACTION,
-                ),
-            )
+        val state = StateReducer.reduce(AppState(appId = "test", installStatus = InstallStatus.PENDING_USER_ACTION))
         assertEquals(PrimaryAction.DISABLED, state.primaryAction)
     }
 
     @Test
     fun `StateReducer 升级失败时主动作为 UPGRADE 允许重试`() {
-        val state =
-            StateReducer.reduce(
-                AppState(
-                    appId = "test",
-                    installStatus = InstallStatus.INSTALLED,
-                    upgradeStatus = UpgradeStatus.FAILED,
-                    errorMessage = "升级安装失败",
-                ),
-            )
+        val state = StateReducer.reduce(
+            AppState(appId = "test", installStatus = InstallStatus.INSTALLED, upgradeStatus = UpgradeStatus.FAILED, errorMessage = "升级安装失败"),
+        )
         assertEquals(PrimaryAction.UPGRADE, state.primaryAction)
         assertEquals("升级安装失败", state.statusText)
     }
 
     @Test
     fun `StateReducer 升级失败文案正确展示`() {
-        val state =
-            StateReducer.reduce(
-                AppState(
-                    appId = "test",
-                    upgradeStatus = UpgradeStatus.FAILED,
-                    errorMessage = null,
-                ),
-            )
+        val state = StateReducer.reduce(AppState(appId = "test", upgradeStatus = UpgradeStatus.FAILED, errorMessage = null))
         assertEquals(BusinessText.STATUS_UPGRADE_FAILED, state.statusText)
         assertEquals(PrimaryAction.UPGRADE, state.primaryAction)
     }
 
     @Test
-    fun `并发 updateDownload 不会丢失更新`() =
-        runBlocking {
-            val center = DefaultStateCenter()
-            val appId = "concurrent.app"
-            val parallelism = 32
+    fun `并发 updateDownload 不会丢失更新`() = runBlocking {
+        val center = DefaultStateCenter()
+        val appId = "concurrent.app"
+        val parallelism = 32
 
-            coroutineScope {
-                (1..parallelism)
-                    .map { index ->
-                        async(Dispatchers.Default) {
-                            center.updateDownload(appId, DownloadStatus.RUNNING, progress = index)
-                        }
-                    }.awaitAll()
-            }
-
-            val finalState = center.snapshot(appId)
-            assertEquals(DownloadStatus.RUNNING, finalState.downloadStatus)
-            // 32 次串行 mutate 中最后一次写入的 progress 应该被保留，0 表示发生了 lost update。
-            assertTrue(
-                "expected one of the concurrent progress values, got ${finalState.progress}",
-                finalState.progress in 1..parallelism,
-            )
-            // observeAll 必须收敛到同一个 final snapshot，不允许撕裂。
-            assertEquals(finalState, center.observeAll().value[appId])
+        coroutineScope {
+            (1..parallelism).map { index ->
+                async(Dispatchers.Default) {
+                    center.updateDownload(appId, DownloadStatus.RUNNING, progress = index)
+                }
+            }.awaitAll()
         }
+
+        val finalState = center.snapshot(appId)
+        assertEquals(DownloadStatus.RUNNING, finalState.downloadStatus)
+        // 32 次串行 mutate 中最后一次写入的 progress 应该被保留，0 表示发生了 lost update。
+        assertTrue(
+            "expected one of the concurrent progress values, got ${finalState.progress}",
+            finalState.progress in 1..parallelism,
+        )
+        // observeAll 必须收敛到同一个 final snapshot，不允许撕裂。
+        assertEquals(finalState, center.observeAll().value[appId])
+    }
 
     @Test
-    fun `跨 appId 并发更新互不干扰`() =
-        runBlocking {
-            val center = DefaultStateCenter()
-            val appIds = (1..16).map { "app.$it" }
+    fun `跨 appId 并发更新互不干扰`() = runBlocking {
+        val center = DefaultStateCenter()
+        val appIds = (1..16).map { "app.$it" }
 
-            coroutineScope {
-                appIds
-                    .map { id ->
-                        async(Dispatchers.Default) {
-                            center.updateDownload(id, DownloadStatus.RUNNING, progress = 50)
-                            center.updateInstall(id, InstallStatus.INSTALLED, versionName = "1.0.0")
-                        }
-                    }.awaitAll()
-            }
-
-            appIds.forEach { id ->
-                val state = center.snapshot(id)
-                assertEquals(DownloadStatus.RUNNING, state.downloadStatus)
-                assertEquals(InstallStatus.INSTALLED, state.installStatus)
-                assertEquals("1.0.0", state.installedVersion)
-            }
+        coroutineScope {
+            appIds.map { id ->
+                async(Dispatchers.Default) {
+                    center.updateDownload(id, DownloadStatus.RUNNING, progress = 50)
+                    center.updateInstall(id, InstallStatus.INSTALLED, versionName = "1.0.0")
+                }
+            }.awaitAll()
         }
+
+        appIds.forEach { id ->
+            val state = center.snapshot(id)
+            assertEquals(DownloadStatus.RUNNING, state.downloadStatus)
+            assertEquals(InstallStatus.INSTALLED, state.installStatus)
+            assertEquals("1.0.0", state.installedVersion)
+        }
+    }
 }

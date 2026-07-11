@@ -30,7 +30,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="青柠应用商店"
+                    android:text="@string/static_home_store_name"
                     android:textColor="@color/car_text_primary"
                     android:textSize="@dimen/text_xl"
                     android:textStyle="bold" />
@@ -41,7 +41,7 @@
                     android:layout_height="40dp"
                     android:background="@drawable/bg_home_chip"
                     android:gravity="center"
-                    android:text="提醒"
+                    android:text="@string/static_home_notification"
                     android:textColor="@color/car_accent"
                     android:textSize="@dimen/text_xs"
                     android:textStyle="bold" />
@@ -56,7 +56,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="@dimen/spacing_16dp"
                 android:paddingEnd="@dimen/spacing_16dp"
-                android:text="搜索应用或游戏"
+                android:text="@string/static_home_search_hint"
                 android:textColor="@color/car_text_hint"
                 android:textSize="@dimen/text_sm" />
 
@@ -86,7 +86,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="春日焕新季"
+                android:text="@string/static_home_campaign_title"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_2xl"
                 android:textStyle="bold" />
@@ -105,7 +105,7 @@
                 android:layout_marginTop="@dimen/spacing_18dp"
                 android:background="@drawable/bg_primary_button"
                 android:gravity="center"
-                android:text="立即探索"
+                android:text="@string/static_home_campaign_action"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_sm"
                 android:textStyle="bold" />
@@ -122,25 +122,25 @@
             <TextView
                 android:id="@+id/entryCategory"
                 style="@style/HomeQuickEntry"
-                android:text="分类" />
+                android:text="@string/ui_category" />
 
             <TextView
                 android:id="@+id/entryRank"
                 style="@style/HomeQuickEntry"
                 android:layout_marginStart="@dimen/spacing_10dp"
-                android:text="排行" />
+                android:text="@string/ui_rank" />
 
             <TextView
                 android:id="@+id/entryEssential"
                 style="@style/HomeQuickEntry"
                 android:layout_marginStart="@dimen/spacing_10dp"
-                android:text="必备" />
+                android:text="@string/ui_essential" />
 
             <TextView
                 android:id="@+id/entryFactory"
                 style="@style/HomeQuickEntry"
                 android:layout_marginStart="@dimen/spacing_10dp"
-                android:text="返厂" />
+                android:text="@string/static_home_nav_factory" />
         </LinearLayout>
 
         <include layout="@layout/view_home_section_today" />
@@ -165,7 +165,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="限时活动"
+                    android:text="@string/static_home_limited_activity"
                     android:textColor="@color/car_text_primary"
                     android:textSize="@dimen/text_lg"
                     android:textStyle="bold" />
@@ -174,7 +174,7 @@
                     android:id="@+id/tvActivityMore"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="查看更多"
+                    android:text="@string/static_home_view_more"
                     android:textColor="@color/car_accent"
                     android:textSize="@dimen/text_sm" />
             </LinearLayout>
@@ -188,7 +188,7 @@
                 android:gravity="center_vertical"
                 android:paddingStart="@dimen/spacing_18dp"
                 android:paddingEnd="@dimen/spacing_18dp"
-                android:text="周末狂欢 下载赢好礼\n最高领 100 元优惠券"
+                android:text="@string/static_home_campaign_banner"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_lg"
                 android:textStyle="bold" />

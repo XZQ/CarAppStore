@@ -5,7 +5,6 @@ import com.xzq.appstore.data.model.UpgradeCenterControlsUiState
 import com.xzq.appstore.feature.upgrade.databinding.ViewUpgradeCenterControlsBinding
 
 class UpgradeCenterControlsController(
-    /** 升级中心扩展控制区的 ViewBinding。 */
     private val binding: ViewUpgradeCenterControlsBinding,
 ) : BaseThreeActionExtensionController<UpgradeCenterControlsUiState>(
     setSummary = { binding.tvUpgradeControlSummary.text = it },
@@ -18,11 +17,6 @@ class UpgradeCenterControlsController(
 ) {
     /** 把升级中心扩展控制状态绑定到控件。 */
     override fun bind(uiState: UpgradeCenterControlsUiState) {
-        bindCommon(
-            summary = uiState.summaryText,
-            primaryText = uiState.primaryText,
-            secondaryText = uiState.secondaryText,
-            tertiaryText = uiState.tertiaryText,
-        )
+        bindCommon(summary = uiState.summaryText, primaryText = uiState.primaryText, secondaryText = uiState.secondaryText, tertiaryText = uiState.tertiaryText)
     }
 }

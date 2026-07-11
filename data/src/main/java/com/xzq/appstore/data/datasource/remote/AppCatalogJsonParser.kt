@@ -64,19 +64,23 @@ object AppCatalogJsonParser {
 
     /** 把 JSON 数组转换成字符串列表。 */
     private fun parseStringList(array: JSONArray?): List<String> {
-        if (array == null) return emptyList()
-        return List(array.length()) { index -> array.optString(index) }
-            .filter { it.isNotBlank() }
+        if (array == null) {
+            return emptyList()
+        }
+        return List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() }
     }
 
     private fun parseSourcePolicy(raw: String): DownloadSourcePolicy? {
-        if (raw.isBlank()) return null
+        if (raw.isBlank()) {
+            return null
+        }
         return runCatching { DownloadSourcePolicy.valueOf(raw.trim().uppercase()) }.getOrNull()
     }
 
     private fun parseListingState(raw: String): CatalogListingState {
-        if (raw.isBlank()) return CatalogListingState.ACTIVE
-        return runCatching { CatalogListingState.valueOf(raw.trim().uppercase()) }
-            .getOrDefault(CatalogListingState.ACTIVE)
+        if (raw.isBlank()) {
+            return CatalogListingState.ACTIVE
+        }
+        return runCatching { CatalogListingState.valueOf(raw.trim().uppercase()) }.getOrDefault(CatalogListingState.ACTIVE)
     }
 }

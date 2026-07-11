@@ -1,29 +1,29 @@
 package com.xzq.appstore.common.base
 
 import android.view.View
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.Flow
-import com.xzq.appstore.common.ui.TaskCenterUiFormatter
-import com.xzq.appstore.data.model.TaskCenterActionUiState
-import com.xzq.appstore.data.model.TaskCenterEmptyUiState
-import com.xzq.appstore.data.model.TaskCenterFailureUiState
-import com.xzq.appstore.data.model.TaskCenterExtensionUiState
-import com.xzq.appstore.data.model.TaskCenterFilter
-import com.xzq.appstore.data.model.TaskCenterStats
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.xzq.appstore.common.databinding.ViewPermissionGuideBinding
 import com.xzq.appstore.common.databinding.ViewTaskCenterActionsBinding
 import com.xzq.appstore.common.databinding.ViewTaskCenterEmptyPanelBinding
-import com.xzq.appstore.common.databinding.ViewTaskCenterFailurePanelBinding
 import com.xzq.appstore.common.databinding.ViewTaskCenterExtensionSlotBinding
+import com.xzq.appstore.common.databinding.ViewTaskCenterFailurePanelBinding
 import com.xzq.appstore.common.databinding.ViewTaskCenterHeaderBinding
 import com.xzq.appstore.common.databinding.ViewTaskCenterListBlockBinding
 import com.xzq.appstore.common.databinding.ViewWeakNetworkBannerBinding
-import com.xzq.appstore.common.databinding.ViewPermissionGuideBinding
 import com.xzq.appstore.common.ui.CommonUiText
+import com.xzq.appstore.common.ui.TaskCenterUiFormatter
+import com.xzq.appstore.data.model.TaskCenterActionUiState
+import com.xzq.appstore.data.model.TaskCenterEmptyUiState
+import com.xzq.appstore.data.model.TaskCenterExtensionUiState
+import com.xzq.appstore.data.model.TaskCenterFailureUiState
+import com.xzq.appstore.data.model.TaskCenterFilter
+import com.xzq.appstore.data.model.TaskCenterStats
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 
 abstract class BaseTaskCenterFragment : BaseFragment() {
 
@@ -50,14 +50,14 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
 
     /** 绑定任务中心头部摘要区。 */
     protected fun bindHeaderBlock(
-            headerBinding: ViewTaskCenterHeaderBinding,
-            centerName: String,
-            subtitle: String,
-            hint: String,
-            visibleCount: Int,
-            totalCount: Int,
-            statsPrefix: String,
-            stats: TaskCenterStats,
+        headerBinding: ViewTaskCenterHeaderBinding,
+        centerName: String,
+        subtitle: String,
+        hint: String,
+        visibleCount: Int,
+        totalCount: Int,
+        statsPrefix: String,
+        stats: TaskCenterStats,
     ) {
         // 头部区同时展示描述信息和当前统计摘要。
         headerBinding.tvCenterSubtitle.text = subtitle
@@ -72,15 +72,15 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
 
     /** 绑定批量动作区的文案和显隐状态。 */
     protected fun bindActionBlock(
-            actionBinding: ViewTaskCenterActionsBinding,
-            centerName: String,
-            scopeHint: String,
-            selectedFilter: TaskCenterFilter,
-            secondaryText: String,
-            tertiaryText: String,
-            quaternaryText: String? = null,
-            runnableCount: Int,
-            failedCount: Int,
+        actionBinding: ViewTaskCenterActionsBinding,
+        centerName: String,
+        scopeHint: String,
+        selectedFilter: TaskCenterFilter,
+        secondaryText: String,
+        tertiaryText: String,
+        quaternaryText: String? = null,
+        runnableCount: Int,
+        failedCount: Int,
     ) {
         // 先刷新动作区的文案，再根据是否有第四按钮决定显隐。
         actionBinding.tvActionTitle.text = TaskCenterUiFormatter.actionTitle(centerName)
@@ -99,13 +99,13 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
 
     /** 绑定失败面板的文案和显隐状态。 */
     protected fun bindFailurePanel(
-            failureBinding: ViewTaskCenterFailurePanelBinding,
-            centerName: String,
-            failedCount: Int,
-            primaryText: String,
-            secondaryText: String,
-            showPanel: Boolean,
-            showSecondary: Boolean = true,
+        failureBinding: ViewTaskCenterFailurePanelBinding,
+        centerName: String,
+        failedCount: Int,
+        primaryText: String,
+        secondaryText: String,
+        showPanel: Boolean,
+        showSecondary: Boolean = true,
     ) {
         failureBinding.root.visibility = if (showPanel) View.VISIBLE else View.GONE
         // 失败面板只负责展示当前失败批次的集中处理入口。
@@ -121,12 +121,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
      * 绑定弱网提示横幅的文案和显隐状态。
      * 弱网横幅通常由网络异常信号驱动，这里仅负责展示与隐藏。
      */
-    protected fun bindWeakNetPanel(
-            weakNetBinding: ViewWeakNetworkBannerBinding,
-            title: String,
-            desc: String,
-            showPanel: Boolean,
-    ) {
+    protected fun bindWeakNetPanel(weakNetBinding: ViewWeakNetworkBannerBinding, title: String, desc: String, showPanel: Boolean) {
         weakNetBinding.root.visibility = if (showPanel) View.VISIBLE else View.GONE
         weakNetBinding.tvWeakNetTitle.text = title
         weakNetBinding.tvWeakNetDesc.text = desc
@@ -137,12 +132,12 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
      * 当有可立即执行的安装/升级任务但尚未授予安装权限时展示。
      */
     protected fun bindPermissionPanel(
-            permissionBinding: ViewPermissionGuideBinding,
-            title: String,
-            desc: String,
-            actionText: String,
-            showPanel: Boolean,
-            onAction: () -> Unit,
+        permissionBinding: ViewPermissionGuideBinding,
+        title: String,
+        desc: String,
+        actionText: String,
+        showPanel: Boolean,
+        onAction: () -> Unit,
     ) {
         permissionBinding.root.visibility = if (showPanel) View.VISIBLE else View.GONE
         permissionBinding.tvPermissionTitle.text = title
@@ -153,11 +148,11 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
 
     /** 绑定空态面板的文案和显隐状态。 */
     protected fun bindEmptyPanel(
-            emptyPanelBinding: ViewTaskCenterEmptyPanelBinding,
-            centerName: String,
-            selectedFilter: TaskCenterFilter,
-            showEmpty: Boolean,
-            secondaryVisible: Boolean = true,
+        emptyPanelBinding: ViewTaskCenterEmptyPanelBinding,
+        centerName: String,
+        selectedFilter: TaskCenterFilter,
+        showEmpty: Boolean,
+        secondaryVisible: Boolean = true,
     ) {
         emptyPanelBinding.root.visibility = if (showEmpty) View.VISIBLE else View.GONE
         // 空态文案会跟随当前筛选条件变化。
@@ -168,11 +163,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
     }
 
     /** 绑定列表区块标题和显隐状态。 */
-    protected fun bindListBlock(
-            listBlockBinding: ViewTaskCenterListBlockBinding,
-            sectionName: String,
-            visible: Boolean,
-    ) {
+    protected fun bindListBlock(listBlockBinding: ViewTaskCenterListBlockBinding, sectionName: String, visible: Boolean) {
         listBlockBinding.tvSectionTitle.text = TaskCenterUiFormatter.sectionTitle(sectionName)
         listBlockBinding.tvSectionHint.text = TaskCenterUiFormatter.sectionHint(sectionName)
         listBlockBinding.root.visibility = if (visible) View.VISIBLE else View.GONE
@@ -181,45 +172,39 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
     /** 使用动作区 UI 状态对象批量绑定动作区。 */
     protected fun bindActionBlock(actionBinding: ViewTaskCenterActionsBinding, uiState: TaskCenterActionUiState) {
         bindActionBlock(
-                actionBinding = actionBinding,
-                centerName = uiState.centerName,
-                scopeHint = uiState.scopeHint,
-                selectedFilter = uiState.selectedFilter,
-                secondaryText = uiState.secondaryText,
-                tertiaryText = uiState.tertiaryText,
-                quaternaryText = uiState.quaternaryText,
-                runnableCount = uiState.runnableCount,
-                failedCount = uiState.failedCount,
+            actionBinding = actionBinding,
+            centerName = uiState.centerName,
+            scopeHint = uiState.scopeHint,
+            selectedFilter = uiState.selectedFilter,
+            secondaryText = uiState.secondaryText,
+            tertiaryText = uiState.tertiaryText,
+            quaternaryText = uiState.quaternaryText,
+            runnableCount = uiState.runnableCount,
+            failedCount = uiState.failedCount,
         )
     }
 
     /** 使用失败区 UI 状态对象批量绑定失败面板。 */
-    protected fun bindFailurePanel(
-            failureBinding: ViewTaskCenterFailurePanelBinding,
-            uiState: TaskCenterFailureUiState,
-    ) {
+    protected fun bindFailurePanel(failureBinding: ViewTaskCenterFailurePanelBinding, uiState: TaskCenterFailureUiState) {
         bindFailurePanel(
-                failureBinding = failureBinding,
-                centerName = uiState.centerName,
-                failedCount = uiState.failedCount,
-                primaryText = uiState.primaryText,
-                secondaryText = uiState.secondaryText,
-                showPanel = uiState.showPanel,
-                showSecondary = uiState.showSecondary,
+            failureBinding = failureBinding,
+            centerName = uiState.centerName,
+            failedCount = uiState.failedCount,
+            primaryText = uiState.primaryText,
+            secondaryText = uiState.secondaryText,
+            showPanel = uiState.showPanel,
+            showSecondary = uiState.showSecondary,
         )
     }
 
     /** 使用空态 UI 状态对象批量绑定空态面板。 */
-    protected fun bindEmptyPanel(
-            emptyPanelBinding: ViewTaskCenterEmptyPanelBinding,
-            uiState: TaskCenterEmptyUiState,
-    ) {
+    protected fun bindEmptyPanel(emptyPanelBinding: ViewTaskCenterEmptyPanelBinding, uiState: TaskCenterEmptyUiState) {
         bindEmptyPanel(
-                emptyPanelBinding = emptyPanelBinding,
-                centerName = uiState.centerName,
-                selectedFilter = uiState.selectedFilter,
-                showEmpty = uiState.showEmpty,
-                secondaryVisible = uiState.showSecondary,
+            emptyPanelBinding = emptyPanelBinding,
+            centerName = uiState.centerName,
+            selectedFilter = uiState.selectedFilter,
+            showEmpty = uiState.showEmpty,
+            secondaryVisible = uiState.showSecondary,
         )
         emptyPanelBinding.btnEmptyPrimary.text = uiState.primaryText
         emptyPanelBinding.btnEmptySecondary.text = uiState.secondaryText
@@ -227,20 +212,14 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
 
 
     /** 绑定扩展插槽的标题、提示和显隐状态。 */
-    protected fun bindExtensionSlot(
-            extensionBinding: ViewTaskCenterExtensionSlotBinding,
-            uiState: TaskCenterExtensionUiState,
-    ) {
+    protected fun bindExtensionSlot(extensionBinding: ViewTaskCenterExtensionSlotBinding, uiState: TaskCenterExtensionUiState) {
         extensionBinding.root.visibility = if (uiState.showPanel) View.VISIBLE else View.GONE
         extensionBinding.tvExtensionTitle.text = TaskCenterUiFormatter.extensionTitle(uiState.centerName, uiState.title)
         extensionBinding.tvExtensionHint.text = TaskCenterUiFormatter.extensionHint(uiState.centerName, uiState.hint)
     }
 
     /** 将扩展内容视图挂接到任务中心插槽中。 */
-    protected fun attachExtensionContent(
-            extensionBinding: ViewTaskCenterExtensionSlotBinding,
-            contentView: View,
-    ) {
+    protected fun attachExtensionContent(extensionBinding: ViewTaskCenterExtensionSlotBinding, contentView: View) {
         val currentParent = contentView.parent
         if (currentParent is android.view.ViewGroup) {
             // 同一个 View 只能有一个父容器，先从旧容器移除。
@@ -252,11 +231,11 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
 
     /** 绑定动作区按钮点击事件。 */
     protected fun bindActionHandlers(
-            actionBinding: ViewTaskCenterActionsBinding,
-            onPrimary: () -> Unit,
-            onSecondary: () -> Unit,
-            onTertiary: () -> Unit,
-            onQuaternary: (() -> Unit)? = null,
+        actionBinding: ViewTaskCenterActionsBinding,
+        onPrimary: () -> Unit,
+        onSecondary: () -> Unit,
+        onTertiary: () -> Unit,
+        onQuaternary: (() -> Unit)? = null,
     ) {
         actionBinding.btnActionPrimary.setOnClickListener { onPrimary() }
         actionBinding.btnActionSecondary.setOnClickListener { onSecondary() }
@@ -265,21 +244,13 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
     }
 
     /** 绑定失败面板按钮点击事件。 */
-    protected fun bindFailureHandlers(
-            failureBinding: ViewTaskCenterFailurePanelBinding,
-            onPrimary: () -> Unit,
-            onSecondary: (() -> Unit)? = null,
-    ) {
+    protected fun bindFailureHandlers(failureBinding: ViewTaskCenterFailurePanelBinding, onPrimary: () -> Unit, onSecondary: (() -> Unit)? = null) {
         failureBinding.btnFailurePrimary.setOnClickListener { onPrimary() }
         failureBinding.btnFailureSecondary.setOnClickListener { onSecondary?.invoke() }
     }
 
     /** 绑定空态面板按钮点击事件。 */
-    protected fun bindEmptyHandlers(
-            emptyPanelBinding: ViewTaskCenterEmptyPanelBinding,
-            onPrimary: () -> Unit,
-            onSecondary: (() -> Unit)? = null,
-    ) {
+    protected fun bindEmptyHandlers(emptyPanelBinding: ViewTaskCenterEmptyPanelBinding, onPrimary: () -> Unit, onSecondary: (() -> Unit)? = null) {
         emptyPanelBinding.btnEmptyPrimary.setOnClickListener { onPrimary() }
         emptyPanelBinding.btnEmptySecondary.setOnClickListener { onSecondary?.invoke() }
     }
@@ -288,10 +259,7 @@ abstract class BaseTaskCenterFragment : BaseFragment() {
      * 订阅任务中心 UI 状态流的通用脚手架：在 STARTED 生命周期内收集状态并回调。
      * 三个任务中心 Fragment 的 observeState 差异仅在回调体内的字段绑定，外层协程骨架在此收敛。
      */
-    protected fun <T> observeCenterState(
-            flow: Flow<T>,
-            onEach: (T) -> Unit,
-    ) {
+    protected fun <T> observeCenterState(flow: Flow<T>, onEach: (T) -> Unit) {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 flow.collect { onEach(it) }

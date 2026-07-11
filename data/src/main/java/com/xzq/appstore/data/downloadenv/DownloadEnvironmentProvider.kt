@@ -22,20 +22,15 @@ class LocalDownloadEnvironmentProvider(
 
     /** 按“结构化存储优先，SP 兜底”的顺序读取当前环境。 */
     override fun getCurrentEnvironment(): DownloadEnvironment {
-        val raw = localStoreFacade.getSetting(LocalStoreKeys.DOWNLOAD_ENVIRONMENT)?.value
-            ?: preferences.getString(KEY_ENV, DownloadEnvironment.DEV.name)
-            ?: DownloadEnvironment.DEV.name
+        val raw = localStoreFacade.getSetting(LocalStoreKeys.DOWNLOAD_ENVIRONMENT)?.value ?: preferences.getString(KEY_ENV, DownloadEnvironment.DEV.name)
+        ?: DownloadEnvironment.DEV.name
         return runCatching { DownloadEnvironment.valueOf(raw) }.getOrElse { DownloadEnvironment.DEV }
     }
 
     /** 同时写入结构化存储和旧版 SP，保证新老路径都能读到同一环境。 */
     fun setCurrentEnvironment(environment: DownloadEnvironment) {
         localStoreFacade.saveSetting(
-            SettingsEntity(
-                key = LocalStoreKeys.DOWNLOAD_ENVIRONMENT,
-                value = environment.name,
-                updatedAt = System.currentTimeMillis(),
-            )
+            SettingsEntity(key = LocalStoreKeys.DOWNLOAD_ENVIRONMENT, value = environment.name, updatedAt = System.currentTimeMillis())
         )
         preferences.edit().putString(KEY_ENV, environment.name).apply()
     }

@@ -41,7 +41,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/spacing_6dp"
-                    android:text="车端内容按左侧入口独立组织，适合横屏快速浏览"
+                    android:text="@string/static_search_vehicle_intro"
                     android:textColor="@color/car_text_secondary"
                     android:textSize="@dimen/text_sm" />
             </LinearLayout>
@@ -131,7 +131,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/spacing_18dp"
-                    android:text="入口筛选"
+                    android:text="@string/static_search_entry_filter"
                     android:textColor="@color/car_text_primary"
                     android:textSize="@dimen/text_lg"
                     android:textStyle="bold" />
@@ -147,7 +147,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/spacing_18dp"
-                    android:text="车端热词"
+                    android:text="@string/static_search_vehicle_hot_terms"
                     android:textColor="@color/car_text_primary"
                     android:textSize="@dimen/text_lg"
                     android:textStyle="bold" />
@@ -199,7 +199,7 @@
                         android:gravity="center"
                         android:paddingStart="@dimen/spacing_16dp"
                         android:paddingEnd="@dimen/spacing_16dp"
-                        android:text="横屏精选"
+                        android:text="@string/static_search_landscape_featured"
                         android:textColor="@color/car_text_secondary"
                         android:textSize="@dimen/text_sm_13"
                         android:textStyle="bold" />

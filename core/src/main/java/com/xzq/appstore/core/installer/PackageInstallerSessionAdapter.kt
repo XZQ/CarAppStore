@@ -25,13 +25,13 @@ data class InstallCommitResult(
 interface PackageInstallerSessionAdapter {
     /** 创建一个平台安装会话，并返回 sessionId。 */
     fun createSession(request: InstallRequest): Int
+
     /** 将 APK 文件写入指定安装会话。 */
     fun writeApkToSession(sessionId: Int, apkFile: File): Boolean
+
     /** 提交安装会话，并等待平台返回最终结果。 */
-    suspend fun commitSession(
-        sessionId: Int,
-        onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
-    ): InstallCommitResult
+    suspend fun commitSession(sessionId: Int, onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit): InstallCommitResult
+
     /** 当前运行环境是否支持真实系统安装会话。 */
     fun supportsRealSession(): Boolean
 }
@@ -46,12 +46,15 @@ class SystemPackageInstallerSessionAdapter(
 
     /** 应用级上下文，避免广播注册和安装调用依赖页面生命周期。 */
     private val appContext = context.applicationContext
+
     /** 系统提供的安装会话入口。 */
     private val systemPackageInstaller = appContext.packageManager.packageInstaller
 
     /** 创建平台安装会话，并预置包名与 APK 大小信息。 */
     override fun createSession(request: InstallRequest): Int {
-        if (!supportsRealSession()) return -1
+        if (!supportsRealSession()) {
+            return -1
+        }
         return runCatching {
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
                 setAppPackageName(request.packageName)
@@ -67,7 +70,9 @@ class SystemPackageInstallerSessionAdapter(
 
     /** 将本地 APK 内容写入到指定平台安装会话。 */
     override fun writeApkToSession(sessionId: Int, apkFile: File): Boolean {
-        if (!supportsRealSession()) return false
+        if (!supportsRealSession()) {
+            return false
+        }
         return runCatching {
             val session = systemPackageInstaller.openSession(sessionId)
             try {
@@ -90,19 +95,14 @@ class SystemPackageInstallerSessionAdapter(
         onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
     ): InstallCommitResult {
         if (!supportsRealSession()) {
-            return InstallCommitResult(
-                success = false,
-                message = InstallerText.SESSION_NOT_SUPPORTED,
-                installedPackageName = null,
-            )
+            return InstallCommitResult(success = false, message = InstallerText.SESSION_NOT_SUPPORTED, installedPackageName = null)
         }
         val resultAction = ACTION_INSTALL_COMMIT_PREFIX + sessionId + "." + System.currentTimeMillis()
+
         /** 安装提交广播结果队列，用于串行消费系统返回的多阶段结果。 */
         val resultQueue = LinkedBlockingQueue<CommitCallbackPayload>()
         val resultReceiver = createResultReceiver(resultQueue)
-        ContextCompat.registerReceiver(
-            appContext, resultReceiver, IntentFilter(resultAction), ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
+        ContextCompat.registerReceiver(appContext, resultReceiver, IntentFilter(resultAction), ContextCompat.RECEIVER_NOT_EXPORTED)
         return try {
             submitSession(sessionId, resultAction)
             waitForCommitResult(resultQueue, onPendingUserAction)
@@ -117,20 +117,15 @@ class SystemPackageInstallerSessionAdapter(
 
     /** 判断当前设备是否满足真实安装会话能力要求。 */
     override fun supportsRealSession(): Boolean {
-        return appContext.packageManager.canRequestPackageInstalls()
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
     }
 
     /** 创建安装结果广播接收器，将系统回调入队供主流程消费。 */
-    private fun createResultReceiver(
-        resultQueue: LinkedBlockingQueue<CommitCallbackPayload>,
-    ): BroadcastReceiver {
+    private fun createResultReceiver(resultQueue: LinkedBlockingQueue<CommitCallbackPayload>): BroadcastReceiver {
         return object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                val status = intent?.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
-                    ?: PackageInstaller.STATUS_FAILURE
-                val message = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-                    ?.ifBlank { null }
-                    ?: defaultStatusMessage(status)
+                val status = intent?.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE) ?: PackageInstaller.STATUS_FAILURE
+                val message = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)?.ifBlank { null } ?: defaultStatusMessage(status)
                 logger.d(TAG, LOG_COMMIT_CALLBACK_FORMAT.format(status, message))
                 resultQueue.offer(
                     CommitCallbackPayload(
@@ -147,9 +142,7 @@ class SystemPackageInstallerSessionAdapter(
     /** 构建 PendingIntent 并提交安装会话到系统。 */
     private fun submitSession(sessionId: Int, resultAction: String) {
         val callbackIntent = Intent(resultAction).setPackage(appContext.packageName)
-        val pendingIntent = PendingIntent.getBroadcast(
-            appContext, sessionId, callbackIntent, buildCommitPendingIntentFlags(),
-        )
+        val pendingIntent = PendingIntent.getBroadcast(appContext, sessionId, callbackIntent, buildCommitPendingIntentFlags())
         val session = systemPackageInstaller.openSession(sessionId)
         try {
             session.commit(pendingIntent.intentSender)
@@ -170,12 +163,13 @@ class SystemPackageInstallerSessionAdapter(
             val callback = resultQueue.poll(timeoutSeconds, TimeUnit.SECONDS) ?: return timeoutResult()
             when (callback.status) {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                    val result = handlePendingUserAction(
-                        callback, pendingUserActionObserved, onPendingUserAction,
-                    )
-                    if (result != null) return result
+                    val result = handlePendingUserAction(callback, pendingUserActionObserved, onPendingUserAction)
+                    if (result != null) {
+                        return result
+                    }
                     pendingUserActionObserved = true
                 }
+
                 PackageInstaller.STATUS_SUCCESS -> return successResult(callback)
                 else -> return failureResult(callback)
             }
@@ -210,29 +204,17 @@ class SystemPackageInstallerSessionAdapter(
 
     /** 构建超时失败结果。 */
     private fun timeoutResult(): InstallCommitResult {
-        return InstallCommitResult(
-            success = false,
-            message = InstallerText.SESSION_COMMIT_TIMEOUT,
-            installedPackageName = null,
-        )
+        return InstallCommitResult(success = false, message = InstallerText.SESSION_COMMIT_TIMEOUT, installedPackageName = null)
     }
 
     /** 构建安装成功结果。 */
     private fun successResult(callback: CommitCallbackPayload): InstallCommitResult {
-        return InstallCommitResult(
-            success = true,
-            message = InstallerText.SESSION_COMMIT_SUCCESS,
-            installedPackageName = callback.installedPackageName,
-        )
+        return InstallCommitResult(success = true, message = InstallerText.SESSION_COMMIT_SUCCESS, installedPackageName = callback.installedPackageName)
     }
 
     /** 构建安装失败结果。 */
     private fun failureResult(callback: CommitCallbackPayload): InstallCommitResult {
-        return InstallCommitResult(
-            success = false,
-            message = callback.message,
-            installedPackageName = callback.installedPackageName,
-        )
+        return InstallCommitResult(success = false, message = callback.message, installedPackageName = callback.installedPackageName)
     }
 
     /** 为平台状态码补齐默认展示文案。 */
@@ -245,9 +227,7 @@ class SystemPackageInstallerSessionAdapter(
 
     /** 将提交阶段异常转换为可持久化的失败详情。 */
     private fun buildCommitThrowableMessage(throwable: Throwable): String {
-        val detail = throwable.message
-            ?.ifBlank { null }
-            ?: throwable.javaClass.simpleName
+        val detail = throwable.message?.ifBlank { null } ?: throwable.javaClass.simpleName
         return InstallerText.sessionCommitFailureWithDetail(detail)
     }
 
@@ -263,12 +243,13 @@ class SystemPackageInstallerSessionAdapter(
 
     /** 从平台广播中解析出系统确认 intent。 */
     private fun readConfirmationIntent(intent: Intent?): Intent? {
-        if (intent == null) return null
+        if (intent == null) {
+            return null
+        }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
         } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(Intent.EXTRA_INTENT)
+            @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_INTENT)
         }
     }
 

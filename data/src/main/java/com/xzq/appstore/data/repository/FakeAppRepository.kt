@@ -53,12 +53,7 @@ class FakeAppRepository(
         val stagedVersion = local.consumeStagedUpgradeVersion(appId)
         // 如果当前是升级链路，则优先写入 staged 目标版本，避免回退到旧版本号。
         local.saveInstalledApp(
-            InstalledApp(
-                appId = detail.appId,
-                packageName = detail.packageName,
-                name = detail.name,
-                versionName = stagedVersion ?: detail.versionName,
-            )
+            InstalledApp(appId = detail.appId, packageName = detail.packageName, name = detail.name, versionName = stagedVersion ?: detail.versionName)
         )
     }
 

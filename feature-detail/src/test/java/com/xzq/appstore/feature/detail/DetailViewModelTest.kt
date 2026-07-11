@@ -32,6 +32,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
+import com.xzq.appstore.data.model.PolicySettings
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DetailViewModelTest {
@@ -39,85 +40,75 @@ class DetailViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `load 会加载详情并触发升级检查`() =
-        runTest {
-            val appManager = FakeAppManager()
-            val upgradeManager = RecordingUpgradeManager()
-            val stateCenter = DefaultStateCenter()
-            val viewModel =
-                DetailViewModel(
-                    appManager = appManager,
-                    downloadManager = RecordingDownloadManager(),
-                    installManager = RecordingInstallManager(),
-                    upgradeManager = upgradeManager,
-                    stateCenter = stateCenter,
-                    policyCenter = FakePolicyCenter(),
-                )
+    fun `load 会加载详情并触发升级检查`() = runTest {
+        val appManager = FakeAppManager()
+        val upgradeManager = RecordingUpgradeManager()
+        val stateCenter = DefaultStateCenter()
+        val viewModel = DetailViewModel(
+            appManager = appManager,
+            downloadManager = RecordingDownloadManager(),
+            installManager = RecordingInstallManager(),
+            upgradeManager = upgradeManager,
+            stateCenter = stateCenter,
+            policyCenter = FakePolicyCenter(),
+        )
 
-            viewModel.load(TEST_APP_DETAIL.appId)
-            advanceUntilIdle()
+        viewModel.load(TEST_APP_DETAIL.appId)
+        advanceUntilIdle()
 
-            assertEquals(TEST_APP_DETAIL, viewModel.uiState.value.appDetail)
-            assertEquals(TEST_APP_DETAIL.appId, upgradeManager.checkedUpgradeAppIds.single())
-            assertEquals(PrimaryAction.DOWNLOAD, viewModel.uiState.value.primaryAction)
-        }
+        assertEquals(TEST_APP_DETAIL, viewModel.uiState.value.appDetail)
+        assertEquals(TEST_APP_DETAIL.appId, upgradeManager.checkedUpgradeAppIds.single())
+        assertEquals(PrimaryAction.DOWNLOAD, viewModel.uiState.value.primaryAction)
+    }
 
     @Test
-    fun `onPrimaryClick 在打开动作时会使用详情包名打开应用`() =
-        runTest {
-            val appManager = FakeAppManager()
-            val stateCenter = DefaultStateCenter()
-            val viewModel =
-                DetailViewModel(
-                    appManager = appManager,
-                    downloadManager = RecordingDownloadManager(),
-                    installManager = RecordingInstallManager(),
-                    upgradeManager = RecordingUpgradeManager(),
-                    stateCenter = stateCenter,
-                    policyCenter = FakePolicyCenter(),
-                )
+    fun `onPrimaryClick 在打开动作时会使用详情包名打开应用`() = runTest {
+        val appManager = FakeAppManager()
+        val stateCenter = DefaultStateCenter()
+        val viewModel = DetailViewModel(
+            appManager = appManager,
+            downloadManager = RecordingDownloadManager(),
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            stateCenter = stateCenter,
+            policyCenter = FakePolicyCenter(),
+        )
 
-            viewModel.load(TEST_APP_DETAIL.appId)
-            advanceUntilIdle()
-            stateCenter.syncInstalled(TEST_APP_DETAIL.appId, TEST_APP_DETAIL.versionName)
-            advanceUntilIdle()
+        viewModel.load(TEST_APP_DETAIL.appId)
+        advanceUntilIdle()
+        stateCenter.syncInstalled(TEST_APP_DETAIL.appId, TEST_APP_DETAIL.versionName)
+        advanceUntilIdle()
 
-            viewModel.onPrimaryClick()
-            advanceUntilIdle()
+        viewModel.onPrimaryClick()
+        advanceUntilIdle()
 
-            assertEquals(TEST_APP_DETAIL.packageName, appManager.openedPackageName)
-        }
+        assertEquals(TEST_APP_DETAIL.packageName, appManager.openedPackageName)
+    }
 
     @Test
-    fun `onPrimaryClick 在暂停状态时会恢复当前应用下载`() =
-        runTest {
-            val downloadManager = RecordingDownloadManager()
-            val stateCenter = DefaultStateCenter()
-            val viewModel =
-                DetailViewModel(
-                    appManager = FakeAppManager(),
-                    downloadManager = downloadManager,
-                    installManager = RecordingInstallManager(),
-                    upgradeManager = RecordingUpgradeManager(),
-                    stateCenter = stateCenter,
-                    policyCenter = FakePolicyCenter(),
-                )
+    fun `onPrimaryClick 在暂停状态时会恢复当前应用下载`() = runTest {
+        val downloadManager = RecordingDownloadManager()
+        val stateCenter = DefaultStateCenter()
+        val viewModel = DetailViewModel(
+            appManager = FakeAppManager(),
+            downloadManager = downloadManager,
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            stateCenter = stateCenter,
+            policyCenter = FakePolicyCenter(),
+        )
 
-            viewModel.load(TEST_APP_DETAIL.appId)
-            advanceUntilIdle()
-            stateCenter.updateDownload(
-                appId = TEST_APP_DETAIL.appId,
-                status = DownloadStatus.PAUSED,
-                progress = TEST_PROGRESS,
-            )
-            advanceUntilIdle()
+        viewModel.load(TEST_APP_DETAIL.appId)
+        advanceUntilIdle()
+        stateCenter.updateDownload(appId = TEST_APP_DETAIL.appId, status = DownloadStatus.PAUSED, progress = TEST_PROGRESS)
+        advanceUntilIdle()
 
-            viewModel.onPrimaryClick()
-            advanceUntilIdle()
+        viewModel.onPrimaryClick()
+        advanceUntilIdle()
 
-            assertEquals(TEST_APP_DETAIL.appId, downloadManager.resumedAppIds.single())
-            assertTrue(downloadManager.startedAppIds.isEmpty())
-        }
+        assertEquals(TEST_APP_DETAIL.appId, downloadManager.resumedAppIds.single())
+        assertTrue(downloadManager.startedAppIds.isEmpty())
+    }
 
     private class FakeAppManager : AppManager {
         /** 最近一次被请求打开的包名。 */
@@ -176,10 +167,7 @@ class DetailViewModelTest {
 
         override suspend fun cancelDownload(appId: String) = Unit
 
-        override suspend fun removeTask(
-            appId: String,
-            clearFile: Boolean,
-        ) = Unit
+        override suspend fun removeTask(appId: String, clearFile: Boolean) = Unit
 
         override suspend fun clearCompletedTasks(): Int = 0
 
@@ -219,11 +207,7 @@ class DetailViewModelTest {
 
     private class FakePolicyCenter : PolicyCenter {
         /** 测试策略流。 */
-        private val settingsFlow =
-            MutableStateFlow(
-                com.xzq.appstore.data.model
-                    .PolicySettings(),
-            )
+        private val settingsFlow = MutableStateFlow(PolicySettings())
 
         override fun canDownload(appId: String): PolicyResult = PolicyResult(true)
 
@@ -237,7 +221,7 @@ class DetailViewModelTest {
 
         override fun getStoredSettings() = settingsFlow.value
 
-        override fun updateSettings(settings: com.xzq.appstore.data.model.PolicySettings) {
+        override fun updateSettings(settings: PolicySettings) {
             settingsFlow.value = settings
         }
     }
@@ -260,14 +244,13 @@ class DetailViewModelTest {
         const val TEST_PROGRESS = 64
 
         /** 测试详情模型。 */
-        val TEST_APP_DETAIL =
-            AppDetail(
-                appId = "demo.detail",
-                packageName = "com.nio.demo.detail",
-                name = "Demo Detail",
-                description = "detail test app",
-                versionName = "1.0.0",
-                apkUrl = "https://example.com/detail.apk",
-            )
+        val TEST_APP_DETAIL = AppDetail(
+            appId = "demo.detail",
+            packageName = "com.nio.demo.detail",
+            name = "Demo Detail",
+            description = "detail test app",
+            versionName = "1.0.0",
+            apkUrl = "https://example.com/detail.apk",
+        )
     }
 }

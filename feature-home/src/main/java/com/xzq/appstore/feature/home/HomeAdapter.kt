@@ -3,12 +3,12 @@ package com.xzq.appstore.feature.home
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.xzq.appstore.common.R
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.xzq.appstore.common.ui.CarUiStyle
+import com.xzq.appstore.common.R
 import com.xzq.appstore.common.ui.AppImageLoader
+import com.xzq.appstore.common.ui.CarUiStyle
 import com.xzq.appstore.common.ui.applyActionStyle
 import com.xzq.appstore.common.ui.applyTagStyle
 import com.xzq.appstore.data.model.AppViewData
@@ -33,7 +33,6 @@ class HomeAdapter(
     }
 
     class HomeViewHolder(
-        /** 首页应用卡片的 ViewBinding。 */
         private val binding: ItemAppCardBinding,
         /** 点击主动作时的回调。 */
         private val onPrimaryClick: (AppViewData) -> Unit,

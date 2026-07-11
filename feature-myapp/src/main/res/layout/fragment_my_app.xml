@@ -25,7 +25,7 @@
                 android:layout_height="64dp"
                 android:background="@drawable/bg_tag_info"
                 android:gravity="center"
-                android:text="XZQ"
+                android:text="@string/static_myapp_profile_initial"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_lg"
                 android:textStyle="bold" />
@@ -41,7 +41,7 @@
                     android:id="@+id/tvMyAppTitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="清风徐来"
+                    android:text="@string/static_myapp_profile_name"
                     android:textColor="@color/car_text_primary"
                     android:textSize="@dimen/text_2xl"
                     android:textStyle="bold" />
@@ -51,7 +51,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/spacing_6dp"
-                    android:text="VIP 会员  ·  L5 旅途音等级"
+                    android:text="@string/static_myapp_profile_level"
                     android:textColor="@color/car_text_secondary"
                     android:textSize="@dimen/text_sm" />
             </LinearLayout>
@@ -61,7 +61,7 @@
                 android:layout_height="38dp"
                 android:background="@drawable/bg_primary_button"
                 android:gravity="center"
-                android:text="编辑资料"
+                android:text="@string/static_myapp_edit_profile"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_sm"
                 android:textStyle="bold" />
@@ -76,23 +76,23 @@
             <TextView
                 android:id="@+id/tvStatDownloads"
                 style="@style/MyProfileStat"
-                android:text="我的下载\n32" />
+                android:text="@string/static_myapp_download_stat" />
 
             <TextView
                 android:id="@+id/tvStatFavorites"
                 style="@style/MyProfileStat"
                 android:layout_marginStart="@dimen/spacing_8dp"
-                android:text="我的收藏\n128" />
+                android:text="@string/static_myapp_favorite_stat" />
 
             <TextView
                 style="@style/MyProfileStat"
                 android:layout_marginStart="@dimen/spacing_8dp"
-                android:text="购买记录\n18" />
+                android:text="@string/static_myapp_purchase_stat" />
 
             <TextView
                 style="@style/MyProfileStat"
                 android:layout_marginStart="@dimen/spacing_8dp"
-                android:text="优惠券\n6" />
+                android:text="@string/static_myapp_coupon_stat" />
         </LinearLayout>
 
         <TextView
@@ -103,7 +103,7 @@
             android:gravity="center_vertical"
             android:paddingStart="@dimen/spacing_18dp"
             android:paddingEnd="@dimen/spacing_18dp"
-            android:text="超级会员  尊享专属特权"
+            android:text="@string/static_myapp_membership_default"
             android:textColor="@color/car_text_primary"
             android:textSize="@dimen/text_lg"
             android:textStyle="bold" />
@@ -112,7 +112,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_18dp"
-            android:text="应用管理"
+            android:text="@string/static_myapp_management_section"
             android:textColor="@color/car_text_primary"
             android:textSize="@dimen/text_lg"
             android:textStyle="bold" />
@@ -126,26 +126,26 @@
             <TextView
                 android:id="@+id/btnInstallManager"
                 style="@style/MyManagerCard"
-                android:text="安装管理\n已安装 56 款应用" />
+                android:text="@string/static_myapp_install_default" />
 
             <TextView
                 android:id="@+id/btnDownloadManager"
                 style="@style/MyManagerCard"
                 android:layout_marginStart="@dimen/spacing_10dp"
-                android:text="下载管理\n正在下载 2 个任务" />
+                android:text="@string/static_myapp_download_default" />
 
             <TextView
                 android:id="@+id/btnUpgradeManager"
                 style="@style/MyManagerCard"
                 android:layout_marginStart="@dimen/spacing_10dp"
-                android:text="升级管理\n可更新 8 款应用" />
+                android:text="@string/static_myapp_upgrade_default" />
         </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_18dp"
-            android:text="常用服务"
+            android:text="@string/static_myapp_services_section"
             android:textColor="@color/car_text_primary"
             android:textSize="@dimen/text_lg"
             android:textStyle="bold" />
@@ -156,17 +156,17 @@
             android:layout_marginTop="@dimen/spacing_10dp"
             android:orientation="vertical">
 
-            <TextView style="@style/MyServiceRow" android:text="消息通知                                           >" />
-            <TextView style="@style/MyServiceRow" android:text="设置中心                                           >" />
-            <TextView style="@style/MyServiceRow" android:text="安全中心                                           >" />
-            <TextView style="@style/MyServiceRow" android:text="帮助与反馈                                       >" />
+            <TextView style="@style/MyServiceRow" android:text="@string/static_myapp_notifications_chevron" />
+            <TextView style="@style/MyServiceRow" android:text="@string/static_myapp_settings_chevron" />
+            <TextView style="@style/MyServiceRow" android:text="@string/static_myapp_security_chevron" />
+            <TextView style="@style/MyServiceRow" android:text="@string/static_myapp_help_feedback_chevron" />
         </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_18dp"
-            android:text="最近安装"
+            android:text="@string/static_myapp_recent_installs"
             android:textColor="@color/car_text_primary"
             android:textSize="@dimen/text_lg"
             android:textStyle="bold" />

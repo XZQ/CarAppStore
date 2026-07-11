@@ -13,28 +13,40 @@ import com.xzq.appstore.core.installer.InstallSessionStatus
 object BusinessText {
     /** 升级执行中状态文案。 */
     const val STATUS_UPGRADING = "升级中"
+
     /** 升级失败状态文案。 */
     const val STATUS_UPGRADE_FAILED = "升级失败"
+
     /** 安装执行中状态文案。 */
     const val STATUS_INSTALLING = "安装中"
+
     /** 等待安装状态文案。 */
     const val STATUS_WAITING_INSTALL = "等待安装"
+
     /** 等待系统确认状态文案。 */
     const val STATUS_WAITING_SYSTEM_CONFIRM = "等待系统确认"
+
     /** 安装失败状态文案。 */
     const val STATUS_INSTALL_FAILED = "安装失败"
+
     /** 可升级状态文案。 */
     const val STATUS_UPGRADE_AVAILABLE = "可升级"
+
     /** 已安装状态文案。 */
     const val STATUS_INSTALLED = "已安装"
+
     /** 等待下载状态文案。 */
     const val STATUS_WAITING_DOWNLOAD = "等待下载"
+
     /** 下载完成状态文案。 */
     const val STATUS_DOWNLOAD_COMPLETED = "下载完成"
+
     /** 下载失败状态文案。 */
     const val STATUS_DOWNLOAD_FAILED = "下载失败"
+
     /** 已取消状态文案。 */
     const val STATUS_CANCELED = "已取消"
+
     /** 未安装状态文案。 */
     const val STATUS_NOT_INSTALLED = "未安装"
 
@@ -64,6 +76,8 @@ object BusinessText {
     const val UPGRADE_DOWNLOAD_FAILED = "升级包下载失败"
     const val UPGRADE_DOWNLOAD_INTERRUPTED = "升级包下载未完成"
     const val UPGRADE_INSTALL_FAILED = "升级安装失败"
+    const val UPGRADE_DOWNLOAD_TIMEOUT = "升级下载超时"
+    const val UPGRADE_INSTALL_TIMEOUT = "升级安装超时"
 
     private const val DOWNLOADING_FORMAT = "下载中 %d%%"
     private const val PAUSED_FORMAT = "已暂停 %d%%"

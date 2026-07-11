@@ -18,7 +18,7 @@ import org.robolectric.annotation.Config
  * AppSystemDataSource 直接调用 PackageManager，是 data 层最依赖 Android 系统能力的类。
  * 用 Robolectric 验证：
  * 1. 未安装包的查询链路（isPackageInstalled / getInstalledVersion / queryInstalledApps）
- 都能正确返回空结果而不抛出 NameNotFoundException；
+都能正确返回空结果而不抛出 NameNotFoundException；
  * 2. 不存在的 APK 路径返回 null；
  * 3. openApp 对未注册包名返回 false。
  *
@@ -96,20 +96,15 @@ class AppSystemDataSourceTest {
         assertEquals("1.0", installed.versionName)
     }
 
-    private fun installFakePackage(
-        packageName: String,
-        versionName: String,
-    ) {
-        val packageInfo =
-            PackageInfo().apply {
+    private fun installFakePackage(packageName: String, versionName: String) {
+        val packageInfo = PackageInfo().apply {
+            this.packageName = packageName
+            this.versionName = versionName
+            applicationInfo = android.content.pm.ApplicationInfo().apply {
                 this.packageName = packageName
-                this.versionName = versionName
-                applicationInfo =
-                    android.content.pm.ApplicationInfo().apply {
-                        this.packageName = packageName
-                        nonLocalizedLabel = packageName
-                    }
+                nonLocalizedLabel = packageName
             }
+        }
         shadowOf(context.packageManager).installPackage(packageInfo)
     }
 }

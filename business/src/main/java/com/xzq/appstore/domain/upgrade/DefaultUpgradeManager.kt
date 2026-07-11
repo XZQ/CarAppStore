@@ -13,6 +13,7 @@ import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.state.UpgradeStatus
 import com.xzq.appstore.domain.text.BusinessText
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 class DefaultUpgradeManager(
@@ -30,6 +31,10 @@ class DefaultUpgradeManager(
     private val logger: AppLogger,
     /** 升级链路打点器。 */
     private val tracker: EventTracker,
+    /** 轮询下载与安装终态的间隔；生产默认保持 200ms。 */
+    private val pollIntervalMs: Long = POLL_INTERVAL_MS,
+    /** 单个升级阶段的最大等待时间；生产默认 30 分钟。 */
+    private val waitTimeoutMs: Long = WAIT_TIMEOUT_MS,
 ) : UpgradeManager {
     /** 检查当前应用是否存在可升级版本，并同步升级状态。 */
     override suspend fun checkUpgrade(appId: String): Boolean {
@@ -67,21 +72,12 @@ class DefaultUpgradeManager(
                 return@startBatchUpgrade UpgradeBatchResult(succeeded = succeeded, failed = failed, skipped = skipped)
             }
             startUpgrade(appId)
-            // 等待单个升级完成后再继续下一个，并把结果归类到对应桶。
-            while (true) {
-                delay(200)
-                val state = stateCenter.snapshot(appId)
-                when (state.upgradeStatus) {
-                    UpgradeStatus.NONE -> {
-                        succeeded.add(appId)
-                        break
-                    }
-                    UpgradeStatus.FAILED -> {
-                        failed[appId] = state.errorMessage ?: BusinessText.UPGRADE_INSTALL_FAILED
-                        return@startBatchUpgrade UpgradeBatchResult(succeeded = succeeded, failed = failed, skipped = skipped)
-                    }
-                    else -> Unit
-                }
+            val state = stateCenter.snapshot(appId)
+            if (state.upgradeStatus == UpgradeStatus.NONE) {
+                succeeded.add(appId)
+            } else {
+                failed[appId] = state.errorMessage ?: BusinessText.UPGRADE_INSTALL_FAILED
+                return@startBatchUpgrade UpgradeBatchResult(succeeded = succeeded, failed = failed, skipped = skipped)
             }
         }
         return UpgradeBatchResult(succeeded = succeeded, failed = failed, skipped = skipped)
@@ -118,47 +114,73 @@ class DefaultUpgradeManager(
 
         // 第一阶段先进入下载链路，成功后才有资格继续安装。
         downloadManager.startDownload(appId)
-        while (true) {
-            delay(200)
-            val state = stateCenter.snapshot(appId)
-            when {
-                state.downloadStatus == DownloadStatus.COMPLETED -> break
-                state.downloadStatus == DownloadStatus.FAILED -> {
-                    // 下载失败时直接结束升级流程，并把失败原因映射为升级失败。
-                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_FAILED)
-                    return
-                }
-                state.downloadStatus == DownloadStatus.CANCELED || state.downloadStatus == DownloadStatus.PAUSED -> {
-                    // 下载被用户暂停或取消时，升级编排不能继续等待，统一收口为失败待重试。
-                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_INTERRUPTED)
-                    return
-                }
+        when (awaitDownloadResult(appId)) {
+            DownloadAwaitResult.COMPLETED -> Unit
+            DownloadAwaitResult.FAILED -> {
+                stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_FAILED)
+                return
+            }
+
+            DownloadAwaitResult.INTERRUPTED -> {
+                stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_INTERRUPTED)
+                return
+            }
+
+            null -> {
+                stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_TIMEOUT)
+                return
             }
         }
 
         // 第二阶段进入安装链路，等待最终安装结果决定升级是否成功。
         installManager.install(appId)
-        while (true) {
-            delay(200)
-            val state = stateCenter.snapshot(appId)
-            when (state.installStatus) {
-                InstallStatus.INSTALLED -> {
-                    // 安装成功后，升级任务就可以收口回到无待处理状态。
-                    stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
-                    tracker.track("upgrade_success_$appId")
-                    return
-                }
-                InstallStatus.FAILED -> {
-                    // 安装失败时，把升级状态统一折叠成失败态。
-                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_INSTALL_FAILED)
-                    return
-                }
-                else -> Unit
+        when (awaitInstallResult(appId)) {
+            InstallAwaitResult.INSTALLED -> {
+                stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
+                tracker.track("upgrade_success_$appId")
             }
+
+            InstallAwaitResult.FAILED -> stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_INSTALL_FAILED)
+            null -> stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_INSTALL_TIMEOUT)
         }
     }
 
+    /** 等待下载阶段进入成功、失败或中断终态，超时返回 null。 */
+    private suspend fun awaitDownloadResult(appId: String): DownloadAwaitResult? = withTimeoutOrNull(waitTimeoutMs) {
+        while (true) {
+            delay(pollIntervalMs)
+            when (stateCenter.snapshot(appId).downloadStatus) {
+                DownloadStatus.COMPLETED -> return@withTimeoutOrNull DownloadAwaitResult.COMPLETED
+                DownloadStatus.FAILED -> return@withTimeoutOrNull DownloadAwaitResult.FAILED
+                DownloadStatus.CANCELED, DownloadStatus.PAUSED -> return@withTimeoutOrNull DownloadAwaitResult.INTERRUPTED
+                else -> Unit
+            }
+        }
+        error("下载等待循环不应在未返回终态时结束")
+    }
+
+    /** 等待安装阶段进入终态，超时返回 null。 */
+    private suspend fun awaitInstallResult(appId: String): InstallAwaitResult? = withTimeoutOrNull(waitTimeoutMs) {
+        while (true) {
+            delay(pollIntervalMs)
+            when (stateCenter.snapshot(appId).installStatus) {
+                InstallStatus.INSTALLED -> return@withTimeoutOrNull InstallAwaitResult.INSTALLED
+                InstallStatus.FAILED -> return@withTimeoutOrNull InstallAwaitResult.FAILED
+                else -> Unit
+            }
+        }
+        error("安装等待循环不应在未返回终态时结束")
+    }
+
     /** 判断指定应用的 APK 是否已落盘且可读，用于策略中心决定是否跳过下载链路校验。 */
-    private suspend fun isApkCached(appId: String): Boolean =
-        repository.getDownloadedApk(appId)?.takeIf { it.isNotBlank() && File(it).exists() } != null
+    private suspend fun isApkCached(appId: String): Boolean = repository.getDownloadedApk(appId)?.takeIf { it.isNotBlank() && File(it).exists() } != null
+
+    private enum class DownloadAwaitResult { COMPLETED, FAILED, INTERRUPTED }
+
+    private enum class InstallAwaitResult { INSTALLED, FAILED }
+
+    private companion object {
+        const val POLL_INTERVAL_MS = 200L
+        const val WAIT_TIMEOUT_MS = 30L * 60L * 1000L
+    }
 }

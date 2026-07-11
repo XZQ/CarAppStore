@@ -1,21 +1,19 @@
-
 package com.xzq.appstore.feature.downloadmanager
-
-import com.xzq.appstore.common.R
 
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.xzq.appstore.common.R
+import com.xzq.appstore.common.base.AppIdDiffCallback
 import com.xzq.appstore.common.ui.CarUiStyle
 import com.xzq.appstore.common.ui.applyActionStyle
 import com.xzq.appstore.common.ui.applyTagStyle
 import com.xzq.appstore.common.ui.applyTaskCardBackground
 import com.xzq.appstore.data.model.DownloadTaskViewData
-import com.xzq.appstore.common.base.AppIdDiffCallback
 import com.xzq.appstore.feature.downloadmanager.databinding.ItemDownloadTaskBinding
+import com.xzq.appstore.data.model.TaskOverallStatus
 
 class DownloadTaskAdapter(
     /** 主动作按钮点击回调。 */
@@ -35,10 +33,7 @@ class DownloadTaskAdapter(
     /** 绑定下载任务卡片数据。 */
     override fun onBindViewHolder(holder: TaskViewHolder, position: Int) = holder.bind(getItem(position))
 
-    inner class TaskViewHolder(
-        /** 下载任务卡片的 ViewBinding。 */
-        private val binding: ItemDownloadTaskBinding,
-    ) : RecyclerView.ViewHolder(binding.root) {
+    inner class TaskViewHolder(private val binding: ItemDownloadTaskBinding) : RecyclerView.ViewHolder(binding.root) {
         /** 把下载任务数据渲染到卡片。 */
         fun bind(item: DownloadTaskViewData) {
             binding.layoutTaskCard.applyTaskCardBackground(item.overallStatus)
@@ -46,10 +41,7 @@ class DownloadTaskAdapter(
             binding.tvTaskVersion.text = binding.root.context.getString(R.string.task_download_version_format, item.versionName)
             binding.tvTaskState.applyTagStyle(CarUiStyle.tagStyle(item.stateText, item.statusTone))
             binding.tvTaskBucket.applyTagStyle(
-                CarUiStyle.tagStyle(
-                    CarUiStyle.taskBucketText(item.overallStatus),
-                    CarUiStyle.taskBucketTone(item.overallStatus),
-                ),
+                CarUiStyle.tagStyle(CarUiStyle.taskBucketText(item.overallStatus), CarUiStyle.taskBucketTone(item.overallStatus)),
             )
             binding.tvTaskSummary.text = buildSummary(item)
             binding.tvTaskSize.text = binding.root.context.getString(R.string.task_download_size_format, item.sizeText)
@@ -75,10 +67,14 @@ class DownloadTaskAdapter(
         /** 根据任务分组生成下载任务摘要。 */
         private fun buildSummary(item: DownloadTaskViewData): String {
             val stage = when (item.overallStatus) {
-                com.xzq.appstore.data.model.TaskOverallStatus.ACTIVE -> binding.root.context.getString(R.string.task_download_summary_active)
-                com.xzq.appstore.data.model.TaskOverallStatus.PENDING -> binding.root.context.getString(R.string.task_download_summary_pending)
-                com.xzq.appstore.data.model.TaskOverallStatus.FAILED -> binding.root.context.getString(R.string.task_download_summary_failed)
-                com.xzq.appstore.data.model.TaskOverallStatus.COMPLETED -> if (item.installed) binding.root.context.getString(R.string.task_download_summary_completed_open) else binding.root.context.getString(R.string.task_download_summary_completed_install)
+                TaskOverallStatus.ACTIVE -> binding.root.context.getString(R.string.task_download_summary_active)
+                TaskOverallStatus.PENDING -> binding.root.context.getString(R.string.task_download_summary_pending)
+                TaskOverallStatus.FAILED -> binding.root.context.getString(R.string.task_download_summary_failed)
+                TaskOverallStatus.COMPLETED -> if (item.installed) {
+                    binding.root.context.getString(R.string.task_download_summary_completed_open)
+                } else {
+                    binding.root.context.getString(R.string.task_download_summary_completed_install)
+                }
             }
             return stage
         }
@@ -86,6 +82,6 @@ class DownloadTaskAdapter(
 
     companion object {
         /** 下载任务列表差异比较器（基于 appId 复用通用基类）。 */
-        private val DiffCallback = object : AppIdDiffCallback<DownloadTaskViewData>({ it.appId }) {}
+        private val DiffCallback = object : AppIdDiffCallback<DownloadTaskViewData>({ it.appId }, { old, new -> old == new }) {}
     }
 }

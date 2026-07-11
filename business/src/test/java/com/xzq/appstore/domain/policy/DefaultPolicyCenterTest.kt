@@ -44,12 +44,11 @@ class DefaultPolicyCenterTest {
 
     @Test
     fun `default state allows download install and upgrade`() {
-        val center =
-            DefaultPolicyCenter(
-                storageInfoProvider = plentifulStorage(),
-                localDataSource = AppLocalDataSource(context),
-                runtimeSignalProvider = FakeSignalProvider(allClearSignals()),
-            )
+        val center = DefaultPolicyCenter(
+            storageInfoProvider = plentifulStorage(),
+            localDataSource = AppLocalDataSource(context),
+            runtimeSignalProvider = FakeSignalProvider(allClearSignals()),
+        )
 
         assertTrue(center.canDownload("app-1").allow)
         assertTrue(center.canInstall("app-1").allow)
@@ -58,12 +57,11 @@ class DefaultPolicyCenterTest {
 
     @Test
     fun `canDownload rejects with POLICY_NOT_WIFI when runtime wifi off`() {
-        val center =
-            DefaultPolicyCenter(
-                storageInfoProvider = plentifulStorage(),
-                localDataSource = AppLocalDataSource(context),
-                runtimeSignalProvider = FakeSignalProvider(allClearSignals(wifi = false)),
-            )
+        val center = DefaultPolicyCenter(
+            storageInfoProvider = plentifulStorage(),
+            localDataSource = AppLocalDataSource(context),
+            runtimeSignalProvider = FakeSignalProvider(allClearSignals(wifi = false)),
+        )
 
         val result = center.canDownload("app-1")
         assertFalse(result.allow)
@@ -72,12 +70,11 @@ class DefaultPolicyCenterTest {
 
     @Test
     fun `canInstall rejects with POLICY_NOT_PARKING when not in parking mode`() {
-        val center =
-            DefaultPolicyCenter(
-                storageInfoProvider = plentifulStorage(),
-                localDataSource = AppLocalDataSource(context),
-                runtimeSignalProvider = FakeSignalProvider(allClearSignals(parking = false)),
-            )
+        val center = DefaultPolicyCenter(
+            storageInfoProvider = plentifulStorage(),
+            localDataSource = AppLocalDataSource(context),
+            runtimeSignalProvider = FakeSignalProvider(allClearSignals(parking = false)),
+        )
 
         val result = center.canInstall("app-1")
         assertFalse(result.allow)
@@ -86,12 +83,11 @@ class DefaultPolicyCenterTest {
 
     @Test
     fun `low storage signal blocks both download and install`() {
-        val center =
-            DefaultPolicyCenter(
-                storageInfoProvider = plentifulStorage(),
-                localDataSource = AppLocalDataSource(context),
-                runtimeSignalProvider = FakeSignalProvider(allClearSignals(lowStorage = true)),
-            )
+        val center = DefaultPolicyCenter(
+            storageInfoProvider = plentifulStorage(),
+            localDataSource = AppLocalDataSource(context),
+            runtimeSignalProvider = FakeSignalProvider(allClearSignals(lowStorage = true)),
+        )
 
         val downloadResult = center.canDownload("app-1")
         assertFalse(downloadResult.allow)
@@ -104,12 +100,11 @@ class DefaultPolicyCenterTest {
 
     @Test
     fun `canDownload rejects with POLICY_DEVICE_STORAGE_LOW when usable space below threshold`() {
-        val center =
-            DefaultPolicyCenter(
-                storageInfoProvider = FixedStorageInfoProvider(0L),
-                localDataSource = AppLocalDataSource(context),
-                runtimeSignalProvider = FakeSignalProvider(allClearSignals()),
-            )
+        val center = DefaultPolicyCenter(
+            storageInfoProvider = FixedStorageInfoProvider(0L),
+            localDataSource = AppLocalDataSource(context),
+            runtimeSignalProvider = FakeSignalProvider(allClearSignals()),
+        )
 
         val result = center.canDownload("app-1")
         assertFalse(result.allow)
@@ -119,12 +114,11 @@ class DefaultPolicyCenterTest {
     @Test
     fun `getStoredSettings returns the manually persisted settings`() {
         val localDataSource = AppLocalDataSource(context)
-        val center =
-            DefaultPolicyCenter(
-                storageInfoProvider = plentifulStorage(),
-                localDataSource = localDataSource,
-                runtimeSignalProvider = FakeSignalProvider(allClearSignals()),
-            )
+        val center = DefaultPolicyCenter(
+            storageInfoProvider = plentifulStorage(),
+            localDataSource = localDataSource,
+            runtimeSignalProvider = FakeSignalProvider(allClearSignals()),
+        )
 
         assertTrue(center.getStoredSettings().wifiConnected)
 
@@ -139,24 +133,15 @@ class DefaultPolicyCenterTest {
         wifi: Boolean = true,
         parking: Boolean = true,
         lowStorage: Boolean = false,
-    ): PolicyRuntimeSignals =
-        PolicyRuntimeSignals(
-            wifiConnected = wifi,
-            parkingMode = parking,
-            lowStorageMode = lowStorage,
-        )
+    ): PolicyRuntimeSignals = PolicyRuntimeSignals(wifiConnected = wifi, parkingMode = parking, lowStorageMode = lowStorage)
 
     private fun plentifulStorage(): StorageInfoProvider = FixedStorageInfoProvider(Long.MAX_VALUE)
 
-    private class FixedStorageInfoProvider(
-        private val bytes: Long,
-    ) : StorageInfoProvider {
+    private class FixedStorageInfoProvider(private val bytes: Long) : StorageInfoProvider {
         override fun usableSpaceBytes(): Long = bytes
     }
 
-    private class FakeSignalProvider(
-        signals: PolicyRuntimeSignals,
-    ) : PolicyRuntimeSignalProvider {
+    private class FakeSignalProvider(signals: PolicyRuntimeSignals) : PolicyRuntimeSignalProvider {
         private val flow = MutableStateFlow(signals)
 
         override fun observeSignals(): StateFlow<PolicyRuntimeSignals> = flow

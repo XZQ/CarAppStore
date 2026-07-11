@@ -9,6 +9,10 @@ class RealPackageInstaller(
     private val sessionAdapter: PackageInstallerSessionAdapter,
     /** 安装会话持久化存储。 */
     private val sessionStore: InstallSessionStore,
+    /** 未知来源安装权限查询入口。 */
+    private val permissionGateway: InstallPermissionGateway = object : InstallPermissionGateway {
+        override fun canRequestInstalls(): Boolean = true
+    },
     /** 平台不支持真实安装会话时使用的兜底安装器。 */
     private val fallbackInstaller: PackageInstaller? = null,
 ) : PackageInstaller {
@@ -18,10 +22,7 @@ class RealPackageInstaller(
      *
      * 这个方法负责 APK 基础校验、系统会话创建、APK 写入、提交以及最终结果回收。
      */
-    override suspend fun install(
-        request: InstallRequest,
-        onEvent: suspend (InstallEvent) -> Unit,
-    ) = withContext(Dispatchers.IO) {
+    override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) = withContext(Dispatchers.IO) {
         // 安装前先做最基本的文件有效性校验，避免无效 APK 进入系统会话。
         if (!request.apkFile.exists()) {
             onEvent(InstallEvent.Failed(InstallFailureCode.APK_MISSING, InstallFailureCode.APK_MISSING.displayText))
@@ -32,15 +33,16 @@ class RealPackageInstaller(
             return@withContext
         }
 
+        if (!permissionGateway.canRequestInstalls()) {
+            onEvent(InstallEvent.Failed(InstallFailureCode.PERMISSION_REQUIRED, InstallFailureCode.PERMISSION_REQUIRED.displayText))
+            return@withContext
+        }
+
         // 平台不支持真实会话时，只在显式注入兜底安装器的测试场景回退。
         if (!sessionAdapter.supportsRealSession()) {
-            fallbackInstaller?.install(request, onEvent)
-                ?: onEvent(
-                    InstallEvent.Failed(
-                        InstallFailureCode.SESSION_NOT_SUPPORTED,
-                        InstallFailureCode.SESSION_NOT_SUPPORTED.displayText,
-                    )
-                )
+            fallbackInstaller?.install(request, onEvent) ?: onEvent(
+                InstallEvent.Failed(InstallFailureCode.SESSION_NOT_SUPPORTED, InstallFailureCode.SESSION_NOT_SUPPORTED.displayText)
+            )
             return@withContext
         }
 
@@ -110,44 +112,22 @@ class RealPackageInstaller(
         }
 
         // APK 写入成功后，更新会话进度，供安装中心展示中间阶段。
-        sessionStore.updateStatus(
-            sessionId = sessionId,
-            status = InstallSessionStatus.WRITTEN,
-            progress = 55,
-        )
+        sessionStore.updateStatus(sessionId = sessionId, status = InstallSessionStatus.WRITTEN, progress = 55)
         onEvent(InstallEvent.Progress(sessionId, 55))
 
         // 第三步提交系统会话，并在需要用户确认时把中间态抛给上层。
         delay(120L)
-        sessionStore.updateStatus(
-            sessionId = sessionId,
-            status = InstallSessionStatus.COMMITTED,
-            progress = 80,
-        )
+        sessionStore.updateStatus(sessionId = sessionId, status = InstallSessionStatus.COMMITTED, progress = 80)
         onEvent(InstallEvent.Progress(sessionId, 80))
         val commit = try {
             sessionAdapter.commitSession(sessionId) { message, confirmationIntent ->
                 // 进入系统确认阶段后，先把会话状态持久化，再通知壳层拉起确认页。
-                sessionStore.updateStatus(
-                    sessionId = sessionId,
-                    status = InstallSessionStatus.PENDING_USER_ACTION,
-                    progress = 90,
-                )
+                sessionStore.updateStatus(sessionId = sessionId, status = InstallSessionStatus.PENDING_USER_ACTION, progress = 90)
                 onEvent(InstallEvent.Progress(sessionId, 90))
-                onEvent(
-                    InstallEvent.PendingUserAction(
-                        sessionId = sessionId,
-                        message = message,
-                        confirmationIntent = confirmationIntent,
-                    )
-                )
+                onEvent(InstallEvent.PendingUserAction(sessionId = sessionId, message = message, confirmationIntent = confirmationIntent))
             }
         } catch (t: Throwable) {
-            InstallCommitResult(
-                success = false,
-                message = t.message ?: InstallFailureCode.SESSION_COMMIT_FAILED.displayText,
-                installedPackageName = null,
-            )
+            InstallCommitResult(success = false, message = t.message ?: InstallFailureCode.SESSION_COMMIT_FAILED.displayText, installedPackageName = null)
         }
 
         if (!commit.success) {
@@ -165,11 +145,7 @@ class RealPackageInstaller(
         }
 
         // 提交成功且最终回调完成后，把会话收口为成功态。
-        sessionStore.updateStatus(
-            sessionId = sessionId,
-            status = InstallSessionStatus.CALLBACK_SUCCESS,
-            progress = 100,
-        )
+        sessionStore.updateStatus(sessionId = sessionId, status = InstallSessionStatus.CALLBACK_SUCCESS, progress = 100)
         onEvent(InstallEvent.Progress(sessionId, 100))
         onEvent(InstallEvent.Success(request.targetVersion))
     }

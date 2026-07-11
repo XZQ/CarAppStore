@@ -18,12 +18,10 @@ object TaskCenterUiFormatter {
     fun actionTitle(centerName: String): String = centerName + TaskCenterText.ACTION_AREA_SUFFIX
 
     /** 生成动作区提示文案。 */
-    fun actionHint(centerName: String, scope: String): String =
-        TaskCenterText.actionHint(centerName, scope)
+    fun actionHint(centerName: String, scope: String): String = TaskCenterText.actionHint(centerName, scope)
 
     /** 生成任务中心头部摘要。 */
-    fun centerSummary(centerName: String, visibleCount: Int, totalCount: Int): String =
-        TaskCenterText.centerSummary(centerName, visibleCount, totalCount)
+    fun centerSummary(centerName: String, visibleCount: Int, totalCount: Int): String = TaskCenterText.centerSummary(centerName, visibleCount, totalCount)
 
     /** 生成任务中心空态标题。 */
     fun emptyTitle(centerName: String, filter: TaskCenterFilter): String {
@@ -72,54 +70,41 @@ object TaskCenterUiFormatter {
         TaskCenterText.statsLine(prefix, stats.activeCount, stats.pendingCount, stats.failedCount, stats.completedCount)
 
     /** 生成筛选按钮文案。 */
-    fun filterButtonText(filter: TaskCenterFilter): String =
-        TaskCenterText.filterButtonText(filter.label)
+    fun filterButtonText(filter: TaskCenterFilter): String = TaskCenterText.filterButtonText(filter.label)
 
     /** 生成头部提示文案。 */
-    fun headerHint(primary: String): String =
-        TaskCenterText.headerHint(primary)
+    fun headerHint(primary: String): String = TaskCenterText.headerHint(primary)
 
     /** 生成批量摘要文案。 */
-    fun batchSummary(filter: TaskCenterFilter, total: Int, failed: Int): String =
-        TaskCenterText.batchSummary(filter.label, total, failed)
+    fun batchSummary(filter: TaskCenterFilter, total: Int, failed: Int): String = TaskCenterText.batchSummary(filter.label, total, failed)
 
     /** 生成紧凑统计标题。 */
-    fun compactStatTitle(label: String, count: Int): String =
-        TaskCenterText.compactStatTitle(label, count)
+    fun compactStatTitle(label: String, count: Int): String = TaskCenterText.compactStatTitle(label, count)
 
     /** 生成空态面板提示。 */
-    fun emptyPanelHint(centerName: String): String =
-        TaskCenterText.emptyPanelHint(centerName)
+    fun emptyPanelHint(centerName: String): String = TaskCenterText.emptyPanelHint(centerName)
 
     /** 生成失败面板标题。 */
-    fun failurePanelTitle(centerName: String, failedCount: Int): String =
-        TaskCenterText.failurePanelTitle(centerName, failedCount)
+    fun failurePanelTitle(centerName: String, failedCount: Int): String = TaskCenterText.failurePanelTitle(centerName, failedCount)
 
     /** 生成失败面板描述。 */
-    fun failurePanelMessage(centerName: String): String =
-        TaskCenterText.FAILURE_MESSAGE
+    fun failurePanelMessage(centerName: String): String = TaskCenterText.FAILURE_MESSAGE
 
     /** 生成失败面板提示。 */
-    fun failurePanelHint(centerName: String): String =
-        TaskCenterText.failurePanelHint(centerName)
+    fun failurePanelHint(centerName: String): String = TaskCenterText.failurePanelHint(centerName)
 
     /** 生成批量动作摘要。 */
-    fun batchActionSummary(runnableCount: Int, failedCount: Int): String =
-        TaskCenterText.batchActionSummary(runnableCount, failedCount)
+    fun batchActionSummary(runnableCount: Int, failedCount: Int): String = TaskCenterText.batchActionSummary(runnableCount, failedCount)
 
     /** 生成列表区块标题。 */
-    fun sectionTitle(sectionName: String): String =
-        TaskCenterText.sectionTitle(sectionName)
+    fun sectionTitle(sectionName: String): String = TaskCenterText.sectionTitle(sectionName)
 
     /** 生成列表区块提示。 */
-    fun sectionHint(sectionName: String): String =
-        TaskCenterText.sectionHint(sectionName)
+    fun sectionHint(sectionName: String): String = TaskCenterText.sectionHint(sectionName)
 
     /** 生成扩展区标题。 */
-    fun extensionTitle(centerName: String, title: String): String =
-        TaskCenterText.extensionTitle(centerName, title)
+    fun extensionTitle(centerName: String, title: String): String = TaskCenterText.extensionTitle(centerName, title)
 
     /** 生成扩展区提示。 */
-    fun extensionHint(centerName: String, hint: String): String =
-        TaskCenterText.extensionHint(centerName, hint)
+    fun extensionHint(centerName: String, hint: String): String = TaskCenterText.extensionHint(centerName, hint)
 }

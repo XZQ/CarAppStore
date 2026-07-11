@@ -1,16 +1,39 @@
 package com.xzq.appstore.data.datasource.remote
 
+import com.xzq.appstore.common.grayscale.GrayscaleHeaderStore
+import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppInfo
 import com.xzq.appstore.data.model.UpgradeInfo
-import com.xzq.appstore.core.logger.AppLogger
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 
 class AppCatalogSourceTest {
+
+    @Test
+    fun `load 未配置灰度提供者时不注入灰度请求头`() = runBlocking {
+        val workDir = Files.createTempDirectory("catalog-source-default-grayscale").toFile()
+        val httpClient = RecordingHttpClient(AppCatalogHttpResponse(statusCode = 200, body = TEST_HTTP_RESPONSE))
+        val source = ResilientAppCatalogSource(
+            loader = FakeCatalogLoader(parsedCatalog = listOf(TEST_ITEM)),
+            endpointUrl = "https://example.com/catalog.json",
+            requestHeaders = mapOf("X-Client-Channel" to "carappstore-test"),
+            httpClient = httpClient,
+            cacheFile = File(workDir, "catalog.json"),
+            cacheMetadataFile = File(workDir, "catalog.meta.json"),
+            fallbackSource = FakeCatalogSource(listOf(FALLBACK_ITEM)),
+            logger = QuietLogger(),
+        )
+
+        source.load()
+
+        assertEquals("carappstore-test", httpClient.lastRequest?.headers?.get("X-Client-Channel"))
+        assertNull(httpClient.lastRequest?.headers?.get(GrayscaleHeaderStore.HEADER_NAME))
+    }
 
     @Test
     fun `load 在 HTTP 成功时返回远端目录并写入缓存`() = runBlocking {
@@ -21,12 +44,7 @@ class AppCatalogSourceTest {
             endpointUrl = "https://example.com/catalog.json",
             requestHeaders = emptyMap(),
             httpClient = FakeHttpClient(
-                AppCatalogHttpResponse(
-                    statusCode = 200,
-                    body = TEST_HTTP_RESPONSE,
-                    eTag = "etag-v1",
-                    lastModified = "Fri, 11 Apr 2026 09:00:00 GMT",
-                )
+                AppCatalogHttpResponse(statusCode = 200, body = TEST_HTTP_RESPONSE, eTag = "etag-v1", lastModified = "Fri, 11 Apr 2026 09:00:00 GMT")
             ),
             cacheFile = cacheFile,
             cacheMetadataFile = File(workDir, "catalog.meta.json"),
@@ -47,9 +65,7 @@ class AppCatalogSourceTest {
             writeText(TEST_CACHE_RESPONSE, Charsets.UTF_8)
         }
         val source = ResilientAppCatalogSource(
-            loader = FakeCatalogLoader(
-                parsedCatalogByText = mapOf(TEST_CACHE_RESPONSE to listOf(CACHE_ITEM)),
-            ),
+            loader = FakeCatalogLoader(parsedCatalogByText = mapOf(TEST_CACHE_RESPONSE to listOf(CACHE_ITEM))),
             endpointUrl = "https://example.com/catalog.json",
             requestHeaders = emptyMap(),
             httpClient = FailingHttpClient(),
@@ -93,24 +109,11 @@ class AppCatalogSourceTest {
             writeText(TEST_CACHE_RESPONSE, Charsets.UTF_8)
         }
         val cacheMetadataFile = File(workDir, "catalog.meta.json").apply {
-            AppCatalogCacheMetadataStore.write(
-                this,
-                AppCatalogCacheMetadata(
-                    eTag = "etag-v1",
-                    lastModified = "Fri, 11 Apr 2026 09:00:00 GMT",
-                )
-            )
+            AppCatalogCacheMetadataStore.write(this, AppCatalogCacheMetadata(eTag = "etag-v1", lastModified = "Fri, 11 Apr 2026 09:00:00 GMT"))
         }
-        val httpClient = RecordingHttpClient(
-            AppCatalogHttpResponse(
-                statusCode = 304,
-                notModified = true,
-            )
-        )
+        val httpClient = RecordingHttpClient(AppCatalogHttpResponse(statusCode = 304, notModified = true))
         val source = ResilientAppCatalogSource(
-            loader = FakeCatalogLoader(
-                parsedCatalogByText = mapOf(TEST_CACHE_RESPONSE to listOf(CACHE_ITEM)),
-            ),
+            loader = FakeCatalogLoader(parsedCatalogByText = mapOf(TEST_CACHE_RESPONSE to listOf(CACHE_ITEM))),
             endpointUrl = "https://example.com/catalog.json",
             requestHeaders = mapOf("X-Client-Channel" to "carappstore-test"),
             httpClient = httpClient,
@@ -137,9 +140,7 @@ class AppCatalogSourceTest {
         override fun loadFromResource(): List<RemoteCatalogItem> = parsedCatalog
 
         override fun parse(rawText: String): List<RemoteCatalogItem> {
-            return parsedCatalogByText[rawText]
-                ?: parsedCatalog.takeIf { rawText == TEST_HTTP_RESPONSE }
-                ?: error("unexpected raw text: $rawText")
+            return parsedCatalogByText[rawText] ?: parsedCatalog.takeIf { rawText == TEST_HTTP_RESPONSE } ?: error("unexpected raw text: $rawText")
         }
     }
 
@@ -198,13 +199,7 @@ class AppCatalogSourceTest {
         fun createItem(appId: String, name: String): RemoteCatalogItem {
             return RemoteCatalogItem(
                 appId = appId,
-                appInfo = AppInfo(
-                    appId = appId,
-                    packageName = "com.nio.$appId",
-                    name = name,
-                    description = "$name description",
-                    versionName = "1.0.0",
-                ),
+                appInfo = AppInfo(appId = appId, packageName = "com.nio.$appId", name = name, description = "$name description", versionName = "1.0.0"),
                 appDetail = AppDetail(
                     appId = appId,
                     packageName = "com.nio.$appId",
@@ -213,12 +208,7 @@ class AppCatalogSourceTest {
                     versionName = "1.0.0",
                     apkUrl = "",
                 ),
-                upgradeInfo = UpgradeInfo(
-                    appId = appId,
-                    latestVersion = "1.0.1",
-                    apkUrl = "",
-                    hasUpgrade = true,
-                ),
+                upgradeInfo = UpgradeInfo(appId = appId, latestVersion = "1.0.1", apkUrl = "", hasUpgrade = true),
             )
         }
     }

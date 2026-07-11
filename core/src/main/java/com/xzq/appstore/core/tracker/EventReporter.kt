@@ -6,10 +6,7 @@ package com.xzq.appstore.core.tracker
  * @param timestamp 事件发生的毫秒时间戳
  * @param payload 已清洗的事件文本，已去除换行符
  */
-data class TrackedEvent(
-    val timestamp: Long,
-    val payload: String,
-)
+data class TrackedEvent(val timestamp: Long, val payload: String)
 
 /**
  * 事件上报接缝：把本地落盘的事件上传到外部平台（埋点 / 监控 / 数据看板）。

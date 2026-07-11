@@ -1,7 +1,7 @@
 package com.xzq.appstore.data.datasource.remote
 
-import com.xzq.appstore.data.downloadenv.DownloadEnvironmentConfig
 import com.xzq.appstore.core.downloader.DownloadSourcePolicy
+import com.xzq.appstore.data.downloadenv.DownloadEnvironmentConfig
 
 data class DownloadSourceEntry(
     /** 稳定的应用标识。 */

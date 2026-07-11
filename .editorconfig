@@ -1,0 +1,25 @@
+root = true
+
+[*.{kt,kts}]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+max_line_length = 160
+ij_kotlin_right_margin = 160
+ij_kotlin_wrap_long_lines = true
+indent_style = space
+indent_size = 4
+continuation_indent_size = 4
+ij_kotlin_keep_line_breaks = false
+ij_kotlin_method_parameters_wrap = normal
+ij_kotlin_method_parameters_new_line_after_left_paren = false
+ij_kotlin_method_parameters_right_paren_on_new_line = false
+ij_kotlin_call_parameters_wrap = normal
+ij_kotlin_call_parameters_new_line_after_left_paren = false
+ij_kotlin_call_parameters_right_paren_on_new_line = false
+ij_kotlin_allow_trailing_comma = false
+ij_kotlin_allow_trailing_comma_on_call_site = false
+ij_kotlin_extends_list_wrap = normal
+ij_kotlin_assignment_wrap = normal
+ij_kotlin_method_call_chain_wrap = normal
+ij_kotlin_enum_constants_wrap = on_every_item

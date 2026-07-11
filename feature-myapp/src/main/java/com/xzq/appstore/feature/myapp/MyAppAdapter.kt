@@ -2,10 +2,10 @@ package com.xzq.appstore.feature.myapp
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import com.xzq.appstore.common.R
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.xzq.appstore.common.R
 import com.xzq.appstore.common.ui.AppImageLoader
 import com.xzq.appstore.common.ui.CarUiStyle
 import com.xzq.appstore.common.ui.applyTagStyle
@@ -29,7 +29,6 @@ class MyAppAdapter(
     }
 
     class MyAppViewHolder(
-        /** 我的应用列表项的 ViewBinding。 */
         private val binding: ItemMyAppBinding,
         /** 点击应用卡片时的回调。 */
         private val onItemClick: (AppViewData) -> Unit,
@@ -42,12 +41,7 @@ class MyAppAdapter(
             binding.tvAppName.text = item.name
             binding.tvState.applyTagStyle(CarUiStyle.tagStyle(item.stateText, item.statusTone))
             binding.tvDesc.text = binding.root.context.getString(R.string.adapter_myapp_current_version_format, item.versionName)
-            binding.tvAction.applyTagStyle(
-                CarUiStyle.tagStyle(
-                    CarUiStyle.actionStyle(item.primaryAction).text,
-                    item.statusTone,
-                ),
-            )
+            binding.tvAction.applyTagStyle(CarUiStyle.tagStyle(CarUiStyle.actionStyle(item.primaryAction).text, item.statusTone))
             binding.root.setOnClickListener { onItemClick(item) }
         }
 

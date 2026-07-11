@@ -30,14 +30,6 @@ class DetailViewModelFactory(
     @Suppress("UNCHECKED_CAST")
     /** 创建详情页 ViewModel。 */
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return DetailViewModel(
-            appManager,
-            downloadManager,
-            installManager,
-            upgradeManager,
-            stateCenter,
-            policyCenter,
-            eventTracker,
-        ) as T
+        return DetailViewModel(appManager, downloadManager, installManager, upgradeManager, stateCenter, policyCenter, eventTracker) as T
     }
 }

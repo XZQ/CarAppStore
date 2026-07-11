@@ -22,10 +22,7 @@ class AppCatalogCacheMetadataStoreTest {
     fun `write 后可以完整读取元数据`() {
         val workDir = Files.createTempDirectory("catalog-meta-write").toFile()
         val target = File(workDir, "catalog.meta.json")
-        val metadata = AppCatalogCacheMetadata(
-            eTag = "etag-v2",
-            lastModified = "Thu, 16 Apr 2026 11:30:00 GMT",
-        )
+        val metadata = AppCatalogCacheMetadata(eTag = "etag-v2", lastModified = "Thu, 16 Apr 2026 11:30:00 GMT")
 
         AppCatalogCacheMetadataStore.write(target, metadata)
         val result = AppCatalogCacheMetadataStore.read(target)

@@ -1,6 +1,6 @@
 package com.xzq.appstore.core.tracker
 
-import android.util.Log
+import com.xzq.appstore.core.logger.AppLogger
 import java.io.File
 
 /**
@@ -8,17 +8,26 @@ import java.io.File
  *
  * @param reporter 可选的事件上报通道，本地落盘后会把同一条事件转发给它；默认 NoOp
  */
-open class EventTracker(
-    private val reporter: EventReporter = NoOpEventReporter,
-) {
+open class EventTracker(private val reporter: EventReporter = NoOpEventReporter, protected val logger: AppLogger = AppLogger()) {
     /** 记录一次业务事件。 */
     open fun track(event: String) {
-        runCatching { Log.d("EventTracker", event) }
+        runCatching { logger.d(TAG, event) }
     }
 
     /** 由子类调用，把已清洗的事件转发给上报通道。 */
     protected fun forward(event: TrackedEvent) {
         runCatching { reporter.report(listOf(event)) }
+            .onSuccess { accepted ->
+                if (!accepted) {
+                    runCatching { logger.w(TAG, "reporter rejected event batch") }
+                }
+            }.onFailure { error ->
+                runCatching { logger.w(TAG, "failed to report event: ${error.message}", error) }
+            }
+    }
+
+    private companion object {
+        const val TAG = "EventTracker"
     }
 }
 
@@ -30,7 +39,8 @@ class FileEventTracker(
     private val eventLogFile: File,
     reporter: EventReporter = NoOpEventReporter,
     private val clock: () -> Long = System::currentTimeMillis,
-) : EventTracker(reporter) {
+    logger: AppLogger = AppLogger(),
+) : EventTracker(reporter, logger) {
     override fun track(event: String) {
         super.track(event)
         val safeEvent = event.replace('\n', ' ').replace('\r', ' ')
@@ -39,8 +49,12 @@ class FileEventTracker(
             eventLogFile.parentFile?.mkdirs()
             eventLogFile.appendText("$timestamp\t$safeEvent\n", Charsets.UTF_8)
         }.onFailure { error ->
-            Log.w("EventTracker", "failed to persist event: ${error.message}")
+            runCatching { logger.w(TAG, "failed to persist event: ${error.message}", error) }
         }
         forward(TrackedEvent(timestamp, safeEvent))
+    }
+
+    private companion object {
+        const val TAG = "EventTracker"
     }
 }

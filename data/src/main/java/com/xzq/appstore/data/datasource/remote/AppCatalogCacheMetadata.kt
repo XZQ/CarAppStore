@@ -19,9 +19,13 @@ data class AppCatalogCacheMetadata(
 object AppCatalogCacheMetadataStore {
     /** 从本地文件读取目录缓存元数据。 */
     fun read(file: File): AppCatalogCacheMetadata? {
-        if (!file.exists()) return null
+        if (!file.exists()) {
+            return null
+        }
         val rawText = file.readText(Charsets.UTF_8)
-        if (rawText.isBlank()) return null
+        if (rawText.isBlank()) {
+            return null
+        }
         val json = JSONObject(rawText)
         return AppCatalogCacheMetadata(
             eTag = json.optString(KEY_ETAG).takeIf { it.isNotBlank() },

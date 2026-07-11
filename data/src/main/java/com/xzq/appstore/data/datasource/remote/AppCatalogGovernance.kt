@@ -1,10 +1,7 @@
 package com.xzq.appstore.data.datasource.remote
 
 enum class CatalogListingState {
-    ACTIVE,
-    HIDDEN,
-    REMOVED,
-    ROLLBACK,
+    ACTIVE, HIDDEN, REMOVED, ROLLBACK,
 }
 
 data class AppCatalogGovernance(
@@ -15,10 +12,16 @@ data class AppCatalogGovernance(
     val rollbackVersion: String = "",
 ) {
     fun isVisible(appId: String, channel: String): Boolean {
-        if (listingState == CatalogListingState.HIDDEN || listingState == CatalogListingState.REMOVED) return false
+        if (listingState == CatalogListingState.HIDDEN || listingState == CatalogListingState.REMOVED) {
+            return false
+        }
         val normalizedChannel = channel.trim().lowercase()
-        if (allowedChannels.isNotEmpty() && normalizedChannel !in allowedChannels.map { it.trim().lowercase() }) return false
-        if (normalizedChannel in blockedChannels.map { it.trim().lowercase() }) return false
+        if (allowedChannels.isNotEmpty() && normalizedChannel !in allowedChannels.map { it.trim().lowercase() }) {
+            return false
+        }
+        if (normalizedChannel in blockedChannels.map { it.trim().lowercase() }) {
+            return false
+        }
         return rolloutBucket(appId) < rolloutPercent.coerceIn(0, FULL_ROLLOUT_PERCENT)
     }
 

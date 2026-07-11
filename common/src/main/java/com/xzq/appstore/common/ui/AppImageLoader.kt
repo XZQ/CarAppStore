@@ -23,11 +23,7 @@ object AppImageLoader {
      * @param source 图片地址，支持 asset:// / file:// / http(s):// / 本地绝对路径
      * @param fallbackView 失败或空地址时显示的兜底视图，通常为首字母 TextView
      */
-    fun load(
-        imageView: ImageView,
-        source: String,
-        fallbackView: TextView? = null,
-    ) {
+    fun load(imageView: ImageView, source: String, fallbackView: TextView? = null) {
         val normalized = source.trim()
         if (normalized.isBlank()) {
             showFallback(imageView, fallbackView)
@@ -52,10 +48,7 @@ object AppImageLoader {
         }
     }
 
-    private fun showFallback(
-        imageView: ImageView,
-        fallbackView: TextView?,
-    ) {
+    private fun showFallback(imageView: ImageView, fallbackView: TextView?) {
         imageView.setImageDrawable(null)
         imageView.visibility = View.GONE
         fallbackView?.visibility = View.VISIBLE

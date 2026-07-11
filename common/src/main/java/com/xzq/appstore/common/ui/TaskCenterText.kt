@@ -61,8 +61,7 @@ object TaskCenterText {
     fun actionHint(centerName: String, scope: String): String = ACTION_HINT_TEMPLATE.format(centerName, scope)
 
     /** 生成任务中心头部统计摘要。 */
-    fun centerSummary(centerName: String, visibleCount: Int, totalCount: Int): String =
-        CENTER_SUMMARY_TEMPLATE.format(centerName, visibleCount, totalCount)
+    fun centerSummary(centerName: String, visibleCount: Int, totalCount: Int): String = CENTER_SUMMARY_TEMPLATE.format(centerName, visibleCount, totalCount)
 
     /** 生成“全部为空”场景的标题。 */
     fun emptyTitle(centerName: String): String = centerName + EMPTY_SUFFIX
@@ -102,8 +101,7 @@ object TaskCenterText {
     ): String = STATS_LINE_TEMPLATE.format(prefix, active, STATS_DIVIDER, pending, STATS_DIVIDER, failed, STATS_DIVIDER, completed)
 
     /** 生成筛选按钮文案。 */
-    fun filterButtonText(filterLabel: String): String =
-        FILTER_BUTTON_PREFIX + filterLabel
+    fun filterButtonText(filterLabel: String): String = FILTER_BUTTON_PREFIX + filterLabel
 
     /** 生成头部提示文案。 */
     fun headerHint(primary: String): String = HEADER_HINT_TEMPLATE.format(primary)
@@ -112,8 +110,7 @@ object TaskCenterText {
     fun batchSummary(filterLabel: String, total: Int, failed: Int): String = BATCH_SUMMARY_TEMPLATE.format(filterLabel, total, failed)
 
     /** 生成紧凑统计标题。 */
-    fun compactStatTitle(label: String, count: Int): String =
-        "$label\n$count"
+    fun compactStatTitle(label: String, count: Int): String = "$label\n$count"
 
     /** 生成空态面板提示文案。 */
     fun emptyPanelHint(centerName: String): String = EMPTY_PANEL_HINT_TEMPLATE.format(centerName)
@@ -128,12 +125,10 @@ object TaskCenterText {
     fun batchActionSummary(runnableCount: Int, failedCount: Int): String = BATCH_ACTION_SUMMARY_TEMPLATE.format(runnableCount, failedCount)
 
     /** 生成列表区块标题。 */
-    fun sectionTitle(sectionName: String): String =
-        sectionName
+    fun sectionTitle(sectionName: String): String = sectionName
 
     /** 生成列表区块提示文案。 */
-    fun sectionHint(sectionName: String): String =
-        sectionName + SECTION_HINT_SUFFIX
+    fun sectionHint(sectionName: String): String = sectionName + SECTION_HINT_SUFFIX
 
     /** 生成扩展区标题。 */
     fun extensionTitle(centerName: String, title: String): String = EXTENSION_TITLE_TEMPLATE.format(centerName, title)

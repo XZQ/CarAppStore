@@ -6,7 +6,6 @@ import com.xzq.appstore.data.model.DownloadCenterPreferencesUiState
 import com.xzq.appstore.feature.downloadmanager.databinding.ViewDownloadCenterPreferencesBinding
 
 class DownloadCenterPreferencesController(
-    /** 下载中心偏好扩展区的 ViewBinding。 */
     private val binding: ViewDownloadCenterPreferencesBinding,
 ) : BaseFiveActionExtensionController<DownloadCenterPreferencesUiState>(
     setSummary = { binding.tvPreferenceSummary.apply { visibility = View.VISIBLE; text = it } },

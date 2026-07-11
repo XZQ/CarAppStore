@@ -42,58 +42,44 @@ class DetailViewModel(
     private var observePolicyJob: Job? = null
 
     /** 详情页与卡片共用的主动作分发器。 */
-    private val primaryActionExecutor =
-        AppPrimaryActionExecutor(
-            appManager = appManager,
-            downloadManager = downloadManager,
-            installManager = installManager,
-            upgradeManager = upgradeManager,
-            tracker = eventTracker,
-        )
+    private val primaryActionExecutor = AppPrimaryActionExecutor(
+        appManager = appManager,
+        downloadManager = downloadManager,
+        installManager = installManager,
+        upgradeManager = upgradeManager,
+        tracker = eventTracker,
+    )
 
     /** 加载指定应用的详情页数据，并订阅其运行态。重复调用会先取消上一次订阅，避免 collector 累积。 */
     fun load(appId: String) {
         currentAppId = appId
         observeStateJob?.cancel()
         observePolicyJob?.cancel()
-        observeStateJob =
-            stateCenter
-                .observe(appId)
-                .onEach { appState ->
-                    // 页面只消费已经归一化的状态文本、主按钮和进度，不自己做业务判断。
-                    _uiState.update {
-                        it.copy(
-                            stateText = appState.statusText,
-                            statusTone = CarUiStyle.resolveStatusTone(appState),
-                            primaryAction = appState.primaryAction,
-                            progress = appState.progress,
-                        )
-                    }
-                }.launchIn(viewModelScope)
-        observePolicyJob =
-            policyCenter
-                .observeSettings()
-                .onEach {
-                    if (::currentAppId.isInitialized) {
-                        _uiState.update {
-                            it.copy(
-                                policyPrompt = appManager.getPolicyPrompt(),
-                                interceptReason = computeInterceptReason(currentAppId),
-                            )
-                        }
-                    }
-                }.launchIn(viewModelScope)
+        observeStateJob = stateCenter.observe(appId).onEach { appState ->
+            // 页面只消费已经归一化的状态文本、主按钮和进度，不自己做业务判断。
+            _uiState.update {
+                it.copy(
+                    stateText = appState.statusText,
+                    statusTone = CarUiStyle.resolveStatusTone(appState),
+                    primaryAction = appState.primaryAction,
+                    progress = appState.progress,
+                )
+            }
+        }.launchIn(viewModelScope)
+        observePolicyJob = policyCenter.observeSettings().onEach {
+            if (::currentAppId.isInitialized) {
+                _uiState.update {
+                    it.copy(policyPrompt = appManager.getPolicyPrompt(), interceptReason = computeInterceptReason(currentAppId))
+                }
+            }
+        }.launchIn(viewModelScope)
         viewModelScope.launch { loadDetail(appId) }
     }
 
     /** 处理详情页主按钮点击。 */
     fun onPrimaryClick() {
         viewModelScope.launch {
-            primaryActionExecutor.execute(
-                appId = currentAppId,
-                action = _uiState.value.primaryAction,
-                packageName = _uiState.value.appDetail?.packageName,
-            )
+            primaryActionExecutor.execute(appId = currentAppId, action = _uiState.value.primaryAction, packageName = _uiState.value.appDetail?.packageName)
         }
     }
 
@@ -115,17 +101,11 @@ class DetailViewModel(
             }
         }.onFailure { throwable ->
             _uiState.update {
-                it.copy(
-                    appDetail = null,
-                    screenState = DetailScreenState.Error(throwable.message.orEmpty()),
-                    policyPrompt = "",
-                    interceptReason = "",
-                )
+                it.copy(appDetail = null, screenState = DetailScreenState.Error(throwable.message.orEmpty()), policyPrompt = "", interceptReason = "")
             }
         }
     }
 
     /** 计算当前应用是否被策略拦截下载，返回拦截原因文案（未拦截时为空）。 */
-    private fun computeInterceptReason(appId: String): String =
-        policyCenter.canDownload(appId).let { result -> if (!result.allow) result.reason else "" }
+    private fun computeInterceptReason(appId: String): String = policyCenter.canDownload(appId).let { result -> if (!result.allow) result.reason else "" }
 }

@@ -1,4 +1,5 @@
 package com.xzq.appstore.core.downloader
+
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -71,10 +72,7 @@ class DownloadStoreTest {
             )
         )
 
-        store.saveMeta(
-            taskId = "task-2",
-            meta = DownloadRemoteMeta(contentLength = 300, supportsRange = true),
-        )
+        store.saveMeta(taskId = "task-2", meta = DownloadRemoteMeta(contentLength = 300, supportsRange = true))
         store.saveSegments("task-2", segments)
 
         val savedSegments = store.readSegments("task-2")

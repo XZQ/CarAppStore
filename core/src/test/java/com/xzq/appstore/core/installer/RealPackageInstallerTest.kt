@@ -18,20 +18,11 @@ class RealPackageInstallerTest {
             writeBytes(TEST_APK_BYTES)
         }
         val sessionStore = InstallSessionStore(File(workingDir, "install-sessions.json"))
-        val installer = RealPackageInstaller(
-            sessionAdapter = PendingThenSuccessSessionAdapter(),
-            sessionStore = sessionStore,
-            fallbackInstaller = null,
-        )
+        val installer = RealPackageInstaller(sessionAdapter = PendingThenSuccessSessionAdapter(), sessionStore = sessionStore, fallbackInstaller = null)
         val events = mutableListOf<InstallEvent>()
 
         installer.install(
-            request = InstallRequest(
-                appId = "demo.app",
-                packageName = "com.demo.app",
-                targetVersion = TEST_TARGET_VERSION,
-                apkFile = apkFile,
-            ),
+            request = InstallRequest(appId = "demo.app", packageName = "com.demo.app", targetVersion = TEST_TARGET_VERSION, apkFile = apkFile),
             onEvent = { event -> events += event },
         )
 
@@ -54,20 +45,11 @@ class RealPackageInstallerTest {
             writeBytes(TEST_APK_BYTES)
         }
         val sessionStore = InstallSessionStore(File(workingDir, "install-sessions.json"))
-        val installer = RealPackageInstaller(
-            sessionAdapter = UnsupportedSessionAdapter(),
-            sessionStore = sessionStore,
-            fallbackInstaller = null,
-        )
+        val installer = RealPackageInstaller(sessionAdapter = UnsupportedSessionAdapter(), sessionStore = sessionStore, fallbackInstaller = null)
         val events = mutableListOf<InstallEvent>()
 
         installer.install(
-            request = InstallRequest(
-                appId = "demo.app",
-                packageName = "com.demo.app",
-                targetVersion = TEST_TARGET_VERSION,
-                apkFile = apkFile,
-            ),
+            request = InstallRequest(appId = "demo.app", packageName = "com.demo.app", targetVersion = TEST_TARGET_VERSION, apkFile = apkFile),
             onEvent = { event -> events += event },
         )
 
@@ -77,6 +59,22 @@ class RealPackageInstallerTest {
         assertEquals(InstallFailureCode.SESSION_NOT_SUPPORTED.displayText, failureEvent.message)
         assertTrue(events.none { it is InstallEvent.Success })
         assertTrue(sessionStore.readAll().isEmpty())
+    }
+
+    @Test
+    fun `install 在未知来源权限未授予时不创建系统会话`() = runBlocking {
+        val workingDir = Files.createTempDirectory("real-package-installer-permission-test").toFile()
+        val apkFile = File(workingDir, "demo.apk").apply { writeBytes(TEST_APK_BYTES) }
+        val installer = RealPackageInstaller(
+            sessionAdapter = PendingThenSuccessSessionAdapter(),
+            sessionStore = InstallSessionStore(File(workingDir, "install-sessions.json")),
+            permissionGateway = DeniedInstallPermissionGateway,
+        )
+        val events = mutableListOf<InstallEvent>()
+
+        installer.install(InstallRequest("demo.app", "com.demo.app", TEST_TARGET_VERSION, apkFile)) { events += it }
+
+        assertEquals(InstallFailureCode.PERMISSION_REQUIRED, (events.single() as InstallEvent.Failed).code)
     }
 
     private class PendingThenSuccessSessionAdapter : PackageInstallerSessionAdapter {
@@ -89,15 +87,8 @@ class RealPackageInstallerTest {
             sessionId: Int,
             onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
         ): InstallCommitResult {
-            onPendingUserAction(
-                InstallerText.SESSION_PENDING_USER_ACTION,
-                Intent("confirm.install"),
-            )
-            return InstallCommitResult(
-                success = true,
-                message = InstallerText.SESSION_COMMIT_SUCCESS,
-                installedPackageName = "com.demo.app",
-            )
+            onPendingUserAction(InstallerText.SESSION_PENDING_USER_ACTION, Intent("confirm.install"))
+            return InstallCommitResult(success = true, message = InstallerText.SESSION_COMMIT_SUCCESS, installedPackageName = "com.demo.app")
         }
 
         override fun supportsRealSession(): Boolean = true
@@ -115,6 +106,10 @@ class RealPackageInstallerTest {
         ): InstallCommitResult = error(UNEXPECTED_SESSION_CALL)
 
         override fun supportsRealSession(): Boolean = false
+    }
+
+    private object DeniedInstallPermissionGateway : InstallPermissionGateway {
+        override fun canRequestInstalls(): Boolean = false
     }
 
     private companion object {

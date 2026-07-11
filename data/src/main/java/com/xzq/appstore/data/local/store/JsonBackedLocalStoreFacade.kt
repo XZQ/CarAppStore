@@ -1,12 +1,12 @@
 package com.xzq.appstore.data.local.store
 
+import com.xzq.appstore.core.storage.VersionedJsonStore
 import com.xzq.appstore.data.local.entity.DownloadArtifactRefEntity
 import com.xzq.appstore.data.local.entity.DownloadSegmentEntity
 import com.xzq.appstore.data.local.entity.DownloadTaskEntity
 import com.xzq.appstore.data.local.entity.InstallSessionEntity
 import com.xzq.appstore.data.local.entity.InstalledAppEntity
 import com.xzq.appstore.data.local.entity.SettingsEntity
-import com.xzq.appstore.core.storage.VersionedJsonStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -85,9 +85,7 @@ class JsonBackedLocalStoreFacade(
 
     /** 读取全部下载任务记录，并按更新时间倒序输出。 */
     override fun getAllDownloadTasks(): List<DownloadTaskEntity> {
-        return readMap("downloadTasks").values
-            .map { it.toDownloadTaskEntity() }
-            .sortedByDescending { it.updatedAt }
+        return readMap("downloadTasks").values.map { it.toDownloadTaskEntity() }.sortedByDescending { it.updatedAt }
     }
 
     /** 删除下载任务时，同时清理其分片记录。 */
@@ -198,23 +196,21 @@ class JsonBackedLocalStoreFacade(
 
     /** 读取全部安装会话记录，并按更新时间倒序输出。 */
     override fun getInstallSessions(): List<InstallSessionEntity> {
-        return readMap("installSessions").values
-            .map { value ->
-                InstallSessionEntity(
-                    sessionId = value.optInt("sessionId"),
-                    appId = value.optString("appId"),
-                    packageName = value.optString("packageName"),
-                    apkPath = value.optString("apkPath"),
-                    targetVersion = value.optString("targetVersion"),
-                    status = value.optString("status"),
-                    progress = value.optInt("progress"),
-                    failureCode = value.optString("failureCode").ifBlank { null },
-                    failureMessage = value.optString("failureMessage").ifBlank { null },
-                    createdAt = value.optLong("createdAt"),
-                    updatedAt = value.optLong("updatedAt"),
-                )
-            }
-            .sortedByDescending { it.updatedAt }
+        return readMap("installSessions").values.map { value ->
+            InstallSessionEntity(
+                sessionId = value.optInt("sessionId"),
+                appId = value.optString("appId"),
+                packageName = value.optString("packageName"),
+                apkPath = value.optString("apkPath"),
+                targetVersion = value.optString("targetVersion"),
+                status = value.optString("status"),
+                progress = value.optInt("progress"),
+                failureCode = value.optString("failureCode").ifBlank { null },
+                failureMessage = value.optString("failureMessage").ifBlank { null },
+                createdAt = value.optLong("createdAt"),
+                updatedAt = value.optLong("updatedAt"),
+            )
+        }.sortedByDescending { it.updatedAt }
     }
 
     /** 保存设置项。 */
@@ -231,11 +227,7 @@ class JsonBackedLocalStoreFacade(
     /** 读取指定设置项。 */
     override fun getSetting(key: String): SettingsEntity? {
         val value = readMap("settings")[key] ?: return null
-        return SettingsEntity(
-            key = value.optString("key"),
-            value = value.optString("value"),
-            updatedAt = value.optLong("updatedAt"),
-        )
+        return SettingsEntity(key = value.optString("key"), value = value.optString("value"), updatedAt = value.optLong("updatedAt"))
     }
 
     /** 删除指定设置项。 */
@@ -245,15 +237,9 @@ class JsonBackedLocalStoreFacade(
 
     /** 读取全部设置项，并按更新时间倒序输出。 */
     override fun getAllSettings(): List<SettingsEntity> {
-        return readMap("settings").values
-            .map { value ->
-                SettingsEntity(
-                    key = value.optString("key"),
-                    value = value.optString("value"),
-                    updatedAt = value.optLong("updatedAt"),
-                )
-            }
-            .sortedByDescending { it.updatedAt }
+        return readMap("settings").values.map { value ->
+            SettingsEntity(key = value.optString("key"), value = value.optString("value"), updatedAt = value.optLong("updatedAt"))
+        }.sortedByDescending { it.updatedAt }
     }
 
     /** 读取结构化 store 的当前根节点。 */

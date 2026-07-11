@@ -9,20 +9,31 @@ package com.xzq.appstore.common.navigation
 interface MainNavigator {
     /** 切换到首页。 */
     fun openHome()
+
     /** 切换到搜索页。 */
     fun openSearch()
+
     /** 切换到下载中心。 */
     fun openDownloadManager()
+
     /** 切换到升级中心。 */
     fun openUpgradeManager()
+
     /** 切换到安装中心。 */
     fun openInstallManager()
+
     /** 切换到开发设置页。 */
     fun openDeveloperSettings()
+
     /** 打开指定应用详情页。 */
     fun openDetail(appId: String)
+
     /** 切换到我的应用页。 */
     fun openMyApps()
+
     /** 更新当前宿主页面标题。 */
     fun updateTitle(title: String)
+
+    /** 重新创建应用任务，使新的全局依赖容器从最新环境配置启动。 */
+    fun restartApplication()
 }

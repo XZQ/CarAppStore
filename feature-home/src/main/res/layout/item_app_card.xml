@@ -136,7 +136,7 @@
                 android:layout_marginStart="@dimen/spacing_10dp"
                 android:layout_weight="1"
                 android:background="@drawable/bg_secondary_button"
-                android:text="&#x8be6;&#x60c5;"
+                android:text="@string/static_home_detail"
                 android:textAllCaps="false"
                 android:textColor="@color/car_text_primary"
                 android:textSize="@dimen/text_sm_13"

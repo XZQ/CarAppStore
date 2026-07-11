@@ -29,13 +29,12 @@ class MyAppViewModel(
 
     /** 监听页面全局状态变化，并在变化时刷新列表。 */
     private fun observeStateChanges() {
-        if (observeJob != null) return
-        observeJob =
-            stateCenter
-                .observeAll()
-                .onEach {
-                    refreshApps()
-                }.launchIn(viewModelScope)
+        if (observeJob != null) {
+            return
+        }
+        observeJob = stateCenter.observeAll().onEach {
+            refreshApps()
+        }.launchIn(viewModelScope)
     }
 
     /** 重新加载“我的应用”列表。 */
@@ -45,16 +44,9 @@ class MyAppViewModel(
         }
         runCatching {
             val apps = appManager.getMyApps()
-            MyAppUiState(
-                apps = apps,
-                screenState = if (apps.isEmpty()) MyAppScreenState.Empty else MyAppScreenState.Content,
-            )
-        }.onSuccess { _uiState.value = it }
-            .onFailure { throwable ->
-                _uiState.value =
-                    MyAppUiState(
-                        screenState = MyAppScreenState.Error(throwable.message.orEmpty()),
-                    )
-            }
+            MyAppUiState(apps = apps, screenState = if (apps.isEmpty()) MyAppScreenState.Empty else MyAppScreenState.Content)
+        }.onSuccess { _uiState.value = it }.onFailure { throwable ->
+            _uiState.value = MyAppUiState(screenState = MyAppScreenState.Error(throwable.message.orEmpty()))
+        }
     }
 }

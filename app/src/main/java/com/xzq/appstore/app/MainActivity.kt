@@ -1,5 +1,6 @@
 package com.xzq.appstore.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -13,6 +14,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.xzq.appstore.BuildConfig
 import com.xzq.appstore.R
 import com.xzq.appstore.common.base.AppContainerProvider
+import com.xzq.appstore.common.navigation.MainNavigator
 import com.xzq.appstore.data.model.TaskCenterStats
 import com.xzq.appstore.databinding.ActivityMainBinding
 import com.xzq.appstore.feature.debug.DeveloperSettingsFragment
@@ -25,6 +27,7 @@ import com.xzq.appstore.feature.search.CatalogPage
 import com.xzq.appstore.feature.search.SearchFragment
 import com.xzq.appstore.feature.upgrade.UpgradeFragment
 import kotlinx.coroutines.launch
+import com.xzq.appstore.common.R as CommonR
 
 /**
  * MainActivity 是当前 app 壳层的主页面。
@@ -38,10 +41,7 @@ import kotlinx.coroutines.launch
  * 只在桌面壳层真实存在；本类用 [optionalButton] / [optionalTextView] 做 nullable 查找，
  * 避免在 phone 布局里塞 0×0 占位视图（旧实现会导致按钮被设点击事件但用户看不见）。
  */
-class MainActivity :
-    AppCompatActivity(),
-    com.xzq.appstore.common.navigation.MainNavigator {
-    /** 主页面的 ViewBinding。 */
+class MainActivity : AppCompatActivity(), MainNavigator {
     private lateinit var binding: ActivityMainBinding
 
     /** 从应用壳层获取的共享服务入口。 */
@@ -67,14 +67,20 @@ class MainActivity :
         binding.tvTitle.text = title
     }
 
+    /** 以新的 AppContainer 重启根任务，确保页面 ViewModel 不再持有旧环境依赖。 */
+    override fun restartApplication() {
+        (application as App).reloadAppContainer()
+        startActivity(
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            },
+        )
+        finish()
+    }
+
     /** 打开首页。 */
     override fun openHome() {
-        navigateTo(
-            fragment = HomeFragment.newInstance(),
-            titleRes = R.string.title_home,
-            selectedButton = binding.btnNavHome,
-            addToBackStack = false,
-        )
+        navigateTo(fragment = HomeFragment.newInstance(), titleRes = R.string.title_home, selectedButton = binding.btnNavHome, addToBackStack = false)
     }
 
     /** 打开搜索页。 */
@@ -86,15 +92,8 @@ class MainActivity :
         openCatalog(CatalogPage.Game, binding.btnNavSearch)
     }
 
-    private fun openCatalog(
-        page: CatalogPage,
-        selectedButton: Button?,
-    ) {
-        navigateTo(
-            fragment = SearchFragment.newInstance(page),
-            title = page.title,
-            selectedButton = selectedButton,
-        )
+    private fun openCatalog(page: CatalogPage, selectedButton: Button?) {
+        navigateTo(fragment = SearchFragment.newInstance(page), title = page.title, selectedButton = selectedButton)
     }
 
     /** 打开下载中心。 */
@@ -108,11 +107,7 @@ class MainActivity :
 
     /** 打开升级中心。 */
     override fun openUpgradeManager() {
-        navigateTo(
-            fragment = UpgradeFragment.newInstance(),
-            titleRes = R.string.title_upgrade,
-            selectedButton = optionalButton(R.id.btnNavUpgrade),
-        )
+        navigateTo(fragment = UpgradeFragment.newInstance(), titleRes = R.string.title_upgrade, selectedButton = optionalButton(R.id.btnNavUpgrade))
     }
 
     /** 打开安装中心。 */
@@ -135,20 +130,12 @@ class MainActivity :
 
     /** 打开应用详情页。 */
     override fun openDetail(appId: String) {
-        navigateTo(
-            fragment = DetailFragment.newInstance(appId),
-            titleRes = R.string.title_detail,
-            selectedButton = null,
-        )
+        navigateTo(fragment = DetailFragment.newInstance(appId), titleRes = R.string.title_detail, selectedButton = null)
     }
 
     /** 打开“我的应用”页面。 */
     override fun openMyApps() {
-        navigateTo(
-            fragment = MyAppFragment.newInstance(),
-            titleRes = R.string.title_my_apps,
-            selectedButton = binding.btnNavMyApps,
-        )
+        navigateTo(fragment = MyAppFragment.newInstance(), titleRes = R.string.title_my_apps, selectedButton = binding.btnNavMyApps)
     }
 
     /**
@@ -210,33 +197,24 @@ class MainActivity :
         val downloadStats = appServices.appManager.getDownloadTaskStats()
         val installStats = appServices.appManager.getInstallTaskStats()
         val upgradeStats = appServices.appManager.getUpgradeTaskStats()
-        titleView.text = getString(com.xzq.appstore.common.R.string.ui_task_summary)
+        titleView.text = getString(CommonR.string.ui_task_summary)
         bodyView.text = buildTaskSummaryBody(downloadStats, installStats, upgradeStats)
     }
 
-    private fun buildTaskSummaryBody(
-        downloadStats: TaskCenterStats,
-        installStats: TaskCenterStats,
-        upgradeStats: TaskCenterStats,
-    ): String =
-        listOf(
-            formatTaskStats(getString(R.string.task_label_download), downloadStats),
-            formatTaskStats(getString(R.string.task_label_install), installStats),
-            formatTaskStats(getString(R.string.task_label_upgrade), upgradeStats),
-        ).joinToString("\n")
+    private fun buildTaskSummaryBody(downloadStats: TaskCenterStats, installStats: TaskCenterStats, upgradeStats: TaskCenterStats): String = listOf(
+        formatTaskStats(getString(R.string.task_label_download), downloadStats),
+        formatTaskStats(getString(R.string.task_label_install), installStats),
+        formatTaskStats(getString(R.string.task_label_upgrade), upgradeStats),
+    ).joinToString("\n")
 
-    private fun formatTaskStats(
-        label: String,
-        stats: TaskCenterStats,
-    ): String =
-        getString(
-            R.string.task_summary_line_format,
-            label,
-            stats.activeCount,
-            stats.pendingCount,
-            stats.failedCount,
-            stats.completedCount,
-        )
+    private fun formatTaskStats(label: String, stats: TaskCenterStats): String = getString(
+        R.string.task_summary_line_format,
+        label,
+        stats.activeCount,
+        stats.pendingCount,
+        stats.failedCount,
+        stats.completedCount,
+    )
 
     /**
      * 统一进行页面切换。
@@ -246,34 +224,16 @@ class MainActivity :
      * @param selectedButton 当前应高亮的导航按钮，可为空
      * @param addToBackStack 是否加入返回栈
      */
-    private fun navigateTo(
-        fragment: Fragment,
-        @StringRes titleRes: Int,
-        selectedButton: Button?,
-        addToBackStack: Boolean = true,
-    ) {
-        navigateTo(
-            fragment = fragment,
-            title = getString(titleRes),
-            selectedButton = selectedButton,
-            addToBackStack = addToBackStack,
-        )
+    private fun navigateTo(fragment: Fragment, @StringRes titleRes: Int, selectedButton: Button?, addToBackStack: Boolean = true) {
+        navigateTo(fragment = fragment, title = getString(titleRes), selectedButton = selectedButton, addToBackStack = addToBackStack)
     }
 
-    private fun navigateTo(
-        fragment: Fragment,
-        title: String,
-        selectedButton: Button?,
-        addToBackStack: Boolean = true,
-    ) {
-        supportFragmentManager
-            .beginTransaction()
-            .replace(R.id.fragmentContainer, fragment)
-            .apply {
-                if (addToBackStack) {
-                    addToBackStack(null)
-                }
-            }.commit()
+    private fun navigateTo(fragment: Fragment, title: String, selectedButton: Button?, addToBackStack: Boolean = true) {
+        supportFragmentManager.beginTransaction().replace(R.id.fragmentContainer, fragment).apply {
+            if (addToBackStack) {
+                addToBackStack(null)
+            }
+        }.commit()
 
         updateTitle(title)
         selectNav(selectedButton)
@@ -292,18 +252,17 @@ class MainActivity :
      * 壳层只维护一级导航按钮的显隐与选中，不感知业务状态；桌面专属按钮不存在时跳过。
      */
     private fun selectNav(selected: Button?) {
-        val ids =
-            listOf(
-                R.id.btnNavHome,
-                R.id.btnNavSearch,
-                R.id.btnNavDownload,
-                R.id.btnNavUpgrade,
-                R.id.btnNavInstall,
-                R.id.btnNavEssential,
-                R.id.btnNavMyApps,
-                R.id.btnNavDebug,
-                R.id.btnNavDesktopDownload,
-            )
+        val ids = listOf(
+            R.id.btnNavHome,
+            R.id.btnNavSearch,
+            R.id.btnNavDownload,
+            R.id.btnNavUpgrade,
+            R.id.btnNavInstall,
+            R.id.btnNavEssential,
+            R.id.btnNavMyApps,
+            R.id.btnNavDebug,
+            R.id.btnNavDesktopDownload,
+        )
         ids.forEach { id ->
             val button = optionalButton(id) ?: return@forEach
             button.isSelected = button == selected

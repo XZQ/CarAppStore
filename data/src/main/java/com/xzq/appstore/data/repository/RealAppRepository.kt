@@ -25,62 +25,52 @@ class RealAppRepository(
     private val logger: AppLogger = AppLogger(),
 ) : AppRepository {
     /** 获取首页应用列表，远端失败时降级到本地已安装快照，避免页面直接报错。 */
-    override suspend fun getHomeApps(): List<AppInfo> =
-        runCatching { remote.getHomeApps() }
-            .onFailure { logger.d(TAG, "getHomeApps remote failed: ${it.message}, fallback to local") }
-            .getOrElse { local.getInstalledApps().map { it.toAppInfo() } }
+    override suspend fun getHomeApps(): List<AppInfo> = runCatching { remote.getHomeApps() }
+        .onFailure { logger.d(TAG, "getHomeApps remote failed: ${it.message}, fallback to local") }
+        .getOrElse { local.getInstalledApps().map { it.toAppInfo() } }
 
     override suspend fun getRecentlyOpenedPackages(): List<String> = local.getRecentlyOpenedPackages()
 
     /** 获取指定应用详情，远端失败时尝试用本地已安装快照兜底，仍失败则抛原始异常。 */
-    override suspend fun getAppDetail(appId: String): AppDetail =
-        runCatching { remote.getAppDetail(appId) }
-            .getOrElse { throwable ->
-                logger.d(TAG, "getAppDetail remote failed: ${throwable.message}, fallback to local")
-                local.getInstalledApps().firstOrNull { it.appId == appId }?.toAppDetail()
-                    ?: throw throwable
-            }
+    override suspend fun getAppDetail(appId: String): AppDetail = runCatching { remote.getAppDetail(appId) }.getOrElse { throwable ->
+        logger.d(TAG, "getAppDetail remote failed: ${throwable.message}, fallback to local")
+        local.getInstalledApps().firstOrNull { it.appId == appId }?.toAppDetail() ?: throw throwable
+    }
 
-    /** 获取已安装应用列表，本地镜像直接返回；如需系统实查请通过 markInstalled 维护。 */
-    override suspend fun getInstalledApps(): List<InstalledApp> = local.getInstalledApps()
+    /** 获取已安装应用列表，以 PackageManager 为真相，本地镜像只在目录不可用时兜底。 */
+    override suspend fun getInstalledApps(): List<InstalledApp> {
+        val catalog = runCatching { remote.getHomeApps() }.getOrElse { return local.getInstalledApps() }
+        val catalogAppIds = catalog.associateBy { it.packageName }
+        return system.queryInstalledApps(catalogAppIds.keys).map { installed ->
+            val catalogApp = catalogAppIds[installed.packageName]
+            installed.copy(appId = catalogApp?.appId ?: installed.appId, name = catalogApp?.name ?: installed.name)
+        }
+    }
 
     /** 将指定应用标记为已安装，远端详情不可达时用本地 staged 信息兜底，避免安装事实丢失。 */
     override suspend fun markInstalled(appId: String) {
         val stagedVersion = local.consumeStagedUpgradeVersion(appId)
-        val detail =
-            runCatching { remote.getAppDetail(appId) }
-                .onFailure { logger.d(TAG, "markInstalled remote failed: ${it.message}, fallback to local") }
-                .getOrNull()
+        val detail = runCatching { remote.getAppDetail(appId) }
+            .onFailure { logger.d(TAG, "markInstalled remote failed: ${it.message}, fallback to local") }
+            .getOrNull()
         if (detail == null) {
             // 远端不可达时仅用 appId 与 staged 版本写入安装事实。
-            local.saveInstalledApp(
-                InstalledApp(
-                    appId = appId,
-                    packageName = appId,
-                    name = appId,
-                    versionName = stagedVersion ?: "",
-                ),
-            )
+            local.saveInstalledApp(InstalledApp(appId = appId, packageName = appId, name = appId, versionName = stagedVersion ?: ""))
             return
         }
         local.saveInstalledApp(
-            InstalledApp(
-                appId = detail.appId,
-                packageName = detail.packageName,
-                name = detail.name,
-                versionName = stagedVersion ?: detail.versionName,
-            ),
+            InstalledApp(appId = detail.appId, packageName = detail.packageName, name = detail.name, versionName = stagedVersion ?: detail.versionName),
         )
     }
 
-    /** 判断指定应用是否已安装。 */
-    override suspend fun isInstalled(appId: String): Boolean = local.isInstalled(appId)
+    /** 判断指定应用是否已安装，优先使用系统包管理器而不是本地镜像。 */
+    override suspend fun isInstalled(appId: String): Boolean {
+        val detail = runCatching { remote.getAppDetail(appId) }.getOrNull()
+        return if (detail != null) system.isPackageInstalled(detail.packageName) else local.isInstalled(appId)
+    }
 
     /** 保存已下载 APK 路径。 */
-    override suspend fun saveDownloadedApk(
-        appId: String,
-        apkPath: String,
-    ) {
+    override suspend fun saveDownloadedApk(appId: String, apkPath: String) {
         local.saveDownloadedApk(appId, apkPath)
     }
 
@@ -96,10 +86,7 @@ class RealAppRepository(
     override suspend fun getUpgradeInfo(appId: String): UpgradeInfo = remote.getUpgradeInfo(appId)
 
     /** 保存 staged upgrade 目标版本。 */
-    override suspend fun stageUpgrade(
-        appId: String,
-        versionName: String,
-    ) {
+    override suspend fun stageUpgrade(appId: String, versionName: String) {
         local.stageUpgradeVersion(appId, versionName)
     }
 
@@ -126,10 +113,7 @@ class RealAppRepository(
     override suspend fun clearCompletedDownloadTasks(): Int = local.clearCompletedDownloadTasks()
 
     /** 保存指定应用的下载分片记录。 */
-    override suspend fun saveDownloadSegments(
-        appId: String,
-        segments: List<DownloadSegmentRecord>,
-    ) {
+    override suspend fun saveDownloadSegments(appId: String, segments: List<DownloadSegmentRecord>) {
         local.saveDownloadSegments(appId, segments)
     }
 
@@ -158,25 +142,17 @@ class RealAppRepository(
     }
 
     /** InstalledApp → AppInfo 的本地兜底映射，仅用于远端不可达场景。 */
-    private fun InstalledApp.toAppInfo(): AppInfo =
-        AppInfo(
-            appId = appId,
-            packageName = packageName,
-            name = name,
-            description = "",
-            versionName = versionName,
-        )
+    private fun InstalledApp.toAppInfo(): AppInfo = AppInfo(appId = appId, packageName = packageName, name = name, description = "", versionName = versionName)
 
     /** InstalledApp → AppDetail 的本地兜底映射，仅含最小可用字段。 */
-    private fun InstalledApp.toAppDetail(): AppDetail =
-        AppDetail(
-            appId = appId,
-            packageName = packageName,
-            name = name,
-            description = "",
-            versionName = versionName,
-            apkUrl = "",
-        )
+    private fun InstalledApp.toAppDetail(): AppDetail = AppDetail(
+        appId = appId,
+        packageName = packageName,
+        name = name,
+        description = "",
+        versionName = versionName,
+        apkUrl = "",
+    )
 
     private companion object {
         private const val TAG = "RealAppRepository"

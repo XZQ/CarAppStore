@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import com.xzq.appstore.data.model.InstalledApp
 
 class AppSystemDataSource(
@@ -46,10 +45,7 @@ class AppSystemDataSource(
     fun getPackageInfoFromApk(apkPath: String): ApkPackageInfo? {
         return try {
             val info = context.packageManager.getPackageArchiveInfo(apkPath, 0) ?: return null
-            ApkPackageInfo(
-                packageName = info.packageName,
-                versionName = info.versionName,
-            )
+            ApkPackageInfo(packageName = info.packageName, versionName = info.versionName)
         } catch (_: Exception) {
             null
         }
@@ -62,12 +58,7 @@ class AppSystemDataSource(
                 val info = context.packageManager.getPackageInfo(packageName, 0)
                 val appInfo = info.applicationInfo
                 val name = context.packageManager.getApplicationLabel(appInfo).toString()
-                InstalledApp(
-                    appId = packageName,
-                    packageName = packageName,
-                    name = name,
-                    versionName = info.versionName,
-                )
+                InstalledApp(appId = packageName, packageName = packageName, name = name, versionName = info.versionName)
             } catch (_: PackageManager.NameNotFoundException) {
                 null
             }

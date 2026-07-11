@@ -10,10 +10,10 @@ import androidx.recyclerview.widget.DiffUtil
  */
 abstract class AppIdDiffCallback<T : Any>(
     private val idOf: (T) -> String,
+    /** 由具体数据类型定义内容比较规则，避免泛型层错误假定 equals 语义。 */
+    private val contentsSame: (T, T) -> Boolean,
 ) : DiffUtil.ItemCallback<T>() {
-    final override fun areItemsTheSame(oldItem: T, newItem: T): Boolean =
-        idOf(oldItem) == idOf(newItem)
+    final override fun areItemsTheSame(oldItem: T, newItem: T): Boolean = idOf(oldItem) == idOf(newItem)
 
-    final override fun areContentsTheSame(oldItem: T, newItem: T): Boolean =
-        oldItem == newItem
+    final override fun areContentsTheSame(oldItem: T, newItem: T): Boolean = contentsSame(oldItem, newItem)
 }

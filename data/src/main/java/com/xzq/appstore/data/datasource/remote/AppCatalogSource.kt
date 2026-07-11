@@ -44,39 +44,46 @@ class ResilientAppCatalogSource(
     /** 资源目录兜底源。 */
     private val fallbackSource: AppCatalogSource,
     /** 实时提供灰度头配置，由调用方从共享存储读取。 */
-    private val grayscaleHeaderProvider: () -> GrayscaleHeaderStore.GrayscaleHeaderConfig,
+    private val grayscaleHeaderProvider: () -> GrayscaleHeaderStore.GrayscaleHeaderConfig = {
+        GrayscaleHeaderStore.GrayscaleHeaderConfig(enabled = false, tag = "")
+    },
     /** 日志入口。 */
     private val logger: AppLogger = AppLogger(),
 ) : AppCatalogSource {
     /** 加载商店目录。 */
     override suspend fun load(): List<RemoteCatalogItem> {
         val httpCatalog = loadFromHttp()
-        if (httpCatalog != null) return httpCatalog
+        if (httpCatalog != null) {
+            return httpCatalog
+        }
 
         val cacheCatalog = loadFromCache()
-        if (cacheCatalog != null) return cacheCatalog
+        if (cacheCatalog != null) {
+            return cacheCatalog
+        }
 
         return fallbackSource.load()
     }
 
     /** 尝试通过 HTTP 获取目录。 */
     private suspend fun loadFromHttp(): List<RemoteCatalogItem>? {
-        if (endpointUrl.isNullOrBlank()) return null
+        if (endpointUrl.isNullOrBlank()) {
+            return null
+        }
         return runCatching {
             val cachedMetadata = cacheMetadataFile?.let(AppCatalogCacheMetadataStore::read)
             // 实时读取开发者设置的灰度头，启用且标识非空时追加到目录请求头，
             // 让后端按 rollout 过滤可见应用；读取失败（如上下文异常）则降级为不带灰度头。
             val grayscaleHeader = runCatching { grayscaleHeaderProvider() }.getOrNull()?.let(GrayscaleHeaderStore::toHeader)
             val effectiveHeaders = if (grayscaleHeader != null) requestHeaders + grayscaleHeader else requestHeaders
-            val response =
-                httpClient.fetch(
-                    AppCatalogHttpRequest(
-                        endpointUrl = requireNotNull(endpointUrl),
-                        headers = effectiveHeaders,
-                        eTag = cachedMetadata?.eTag,
-                        lastModified = cachedMetadata?.lastModified,
-                    ),
-                )
+            val response = httpClient.fetch(
+                AppCatalogHttpRequest(
+                    endpointUrl = requireNotNull(endpointUrl),
+                    headers = effectiveHeaders,
+                    eTag = cachedMetadata?.eTag,
+                    lastModified = cachedMetadata?.lastModified,
+                ),
+            )
             if (response.notModified) {
                 // 304 响应可能携带更新后的 ETag/Last-Modified，刷新 metadata 避免下次仍用旧值
                 // 陷入"304 永远命中"循环。
@@ -85,13 +92,7 @@ class ResilientAppCatalogSource(
                 if (refreshedEtag != cachedMetadata?.eTag || refreshedLastModified != cachedMetadata?.lastModified) {
                     withContext(Dispatchers.IO) {
                         cacheMetadataFile?.let {
-                            AppCatalogCacheMetadataStore.write(
-                                it,
-                                AppCatalogCacheMetadata(
-                                    eTag = refreshedEtag,
-                                    lastModified = refreshedLastModified,
-                                ),
-                            )
+                            AppCatalogCacheMetadataStore.write(it, AppCatalogCacheMetadata(eTag = refreshedEtag, lastModified = refreshedLastModified))
                         }
                     }
                 }
@@ -105,13 +106,7 @@ class ResilientAppCatalogSource(
                     writeText(responseText, Charsets.UTF_8)
                 }
                 cacheMetadataFile?.let {
-                    AppCatalogCacheMetadataStore.write(
-                        it,
-                        AppCatalogCacheMetadata(
-                            eTag = response.eTag,
-                            lastModified = response.lastModified,
-                        ),
-                    )
+                    AppCatalogCacheMetadataStore.write(it, AppCatalogCacheMetadata(eTag = response.eTag, lastModified = response.lastModified))
                 }
             }
             catalog

@@ -16,7 +16,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="热门游戏"
+            android:text="@string/static_home_section_games"
             android:textColor="@color/car_text_primary"
             android:textSize="@dimen/text_lg"
             android:textStyle="bold" />
@@ -25,7 +25,7 @@
             android:id="@+id/tvGamesMore"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="查看更多"
+            android:text="@string/static_home_view_more"
             android:textColor="@color/car_accent"
             android:textSize="@dimen/text_sm" />
     </LinearLayout>

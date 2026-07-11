@@ -4,8 +4,8 @@ import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppViewData
 import com.xzq.appstore.data.model.DownloadTaskViewData
 import com.xzq.appstore.data.model.InstallTaskViewData
-import com.xzq.appstore.data.model.UpgradeTaskViewData
 import com.xzq.appstore.data.model.TaskCenterStats
+import com.xzq.appstore.data.model.UpgradeTaskViewData
 
 interface AppManager {
     /** 获取首页应用卡片列表。 */

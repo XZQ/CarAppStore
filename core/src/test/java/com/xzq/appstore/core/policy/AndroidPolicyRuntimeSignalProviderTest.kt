@@ -23,11 +23,7 @@ class AndroidPolicyRuntimeSignalProviderTest {
     fun `init registers observers without crashing`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val provider =
-            AndroidPolicyRuntimeSignalProvider(
-                context = context,
-                vehicleStateSignalProvider = StaticVehicleStateSignalProvider(),
-            )
+        val provider = AndroidPolicyRuntimeSignalProvider(context = context, vehicleStateSignalProvider = StaticVehicleStateSignalProvider())
 
         assertNotNull(provider.currentSignals())
     }
@@ -36,11 +32,7 @@ class AndroidPolicyRuntimeSignalProviderTest {
     fun `static vehicle provider defaults to non parking mode`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val provider =
-            AndroidPolicyRuntimeSignalProvider(
-                context = context,
-                vehicleStateSignalProvider = StaticVehicleStateSignalProvider(),
-            )
+        val provider = AndroidPolicyRuntimeSignalProvider(context = context, vehicleStateSignalProvider = StaticVehicleStateSignalProvider())
 
         assertFalse(provider.currentSignals().parkingMode)
     }
@@ -49,11 +41,7 @@ class AndroidPolicyRuntimeSignalProviderTest {
     fun `low storage mode is false when temp filesDir has ample space`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val provider =
-            AndroidPolicyRuntimeSignalProvider(
-                context = context,
-                vehicleStateSignalProvider = StaticVehicleStateSignalProvider(),
-            )
+        val provider = AndroidPolicyRuntimeSignalProvider(context = context, vehicleStateSignalProvider = StaticVehicleStateSignalProvider())
 
         // Robolectric 默认 filesDir 指向临时目录，可用空间充足，应判非低存储。
         assertFalse(provider.currentSignals().lowStorageMode)
@@ -63,11 +51,7 @@ class AndroidPolicyRuntimeSignalProviderTest {
     fun `observeSignals exposes a StateFlow with a snapshot`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val provider =
-            AndroidPolicyRuntimeSignalProvider(
-                context = context,
-                vehicleStateSignalProvider = StaticVehicleStateSignalProvider(),
-            )
+        val provider = AndroidPolicyRuntimeSignalProvider(context = context, vehicleStateSignalProvider = StaticVehicleStateSignalProvider())
 
         val flow = provider.observeSignals()
         assertNotNull(flow.value)

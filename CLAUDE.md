@@ -1,8 +1,8 @@
 # CarAppStore — 项目级规则
 
-> 全局约束见 `C:\Users\XZQ\.claude\CLAUDE.md`（Android 全局开发规范）。
+> 全局约束见 `C:\Users\XZQ\.agents\AGENTS.md`（Android 全局开发规范）；`C:\Users\XZQ\.claude\CLAUDE.md` 仅引用该文件。
 > 本文档仅包含 CarAppStore 项目特有的约束，不与全局规范重复。
-> 优先级：用户要求 > 项目级 CLAUDE.md > 全局 CLAUDE.md > 既有代码风格。
+> 优先级：用户要求 > 项目级 CLAUDE.md > 全局 AGENTS.md > 既有代码风格。
 > 项目背景与进度见 `README.md`，详细架构见 `docs/`。
 > 若文档与代码现状冲突，以代码现状为准，并明确指出差异。
 

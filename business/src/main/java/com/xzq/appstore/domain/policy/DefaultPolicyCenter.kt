@@ -33,15 +33,13 @@ class DefaultPolicyCenter(
     private val storedSettingsFlow = MutableStateFlow(localDataSource.getPolicySettings())
 
     /** 当前合并后的生效策略流。 */
-    private val settingsFlow: StateFlow<PolicySettings> =
-        storedSettingsFlow
-            .combine(runtimeSignalProvider.observeSignals()) { stored, runtime ->
-                mergePolicySettings(stored, runtime)
-            }.stateIn(
-                scope = policyScope,
-                started = SharingStarted.Eagerly,
-                initialValue = mergePolicySettings(storedSettingsFlow.value, runtimeSignalProvider.currentSignals()),
-            )
+    private val settingsFlow: StateFlow<PolicySettings> = storedSettingsFlow.combine(runtimeSignalProvider.observeSignals()) { stored, runtime ->
+        mergePolicySettings(stored, runtime)
+    }.stateIn(
+        scope = policyScope,
+        started = SharingStarted.Eagerly,
+        initialValue = mergePolicySettings(storedSettingsFlow.value, runtimeSignalProvider.currentSignals()),
+    )
 
     /** 校验下载链路是否满足网络和存储前置条件。 */
     override fun canDownload(appId: String): PolicyResult {
@@ -68,10 +66,14 @@ class DefaultPolicyCenter(
     override fun canUpgrade(appId: String): PolicyResult {
         // 先复用下载策略，避免重复维护一套校验分支。
         val downloadPolicy = canDownload(appId)
-        if (!downloadPolicy.allow) return downloadPolicy
+        if (!downloadPolicy.allow) {
+            return downloadPolicy
+        }
         // 下载允许后再校验安装条件，保证升级链路两端都可执行。
         val installPolicy = canInstall(appId)
-        if (!installPolicy.allow) return installPolicy
+        if (!installPolicy.allow) {
+            return installPolicy
+        }
         return PolicyResult(true)
     }
 
@@ -81,10 +83,7 @@ class DefaultPolicyCenter(
      * APK 已落盘时升级链路不再消耗下载资源，因此仅校验安装前置条件，
      * 避免 Wi-Fi 漂移等下载相关条件误拦已经完成下载的升级任务。
      */
-    override fun canUpgrade(
-        appId: String,
-        apkAlreadyDownloaded: Boolean,
-    ): PolicyResult = if (apkAlreadyDownloaded) canInstall(appId) else canUpgrade(appId)
+    override fun canUpgrade(appId: String, apkAlreadyDownloaded: Boolean): PolicyResult = if (apkAlreadyDownloaded) canInstall(appId) else canUpgrade(appId)
 
     /** 取消内部策略合并协程，避免在 AppContainer.shutdown 后悬挂。 */
     override fun close() {

@@ -34,39 +34,36 @@ object DownloadFileHelper {
      * @param finalFile 合并目标文件
      * @return 合并是否成功
      */
-    fun mergeSegments(
-        segments: List<DownloadSegmentRecord>,
-        finalFile: File,
-    ): Boolean =
-        runCatching {
-            RandomAccessFile(finalFile, "rw").use { out ->
-                out.setLength(0L)
-                segments.sortedBy { it.index }.forEach { seg ->
-                    val partFile = File(seg.tmpFilePath)
-                    if (!partFile.exists()) throw IOException("missing segment ${seg.index}")
-                    val expected =
-                        if (seg.endByte >= seg.startByte) {
-                            seg.endByte - seg.startByte + 1L
-                        } else {
-                            -1L
+    fun mergeSegments(segments: List<DownloadSegmentRecord>, finalFile: File): Boolean = runCatching {
+        RandomAccessFile(finalFile, "rw").use { out ->
+            out.setLength(0L)
+            segments.sortedBy { it.index }.forEach { seg ->
+                val partFile = File(seg.tmpFilePath)
+                if (!partFile.exists()) {
+                    throw IOException("missing segment ${seg.index}")
+                }
+                val expected = if (seg.endByte >= seg.startByte) {
+                    seg.endByte - seg.startByte + 1L
+                } else {
+                    -1L
+                }
+                val actual = partFile.length()
+                if (expected > 0L && actual != expected) {
+                    throw IOException("segment ${seg.index} length mismatch: expected=$expected actual=$actual")
+                }
+                partFile.inputStream().use { input ->
+                    val buffer = ByteArray(MERGE_BUFFER_BYTES)
+                    var read = input.read(buffer)
+                    while (read >= 0) {
+                        if (read > 0) {
+                            out.write(buffer, 0, read)
                         }
-                    val actual = partFile.length()
-                    if (expected > 0L && actual != expected) {
-                        throw IOException("segment ${seg.index} length mismatch: expected=$expected actual=$actual")
-                    }
-                    partFile.inputStream().use { input ->
-                        val buffer = ByteArray(MERGE_BUFFER_BYTES)
-                        var read = input.read(buffer)
-                        while (read >= 0) {
-                            if (read > 0) {
-                                out.write(buffer, 0, read)
-                            }
-                            read = input.read(buffer)
-                        }
+                        read = input.read(buffer)
                     }
                 }
             }
-        }.isSuccess
+        }
+    }.isSuccess
 
     /**
      * 校验下载文件的长度和可选摘要值。
@@ -77,12 +74,7 @@ object DownloadFileHelper {
      * @param checksumValue 期望的摘要值，null 表示不校验摘要
      * @return 校验结果
      */
-    fun verifyFile(
-        file: File,
-        expectedBytes: Long,
-        checksumType: String?,
-        checksumValue: String?,
-    ): VerificationResult {
+    fun verifyFile(file: File, expectedBytes: Long, checksumType: String?, checksumValue: String?): VerificationResult {
         if (!file.exists()) {
             return VerificationResult(false, DownloadFailureCode.FILE_MISSING, DownloaderText.FILE_NOT_EXISTS)
         }
@@ -106,16 +98,12 @@ object DownloadFileHelper {
      * @param checksumType 校验算法名称，支持 SHA-256/SHA256/MD5
      * @return 十六进制格式的小写哈希值
      */
-    fun calculateHash(
-        file: File,
-        checksumType: String,
-    ): String {
-        val algo =
-            when (checksumType.uppercase()) {
-                ALGO_SHA256, ALGO_SHA256_ALT -> ALGO_SHA256
-                ALGO_MD5 -> ALGO_MD5
-                else -> ALGO_SHA256
-            }
+    fun calculateHash(file: File, checksumType: String): String {
+        val algo = when (checksumType.uppercase()) {
+            ALGO_SHA256, ALGO_SHA256_ALT -> ALGO_SHA256
+            ALGO_MD5 -> ALGO_MD5
+            else -> ALGO_SHA256
+        }
         val digest = MessageDigest.getInstance(algo)
         file.inputStream().use { input ->
             val buffer = ByteArray(MERGE_BUFFER_BYTES)
@@ -136,8 +124,4 @@ object DownloadFileHelper {
  * @property code 校验失败时对应的失败码
  * @property message 校验失败时返回的详细文案
  */
-data class VerificationResult(
-    val ok: Boolean,
-    val code: DownloadFailureCode = DownloadFailureCode.UNKNOWN,
-    val message: String = "",
-)
+data class VerificationResult(val ok: Boolean, val code: DownloadFailureCode = DownloadFailureCode.UNKNOWN, val message: String = "")

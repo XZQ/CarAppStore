@@ -6,9 +6,9 @@ import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppInfo
 import com.xzq.appstore.data.model.UpgradeInfo
-import java.io.File
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.io.File
 
 class AppRemoteDataSource(
     context: Context,
@@ -26,8 +26,10 @@ class AppRemoteDataSource(
     catalogCacheMetadataFile: File? = null,
 ) {
     private val catalogChannel = catalogRequestHeaders["X-Client-Channel"].orEmpty()
+
     /** 远端目录读取器。 */
     private val catalogLoader = AppRemoteCatalogLoader(context)
+
     /** 商店目录数据源。 */
     private val catalogSource: AppCatalogSource = ResilientAppCatalogSource(
         loader = catalogLoader,

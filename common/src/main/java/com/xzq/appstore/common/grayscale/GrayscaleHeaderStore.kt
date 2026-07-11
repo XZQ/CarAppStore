@@ -1,6 +1,7 @@
 package com.xzq.appstore.common.grayscale
 
 import android.content.Context
+import com.xzq.appstore.common.grayscale.GrayscaleHeaderStore.HEADER_NAME
 
 /**
  * GrayscaleHeaderStore 统一保存与读取开发者调试用的灰度分组标识。
@@ -35,29 +36,19 @@ object GrayscaleHeaderStore {
     /** 读取当前灰度头配置，未设置时返回关闭态。 */
     fun read(context: Context): GrayscaleHeaderConfig {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return GrayscaleHeaderConfig(
-            enabled = prefs.getBoolean(KEY_ENABLED, false),
-            tag = prefs.getString(KEY_HEADER, "").orEmpty(),
-        )
+        return GrayscaleHeaderConfig(enabled = prefs.getBoolean(KEY_ENABLED, false), tag = prefs.getString(KEY_HEADER, "").orEmpty())
     }
 
     /** 持久化灰度头配置。 */
-    fun save(
-        context: Context,
-        enabled: Boolean,
-        tag: String,
-    ) {
-        context
-            .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_ENABLED, enabled)
-            .putString(KEY_HEADER, tag)
-            .apply()
+    fun save(context: Context, enabled: Boolean, tag: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(KEY_ENABLED, enabled).putString(KEY_HEADER, tag).apply()
     }
 
     /** 把配置转换为请求头键值对；未启用或标识为空时返回 null。 */
     fun toHeader(config: GrayscaleHeaderConfig): Pair<String, String>? {
-        if (!config.enabled || config.tag.isBlank()) return null
+        if (!config.enabled || config.tag.isBlank()) {
+            return null
+        }
         return HEADER_NAME to config.tag
     }
 }

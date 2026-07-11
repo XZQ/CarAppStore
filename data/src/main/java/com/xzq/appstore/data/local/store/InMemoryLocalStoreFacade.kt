@@ -11,14 +11,19 @@ class InMemoryLocalStoreFacade : LocalStoreFacade {
 
     /** 内存态的已安装应用表，按 appId 建索引。 */
     private val installedApps = linkedMapOf<String, InstalledAppEntity>()
+
     /** 内存态的下载任务表，按 appId 建索引。 */
     private val downloadTasks = linkedMapOf<String, DownloadTaskEntity>()
+
     /** 内存态的下载分片表，按 appId 建索引。 */
     private val downloadSegments = linkedMapOf<String, List<DownloadSegmentEntity>>()
+
     /** 内存态的下载产物引用表，按 appId 建索引。 */
     private val downloadArtifactRefs = linkedMapOf<String, DownloadArtifactRefEntity>()
+
     /** 内存态的安装会话表，按 sessionId 建索引。 */
     private val installSessions = linkedMapOf<Int, InstallSessionEntity>()
+
     /** 内存态的设置表，按 key 建索引。 */
     private val settings = linkedMapOf<String, SettingsEntity>()
 
