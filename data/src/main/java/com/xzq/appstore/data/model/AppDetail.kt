@@ -16,6 +16,10 @@ data class AppDetail(
     val description: String,
     /** 应用商店当前主推的版本号。 */
     val versionName: String,
+    /** APK manifest 中的版本代码，旧目录未提供时为 0。 */
+    val versionCode: Long = 0L,
+    /** 允许安装的 APK 签名证书 SHA-256 摘要。 */
+    val signerCertificateSha256: List<String> = emptyList(),
     /** 应用开发者名称。 */
     val developerName: String = "",
     /** 应用所属分类。 */

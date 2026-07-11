@@ -17,6 +17,10 @@ data class InstallRequest(
     val targetVersion: String,
     /** 当前用于安装的本地安装包文件。 */
     val apkFile: File,
+    /** 目录声明的 APK versionCode，旧目录未提供时为 0。 */
+    val targetVersionCode: Long = 0L,
+    /** 目录允许的 APK 签名证书 SHA-256 摘要。 */
+    val signerCertificateSha256: Set<String> = emptySet(),
 )
 
 enum class InstallFailureCode(val displayText: String) {
@@ -28,6 +32,30 @@ enum class InstallFailureCode(val displayText: String) {
 
     /** APK 文件无效或不可解析。 */
     APK_INVALID(InstallerText.FAILURE_APK_INVALID),
+
+    /** APK manifest 中的包名与目录声明不一致。 */
+    APK_PACKAGE_MISMATCH(InstallerText.FAILURE_APK_PACKAGE_MISMATCH),
+
+    /** 严格环境下目录未提供 APK versionCode。 */
+    APK_VERSION_MISSING(InstallerText.FAILURE_APK_VERSION_MISSING),
+
+    /** APK 版本与目录声明不一致。 */
+    APK_VERSION_MISMATCH(InstallerText.FAILURE_APK_VERSION_MISMATCH),
+
+    /** 严格环境下目录未提供签名证书摘要。 */
+    APK_SIGNER_MISSING(InstallerText.FAILURE_APK_SIGNER_MISSING),
+
+    /** APK 签名证书不在目录允许集合中。 */
+    APK_SIGNER_MISMATCH(InstallerText.FAILURE_APK_SIGNER_MISMATCH),
+
+    /** 平台回调或 PackageManager 返回了不同包名。 */
+    INSTALLED_PACKAGE_MISMATCH(InstallerText.FAILURE_INSTALLED_PACKAGE_MISMATCH),
+
+    /** 平台成功回调后 PackageManager 中仍找不到目标包。 */
+    INSTALLED_PACKAGE_NOT_FOUND(InstallerText.FAILURE_INSTALLED_PACKAGE_NOT_FOUND),
+
+    /** PackageManager 中的最终版本与已验证 APK 不一致。 */
+    INSTALLED_VERSION_MISMATCH(InstallerText.FAILURE_INSTALLED_VERSION_MISMATCH),
 
     /** 安装前被策略中心拦截。 */
     POLICY_BLOCKED(InstallerText.FAILURE_POLICY_BLOCKED),

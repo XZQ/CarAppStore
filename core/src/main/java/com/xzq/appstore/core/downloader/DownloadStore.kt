@@ -5,15 +5,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-class DownloadStore(
-    /** 下载器工作目录根路径，内部包含 temp 和 final 两类子目录。 */
-    private val baseDir: File,
-) {
+class DownloadStore(private val baseDir: File) {
     /** 返回指定任务的临时目录，不存在时自动创建。 */
     fun getTaskTempDir(taskId: String): File {
-        val dir = File(baseDir, "temp/$taskId")
-        if (!dir.exists()) dir.mkdirs()
-        return dir
+        require(TASK_ID_PATTERN.matches(taskId)) { "非法下载任务标识: $taskId" }
+        val tempRoot = File(baseDir, "temp").canonicalFile
+        val taskDir = File(tempRoot, taskId).canonicalFile
+        require(taskDir.toPath().startsWith(tempRoot.toPath())) { "下载任务目录越界: $taskId" }
+        if (!taskDir.exists()) taskDir.mkdirs()
+        return taskDir
     }
 
     /** 返回下载完成文件所在目录，不存在时自动创建。 */
@@ -97,21 +97,19 @@ class DownloadStore(
             buildList {
                 repeat(arr.length()) { index ->
                     val item = arr.getJSONObject(index)
-                    add(
-                        DownloadSegmentRecord(
-                            segmentId = item.optString("segmentId"),
-                            taskId = item.optString("taskId"),
-                            index = item.optInt("index"),
-                            startByte = item.optLong("startByte"),
-                            endByte = item.optLong("endByte"),
-                            downloadedBytes = item.optLong("downloadedBytes"),
-                            status = item.optString("status"),
-                            tmpFilePath = item.optString("tmpFilePath"),
-                            retryCount = item.optInt("retryCount", 0),
-                            createdAt = item.optLong("createdAt"),
-                            updatedAt = item.optLong("updatedAt"),
-                        )
-                    )
+                    add(DownloadSegmentRecord(
+                        segmentId = item.optString("segmentId"),
+                        taskId = item.optString("taskId"),
+                        index = item.optInt("index"),
+                        startByte = item.optLong("startByte"),
+                        endByte = item.optLong("endByte"),
+                        downloadedBytes = item.optLong("downloadedBytes"),
+                        status = item.optString("status"),
+                        tmpFilePath = item.optString("tmpFilePath"),
+                        retryCount = item.optInt("retryCount", 0),
+                        createdAt = item.optLong("createdAt"),
+                        updatedAt = item.optLong("updatedAt"),
+                    ))
                 }
             }
         }
@@ -136,6 +134,9 @@ class DownloadStore(
     }
 
     private companion object {
+        /** 下载任务标识只允许稳定、可诊断且不包含路径分隔符的字符。 */
+        val TASK_ID_PATTERN = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,159}")
+
         /** 下载 meta 文件当前 schema 版本。 */
         const val DOWNLOAD_META_SCHEMA_VERSION = 1
     }

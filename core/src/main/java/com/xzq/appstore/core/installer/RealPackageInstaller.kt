@@ -9,6 +9,12 @@ class RealPackageInstaller(
     private val sessionAdapter: PackageInstallerSessionAdapter,
     /** 安装会话持久化存储。 */
     private val sessionStore: InstallSessionStore,
+    /** 安装前 APK archive 身份校验入口。 */
+    private val apkVerifier: ApkVerifier,
+    /** 平台成功回调后的已安装包事实查询入口。 */
+    private val installedPackageInspector: InstalledPackageInspector,
+    /** 当前构建与下载环境对应的 APK 身份校验策略。 */
+    private val verificationPolicy: ApkVerificationPolicy,
     /** 未知来源安装权限查询入口。 */
     private val permissionGateway: InstallPermissionGateway = object : InstallPermissionGateway {
         override fun canRequestInstalls(): Boolean = true
@@ -32,6 +38,7 @@ class RealPackageInstaller(
             onEvent(InstallEvent.Failed(InstallFailureCode.APK_INVALID, InstallFailureCode.APK_INVALID.displayText))
             return@withContext
         }
+        val verifiedApk = verifyApk(request, onEvent) ?: return@withContext
 
         if (!permissionGateway.canRequestInstalls()) {
             onEvent(InstallEvent.Failed(InstallFailureCode.PERMISSION_REQUIRED, InstallFailureCode.PERMISSION_REQUIRED.displayText))
@@ -144,14 +151,82 @@ class RealPackageInstaller(
             return@withContext
         }
 
-        // 提交成功且最终回调完成后，把会话收口为成功态。
+        val installedIdentity = verifyInstalledIdentity(request, verifiedApk, commit, sessionId, onEvent) ?: return@withContext
+
+        // 提交成功且系统事实校验完成后，把会话收口为成功态。
         sessionStore.updateStatus(sessionId = sessionId, status = InstallSessionStatus.CALLBACK_SUCCESS, progress = 100)
         onEvent(InstallEvent.Progress(sessionId, 100))
-        onEvent(InstallEvent.Success(request.targetVersion))
+        onEvent(InstallEvent.Success(installedIdentity.versionName))
+    }
+
+    /** 在创建系统会话前校验 APK archive 的包名、版本和签名证书。 */
+    private suspend fun verifyApk(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit): ApkIdentity? {
+        val expected = ExpectedApkIdentity(
+            packageName = request.packageName,
+            versionCode = request.targetVersionCode,
+            versionName = request.targetVersion,
+            signerCertificateSha256 = request.signerCertificateSha256,
+        )
+        return when (val result = apkVerifier.verify(request.apkFile, expected, verificationPolicy)) {
+            is ApkVerificationResult.Verified -> result.identity
+            is ApkVerificationResult.Rejected -> {
+                onEvent(InstallEvent.Failed(result.code, result.message))
+                null
+            }
+        }
+    }
+
+    /** 平台成功回调后，以 PackageManager 的包名和版本作为最终安装事实。 */
+    private suspend fun verifyInstalledIdentity(
+        request: InstallRequest,
+        verifiedApk: ApkIdentity,
+        commit: InstallCommitResult,
+        sessionId: Int,
+        onEvent: suspend (InstallEvent) -> Unit,
+    ): ApkIdentity? {
+        if (!commit.installedPackageName.isNullOrBlank() && commit.installedPackageName != request.packageName) {
+            failInstalledVerification(sessionId, InstallFailureCode.INSTALLED_PACKAGE_MISMATCH, onEvent)
+            return null
+        }
+        val installed = installedPackageInspector.getInstalledIdentity(request.packageName)
+        if (installed == null) {
+            failInstalledVerification(sessionId, InstallFailureCode.INSTALLED_PACKAGE_NOT_FOUND, onEvent)
+            return null
+        }
+        if (installed.packageName != request.packageName) {
+            failInstalledVerification(sessionId, InstallFailureCode.INSTALLED_PACKAGE_MISMATCH, onEvent)
+            return null
+        }
+        if (installed.versionCode != verifiedApk.versionCode) {
+            failInstalledVerification(sessionId, InstallFailureCode.INSTALLED_VERSION_MISMATCH, onEvent)
+            return null
+        }
+        return installed
+    }
+
+    /** 持久化安装后的事实校验失败并通知业务层。 */
+    private suspend fun failInstalledVerification(
+        sessionId: Int,
+        failureCode: InstallFailureCode,
+        onEvent: suspend (InstallEvent) -> Unit,
+    ) {
+        sessionStore.updateStatus(
+            sessionId = sessionId,
+            status = InstallSessionStatus.FAILED_VERIFY_INSTALLED,
+            progress = POST_INSTALL_VERIFICATION_PROGRESS,
+            failureCode = failureCode.name,
+            failureMessage = failureCode.displayText,
+        )
+        onEvent(InstallEvent.Progress(sessionId, POST_INSTALL_VERIFICATION_PROGRESS))
+        onEvent(InstallEvent.Failed(failureCode, failureCode.displayText))
     }
 
     /** 持久化安装会话记录。 */
     private fun persistSession(record: InstallSessionRecord) {
         sessionStore.save(record)
+    }
+
+    private companion object {
+        const val POST_INSTALL_VERIFICATION_PROGRESS = 95
     }
 }

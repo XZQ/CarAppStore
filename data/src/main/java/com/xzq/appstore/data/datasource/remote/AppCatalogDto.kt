@@ -27,6 +27,10 @@ data class AppCatalogItemResponse(
     val description: String,
     /** 当前版本号。 */
     val versionName: String,
+    /** APK manifest 中的版本代码，旧目录未提供时为 0。 */
+    val versionCode: Long = 0L,
+    /** 允许安装的 APK 签名证书 SHA-256 摘要。 */
+    val signerCertificateSha256: List<String> = emptyList(),
     /** 分类。 */
     val category: String,
     /** 运营标签。 */
@@ -109,6 +113,8 @@ fun AppCatalogItemResponse.toRemoteCatalogItem(): RemoteCatalogItem {
             name = name,
             description = description,
             versionName = effectiveVersion,
+            versionCode = versionCode,
+            signerCertificateSha256 = signerCertificateSha256,
             developerName = developerName,
             category = category,
             iconText = iconText,

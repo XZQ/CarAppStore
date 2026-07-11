@@ -28,6 +28,9 @@ object InstallSessionStatus {
     /** 安装会话提交失败。 */
     const val FAILED_COMMIT = "FAILED_COMMIT"
 
+    /** 平台成功回调后的 PackageManager 事实校验失败。 */
+    const val FAILED_VERIFY_INSTALLED = "FAILED_VERIFY_INSTALLED"
+
     /** 判断当前安装会话是否适合在下次启动时恢复处理。 */
     fun isRecoverable(status: String): Boolean {
         return status == CREATED || status == WRITTEN || status == COMMITTED || status == PENDING_USER_ACTION

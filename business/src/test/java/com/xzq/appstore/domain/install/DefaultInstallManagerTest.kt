@@ -113,6 +113,22 @@ class DefaultInstallManagerTest {
     }
 
     @Test
+    fun `install APK签名不受信任时清理下载产物并标记失败`() = runBlocking {
+        val apkFile = File(workDir, "test.apk").apply { writeBytes(ByteArray(1024)) }
+        repository.saveApk(TEST_APP_ID, apkFile.absolutePath)
+        installer.scenario = InstallScenario.APK_TRUST_FAILURE
+
+        val manager = createManager()
+        manager.install(TEST_APP_ID)
+
+        val state = stateCenter.snapshot(TEST_APP_ID)
+        assertEquals(InstallStatus.FAILED, state.installStatus)
+        assertEquals(DownloadStatus.FAILED, state.downloadStatus)
+        assertEquals(InstallFailureCode.APK_SIGNER_MISMATCH.name, state.errorCode)
+        assertNull(repository.getApk(TEST_APP_ID))
+    }
+
+    @Test
     fun `install 底层安装失败时正确标记安装失败状态`() = runBlocking {
         val apkFile = File(workDir, "test.apk").apply { writeBytes(ByteArray(1024)) }
         repository.saveApk(TEST_APP_ID, apkFile.absolutePath)
@@ -137,6 +153,8 @@ class DefaultInstallManagerTest {
         manager.install(TEST_APP_ID)
 
         assertEquals("2.0.0", installer.capturedRequest?.targetVersion)
+        assertEquals(TEST_VERSION_CODE, installer.capturedRequest?.targetVersionCode)
+        assertEquals(setOf(TEST_SIGNER), installer.capturedRequest?.signerCertificateSha256)
     }
 
     @Test
@@ -182,6 +200,8 @@ class DefaultInstallManagerTest {
 
     private companion object {
         const val TEST_APP_ID = "test.app"
+        const val TEST_VERSION_CODE = 100L
+        const val TEST_SIGNER = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }
 
     private class AllowAllPolicyCenter : PolicyCenter {
@@ -220,7 +240,7 @@ class DefaultInstallManagerTest {
         override fun track(event: String) = Unit
     }
 
-    private enum class InstallScenario { SUCCESS, APK_INVALID, GENERIC_FAILURE, SESSION_ERROR }
+    private enum class InstallScenario { SUCCESS, APK_INVALID, APK_TRUST_FAILURE, GENERIC_FAILURE, SESSION_ERROR }
 
     private class ControllablePackageInstaller : PackageInstaller {
         var scenario: InstallScenario = InstallScenario.SUCCESS
@@ -241,6 +261,11 @@ class DefaultInstallManagerTest {
                 InstallScenario.APK_INVALID -> {
                     onEvent(InstallEvent.Waiting)
                     onEvent(InstallEvent.Failed(InstallFailureCode.APK_INVALID, "APK 无效"))
+                }
+
+                InstallScenario.APK_TRUST_FAILURE -> {
+                    onEvent(InstallEvent.Waiting)
+                    onEvent(InstallEvent.Failed(InstallFailureCode.APK_SIGNER_MISMATCH, InstallFailureCode.APK_SIGNER_MISMATCH.displayText))
                 }
 
                 InstallScenario.GENERIC_FAILURE -> {
@@ -279,6 +304,8 @@ class DefaultInstallManagerTest {
             name = "Test App",
             description = "test",
             versionName = "1.0.0",
+            versionCode = TEST_VERSION_CODE,
+            signerCertificateSha256 = listOf(TEST_SIGNER),
             apkUrl = "https://example.com/test.apk",
         )
 

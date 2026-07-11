@@ -1,6 +1,8 @@
 package com.xzq.appstore.data.datasource.remote
 
 import com.xzq.appstore.core.downloader.DownloadSourcePolicy
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -51,7 +53,91 @@ class AppCatalogJsonParserTest {
         assertEquals("新增沿途充电推荐", item.upgradeInfo.changelog)
     }
 
+    @Test
+    fun `parseResponse 会解析版本代码并规范化签名摘要`() {
+        val item = AppCatalogJsonParser.parseResponse(identityCatalog()).apps.single()
+
+        assertEquals(TEST_VERSION_CODE, item.versionCode)
+        assertEquals(listOf(TEST_SIGNER.lowercase()), item.signerCertificateSha256)
+    }
+
+    @Test
+    fun `parse 会把 APK 身份元数据映射到详情模型`() {
+        val detail = AppCatalogJsonParser.parse(identityCatalog()).single().appDetail
+
+        assertEquals(TEST_VERSION_CODE, detail.versionCode)
+        assertEquals(listOf(TEST_SIGNER.lowercase()), detail.signerCertificateSha256)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `parseResponse 拒绝路径穿越 appId`() {
+        AppCatalogJsonParser.parseResponse(identityCatalog(appId = "../../escape"))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `parseResponse 拒绝非法包名`() {
+        AppCatalogJsonParser.parseResponse(identityCatalog(packageName = "../package"))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `parseResponse 拒绝重复 appId`() {
+        AppCatalogJsonParser.parseResponse(twoItemCatalog(secondAppId = TEST_APP_ID))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `parseResponse 拒绝重复 packageName`() {
+        AppCatalogJsonParser.parseResponse(twoItemCatalog(secondPackageName = TEST_PACKAGE_NAME))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `parseResponse 拒绝非法签名摘要`() {
+        AppCatalogJsonParser.parseResponse(identityCatalog(signer = "not-a-sha256"))
+    }
+
+    private fun identityCatalog(
+        appId: String = TEST_APP_ID,
+        packageName: String = TEST_PACKAGE_NAME,
+        signer: String = TEST_SIGNER,
+    ): String = """
+        {
+          "apps": [
+            {
+              "appId": "$appId",
+              "packageName": "$packageName",
+              "name": "安全测试应用",
+              "description": "测试 APK 身份元数据",
+              "versionName": "2.3.0",
+              "versionCode": $TEST_VERSION_CODE,
+              "category": "工具",
+              "editorialTag": "测试",
+              "latestVersion": "2.3.0",
+              "apkUrl": "https://download.example.com/security.apk",
+              "signerCertificateSha256": ["$signer"],
+              "hasUpgrade": false,
+              "changelog": ""
+            }
+          ]
+        }
+    """.trimIndent()
+
+    private fun twoItemCatalog(
+        secondAppId: String = "second.app",
+        secondPackageName: String = "com.example.second",
+    ): String {
+        val first = JSONObject(identityCatalog()).getJSONArray("apps").getJSONObject(0)
+        val second = JSONObject(first.toString()).apply {
+            put("appId", secondAppId)
+            put("packageName", secondPackageName)
+        }
+        return JSONObject().put("apps", JSONArray().put(first).put(second)).toString()
+    }
+
     private companion object {
+        const val TEST_APP_ID = "nav.map"
+        const val TEST_PACKAGE_NAME = "com.nio.map"
+        const val TEST_VERSION_CODE = 230L
+        const val TEST_SIGNER = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
         /** 测试目录响应。 */
         const val TEST_CATALOG_JSON = """
             {

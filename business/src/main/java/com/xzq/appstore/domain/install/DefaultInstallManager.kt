@@ -78,7 +78,16 @@ class DefaultInstallManager(
         stateCenter.resetError(appId)
 
         // 消费安装器事件，并把系统会话阶段翻译成业务层运行态。
-        packageInstaller.install(InstallRequest(appId = appId, packageName = detail.packageName, targetVersion = targetVersion, apkFile = apkFile)) { event ->
+        packageInstaller.install(
+            InstallRequest(
+                appId = appId,
+                packageName = detail.packageName,
+                targetVersion = targetVersion,
+                apkFile = apkFile,
+                targetVersionCode = detail.versionCode,
+                signerCertificateSha256 = detail.signerCertificateSha256.toSet(),
+            ),
+        ) { event ->
             when (event) {
                 InstallEvent.Waiting -> {
                     // 安装器进入等待态时，页面先展示“等待安装”。
@@ -119,7 +128,7 @@ class DefaultInstallManager(
 
                 is InstallEvent.Failed -> {
                     // APK 缺失或损坏时，需要同时把下载状态打回失败，提示用户重新下载。
-                    if (event.code == InstallFailureCode.APK_MISSING || event.code == InstallFailureCode.APK_INVALID) {
+                    if (invalidatesDownloadedApk(event.code)) {
                         repository.clearDownloadedApk(appId)
                         stateCenter.updateDownload(
                             appId,
@@ -140,6 +149,21 @@ class DefaultInstallManager(
                     tracker.track("install_fail_${event.code.name.lowercase()}_$appId")
                 }
             }
+        }
+    }
+
+    /** 判断失败是否说明当前下载产物不再可信、不能继续复用。 */
+    private fun invalidatesDownloadedApk(code: InstallFailureCode): Boolean {
+        return when (code) {
+            InstallFailureCode.APK_MISSING,
+            InstallFailureCode.APK_INVALID,
+            InstallFailureCode.APK_PACKAGE_MISMATCH,
+            InstallFailureCode.APK_VERSION_MISSING,
+            InstallFailureCode.APK_VERSION_MISMATCH,
+            InstallFailureCode.APK_SIGNER_MISSING,
+            InstallFailureCode.APK_SIGNER_MISMATCH -> true
+
+            else -> false
         }
     }
 

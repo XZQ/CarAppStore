@@ -18,7 +18,7 @@ object AppCatalogJsonParser {
         val root = JSONObject(rawText)
         val apps = root.optJSONArray("apps") ?: JSONArray()
         return AppCatalogResponse(
-            apps = List(apps.length()) { index -> parseItem(apps.getJSONObject(index)) },
+            apps = AppCatalogValidator.validate(List(apps.length()) { index -> parseItem(apps.getJSONObject(index)) }),
         )
     }
 
@@ -31,6 +31,8 @@ object AppCatalogJsonParser {
             name = json.optString("name"),
             description = json.optString("description"),
             versionName = json.optString("versionName"),
+            versionCode = json.optLong("versionCode", 0L),
+            signerCertificateSha256 = parseSignerCertificateSha256(json.optJSONArray("signerCertificateSha256")),
             category = json.optString("category"),
             editorialTag = json.optString("editorialTag"),
             iconText = json.optString("iconText", json.optString("name").take(1)),
@@ -68,6 +70,11 @@ object AppCatalogJsonParser {
             return emptyList()
         }
         return List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() }
+    }
+
+    /** 规范化证书摘要，避免大小写或重复值造成不一致。 */
+    private fun parseSignerCertificateSha256(array: JSONArray?): List<String> {
+        return parseStringList(array).map { it.trim().lowercase() }.distinct()
     }
 
     private fun parseSourcePolicy(raw: String): DownloadSourcePolicy? {

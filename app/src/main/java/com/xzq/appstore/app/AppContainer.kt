@@ -9,6 +9,8 @@ import com.xzq.appstore.core.downloader.DownloadStore
 import com.xzq.appstore.core.downloader.RealFileDownloader
 import com.xzq.appstore.core.downloader.SimulatedFileDownloader
 import com.xzq.appstore.core.installer.AndroidInstallPermissionGateway
+import com.xzq.appstore.core.installer.AndroidPackageIdentityVerifier
+import com.xzq.appstore.core.installer.ApkVerificationPolicy
 import com.xzq.appstore.core.installer.InstallSessionStore
 import com.xzq.appstore.core.installer.InstallUserActionDispatcher
 import com.xzq.appstore.core.installer.RealPackageInstaller
@@ -181,12 +183,24 @@ class AppContainer(context: Context) : AppServices {
         InstallUserActionDispatcher()
     }
 
+    /** 统一读取安装前 APK archive 与安装后 PackageManager 事实。 */
+    private val packageIdentityVerifier by lazy { AndroidPackageIdentityVerifier(appContext) }
+
+    /** 除 Debug+LOCAL_SIM 外，所有环境都必须提供 versionCode 与签名摘要。 */
+    private val apkVerificationPolicy by lazy {
+        val allowMissingTrustMetadata = BuildConfig.DEBUG && downloadEnvConfig.environment == DownloadEnvironment.LOCAL_SIM
+        ApkVerificationPolicy(requireVersionCode = !allowMissingTrustMetadata, requireSignerCertificate = !allowMissingTrustMetadata)
+    }
+
     /** 安装执行器，当前优先走系统安装会话实现。 */
     /** 安装执行器实例，供安装业务编排层复用。 */
     private val packageInstaller by lazy {
         RealPackageInstaller(
             sessionAdapter = SystemPackageInstallerSessionAdapter(appContext, installUserActionDispatcher),
             sessionStore = installSessionStore,
+            apkVerifier = packageIdentityVerifier,
+            installedPackageInspector = packageIdentityVerifier,
+            verificationPolicy = apkVerificationPolicy,
             permissionGateway = AndroidInstallPermissionGateway(appContext),
         )
     }

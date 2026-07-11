@@ -37,6 +37,8 @@
 | `name`                 | String        | 是   | 应用显示名称                   |
 | `description`          | String        | 否   | 应用简要描述                   |
 | `versionName`          | String        | 是   | 当前版本号（如 "1.2.3"）        |
+| `versionCode`          | Long          | 生产是 | APK manifest 版本代码，必须大于 0 |
+| `signerCertificateSha256` | String[]  | 生产是 | 允许的签名证书 SHA-256 摘要，支持轮换 |
 | `category`             | String        | 否   | 分类（如 "导航"、"音乐"）        |
 | `editorialTag`         | String        | 否   | 运营标签（如 "精选"、"新品"）    |
 | `recommendedReason`    | String        | 否   | 推荐理由文案                    |
@@ -100,6 +102,8 @@ HTTP 远端目录 → 本地缓存目录 → 资源目录（raw/app_store_catalo
 - [ ] **部分字段缺失不崩溃**：后端返回的某个应用缺少可选字段时，该条目仍可展示，缺失字段显示为空
 - [ ] **空目录不崩溃**：后端返回 `{ "apps": [] }` 时，客户端展示空列表页面而非崩溃
 - [ ] **JSON 格式错误不崩溃**：后端返回非法 JSON 时，客户端回退到缓存或资源目录
+- [ ] **非法标识回退**：`appId` 含路径分隔符、包名非法或标识重复时，客户端拒绝整个目录并回退
+- [ ] **签名字段失败关闭**：生产目录缺少 `versionCode` 或签名摘要时，APK 不得进入安装 Session
 
 ### 1.5 鉴权验收
 
@@ -187,6 +191,8 @@ OEM 接入步骤（不改业务层）：
 - [ ] **APK 数据正确写入 Session**：通过 `Session.openWrite()` 写入的 APK 数据完整
 - [ ] **用户确认页正常弹出**：调用 `Session.commit()` 后系统确认页 Activity 正常弹出
 - [ ] **安装成功回调正确**：用户点击确认后，通过 `IntentSender` 收到 `STATUS_SUCCESS`
+- [ ] **安装前身份一致**：APK 包名、versionCode 和签名证书摘要与目录完全匹配
+- [ ] **安装后事实一致**：PackageManager 查询到的最终包名和 versionCode 与已验证 APK 一致
 - [ ] **安装失败回调正确**：用户拒绝或其他原因失败时，收到对应的失败状态码和错误信息
 - [ ] **安装会话 ID 持久化与恢复**：客户端通过 `InstallSessionStore` 持久化 session ID，强杀后可恢复
 

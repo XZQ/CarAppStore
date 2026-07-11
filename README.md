@@ -24,7 +24,7 @@ CarAppStore 是一个多模块 Android/Kotlin 工程，用来沉淀车载应用�
 
 - 当前主分支：`main`
 - 已同步远端：`origin/main`
-- 当前工作区验证：2026-07-10 已在 JDK 17 下通过 `testDebugUnitTest`、`lintDebug`、`:app:assembleDebug` 与 `:app:assembleRelease`；本次为未提交工作区变更，提交基线请以 Git 历史为准。
+- 当前工作区验证：2026-07-11 已在 JDK 17 下通过 `testDebugUnitTest`、`lintDebug`、`:app:assembleDebug` 与 `:app:assembleRelease`；当前包含未提交安全加固改动，提交基线请以 Git 历史为准。
 - 换机接手总览：[docs/29-换机接手与当前进度总览.md](docs/29-换机接手与当前进度总览.md)
 
 实际最新状态请以 `git status --short --branch` 和 `git log --oneline -5` 为准。
@@ -84,6 +84,8 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 - 应用图标、详情头图和详情截图加载能力，支持 `asset://`、`file://`、`http(s)://`，失败时回退文本兜底
 - 本地事件打点落盘、生产配置自检提示、Release 签名环境变量入口
 - 目录运营治理字段：灰度、黑白名单、隐藏/下架和回滚版本本地过滤
+- APK 安装前包名、`versionCode`、签名证书 SHA-256 校验，以及安装后 PackageManager 事实核对
+- 目录 `appId` / `packageName` 白名单、重复项拒绝和下载任务 canonical path containment
 
 ## 外部接入状态
 
@@ -91,8 +93,8 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 
 | 接入项 | 当前状态 |
 | --- | --- |
-| 远端目录 API | 客户端链路、缓存回退、鉴权头和 Gradle/环境变量注入已完成；默认配置仍使用示例地址，需要替换为真实后端地址和协议 |
-| APK 联网下载源 | 下载器、任务状态、断点续传和校验链路已具备；真实 APK CDN、checksum 和灰度策略下一步接入 |
+| 远端目录 API | 客户端链路、缓存回退、鉴权头和 Gradle/环境变量注入已完成；生产目录还必须提供 APK `versionCode` 和 `signerCertificateSha256` |
+| APK 联网下载源 | 下载器、任务状态、断点续传、checksum 和安装前身份校验链路已具备；真实 APK CDN、签名摘要和灰度策略下一步接入 |
 | OEM 车况信号 | 已定义 `VehicleStateSignalProvider` 接口，并支持广播型 OEM 接入；未接真实协议时按安全默认值处理 |
 | 真机安装行为 | 已接 Android `PackageInstaller`，并在创建会话前检查“允许安装未知应用”权限；不同车机 ROM 的确认页、回调码和权限行为仍需实机验证 |
 | 运营观测 | 本地事件落盘已接入；上传服务、告警看板和隐私合规字段需要接生产平台 |
@@ -169,4 +171,4 @@ CarAppStore/
 
 ## 发布说明
 
-本仓库已经具备车载应用商店的主体 UI、工程分层、下载/安装/升级主链路、本地事件源和 release 构建入口。下一步重点是接入真实联网目录和 APK 下载源，并在目标车机上完成 OEM 车况、安装权限、生产签名、埋点上传和真机回归。
+本仓库已经具备车载应用商店的主体 UI、工程分层、下载/安装/升级主链路、本地事件源、APK 身份校验和 release 构建入口。下一步重点是接入携带 `versionCode` 与签名摘要的真实目录和 APK 下载源，并在目标车机上完成 OEM 车况、包可见性、安装权限、生产签名、埋点上传和真机回归。

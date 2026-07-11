@@ -11,3 +11,5 @@ externalNativeBuild/
 .DS_Store
 /.workbuddy/
 /local-apks/
+__pycache__/
+*.py[cod]

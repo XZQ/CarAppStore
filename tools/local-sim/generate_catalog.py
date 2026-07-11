@@ -28,6 +28,7 @@ def app_from_apk(path: Path, base_url: str) -> dict | None:
         "name": name,
         "description": f"{name} is an open-source app in the LOCAL_SIM catalog.",
         "versionName": version_code,
+        "versionCode": int(version_code),
         "category": "工具",
         "editorialTag": "LOCAL_SIM",
         "iconText": name[:1] or "?",

@@ -9,10 +9,7 @@ data class DownloadSourceResolverConfig(
     val allowDirectHttp: Boolean = true,
 )
 
-class DownloadSourceResolver(
-    /** 当前环境允许使用的下载源能力配置。 */
-    private val config: DownloadSourceResolverConfig,
-) {
+class DownloadSourceResolver(private val config: DownloadSourceResolverConfig) {
     /** 根据请求策略和环境能力决定实际要使用的下载源。 */
     fun resolve(requestedPolicy: DownloadSourcePolicy?, url: String): DownloadSourceDecision {
         val effective = requestedPolicy ?: config.defaultSourcePolicy

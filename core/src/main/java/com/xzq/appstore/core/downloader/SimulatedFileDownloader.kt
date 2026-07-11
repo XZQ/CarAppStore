@@ -26,7 +26,9 @@ class SimulatedFileDownloader(
             return
         }
         onEvent(
-            DownloadEvent.MetaReady(DownloadRemoteMeta(contentLength = totalBytes, supportsRange = true, mimeType = "application/vnd.android.package-archive"))
+            DownloadEvent.MetaReady(
+                DownloadRemoteMeta(contentLength = totalBytes, supportsRange = true, mimeType = "application/vnd.android.package-archive"),
+            ),
         )
 
         val targetFile = request.targetFile
