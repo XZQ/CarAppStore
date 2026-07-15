@@ -7,6 +7,7 @@ import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -29,8 +30,8 @@ class VersionedJsonStore(
     /** 读取到旧格式数据时使用的迁移函数。 */
     private val migration: (Any) -> JSONObject,
 ) {
-    /** 保护同一 JSON 文件在进程内的并发读写。 */
-    private val fileLock = ReentrantLock()
+    /** 保护同一 JSON 文件在进程内跨 Store 实例的并发读写。 */
+    private val fileLock = sharedFileLock(storeFile)
 
     /**
      * 读取当前根节点。
@@ -133,6 +134,9 @@ class VersionedJsonStore(
     }
 
     private companion object {
+        /** 按规范化文件路径复用进程级锁，避免多个 Store 实例分别加锁后丢失更新。 */
+        val PROCESS_FILE_LOCKS = ConcurrentHashMap<String, ReentrantLock>()
+
         /** schemaVersion 不存在时使用的默认值。 */
         const val SCHEMA_VERSION_UNKNOWN = -1
 
@@ -141,5 +145,11 @@ class VersionedJsonStore(
 
         /** 临时文件后缀。 */
         const val TEMP_FILE_SUFFIX = ".tmp"
+
+        /** 返回指定文件在当前进程内共享的读写锁。 */
+        fun sharedFileLock(storeFile: File): ReentrantLock {
+            val fileKey = runCatching { storeFile.canonicalPath }.getOrElse { storeFile.absolutePath }
+            return PROCESS_FILE_LOCKS.computeIfAbsent(fileKey) { ReentrantLock() }
+        }
     }
 }

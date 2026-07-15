@@ -82,6 +82,33 @@ class VersionedJsonStoreTest {
     }
 
     @Test
+    fun `同一文件的多个 store 实例并发 update 不会丢失写入`() {
+        val storeFile = createTempFile("versioned-json-cross-instance.json")
+        val stores = List(2) {
+            VersionedJsonStore(
+                storeFile = storeFile,
+                schemaVersion = 1,
+                defaultRootFactory = { JSONObject().put("counter", 0) },
+                migration = { JSONObject() },
+            )
+        }
+        val threadCount = 20
+        val barrier = CyclicBarrier(threadCount)
+        val threads = (0 until threadCount).map { index ->
+            Thread {
+                barrier.await()
+                stores[index % stores.size].update { root ->
+                    root.put("counter", root.optInt("counter") + 1)
+                }
+            }
+        }
+        threads.forEach { it.start() }
+        threads.forEach { it.join(5000L) }
+
+        assertEquals(threadCount, stores.first().read { it.optInt("counter") })
+    }
+
+    @Test
     fun `空文件被视为不存在并使用默认值`() {
         val storeFile = createTempFile("versioned-json-empty.json")
         storeFile.writeText("")

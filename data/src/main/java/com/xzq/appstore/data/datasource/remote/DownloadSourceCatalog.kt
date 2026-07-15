@@ -31,19 +31,19 @@ class DownloadSourceCatalog(
         return mapOf(
             "gaode_map" to DownloadSourceEntry(
                 appId = "gaode_map",
-                apkUrl = "${config.downloadBaseUrl}/gaode_map.apk",
+                apkUrl = buildApkUrl("gaode_map.apk"),
                 checksumType = "SHA-256",
                 sourcePolicy = config.defaultSourcePolicy,
             ),
             "qq_music" to DownloadSourceEntry(
                 appId = "qq_music",
-                apkUrl = "${config.downloadBaseUrl}/qq_music.apk",
+                apkUrl = buildApkUrl("qq_music.apk"),
                 checksumType = "SHA-256",
                 sourcePolicy = if (config.allowMockSource) DownloadSourcePolicy.MOCK else config.defaultSourcePolicy,
             ),
             "ximalaya" to DownloadSourceEntry(
                 appId = "ximalaya",
-                apkUrl = "${config.downloadBaseUrl}/ximalaya.apk",
+                apkUrl = buildApkUrl("ximalaya.apk"),
                 checksumType = "SHA-256",
                 sourcePolicy = config.defaultSourcePolicy,
             ),
@@ -54,9 +54,12 @@ class DownloadSourceCatalog(
     private fun defaultEntry(appId: String): DownloadSourceEntry {
         return DownloadSourceEntry(
             appId = appId,
-            apkUrl = "${config.downloadBaseUrl}/$appId.apk",
+            apkUrl = buildApkUrl("$appId.apk"),
             checksumType = "SHA-256",
             sourcePolicy = config.defaultSourcePolicy,
         )
     }
+
+    /** 使用已配置的下载基地址生成 APK URL；生产地址缺失时保持为空并由下载链拒绝。 */
+    private fun buildApkUrl(fileName: String): String = config.downloadBaseUrl.trimEnd('/').takeIf { it.isNotBlank() }?.let { "$it/$fileName" }.orEmpty()
 }

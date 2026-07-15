@@ -68,15 +68,9 @@ data class DownloadEnvironmentConfig(
                     defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP,
                     allowMockSource = false,
                     allowDirectHttp = true,
-                    catalogEndpointUrl = configuredCatalogUrl(
-                        BuildConfig.CARAPPSTORE_CATALOG_PROD_URL,
-                        "https://cdn.example.com/carappstore/catalog.json",
-                    ),
+                    catalogEndpointUrl = configuredCatalogUrl(BuildConfig.CARAPPSTORE_CATALOG_PROD_URL, null),
                     catalogRequestHeaders = configuredHeaders("carappstore-prod"),
-                    downloadBaseUrl = configuredDownloadBaseUrl(
-                        BuildConfig.CARAPPSTORE_DOWNLOAD_PROD_BASE_URL,
-                        "https://cdn.example.com/carapps",
-                    ),
+                    downloadBaseUrl = configuredDownloadBaseUrl(BuildConfig.CARAPPSTORE_DOWNLOAD_PROD_BASE_URL, ""),
                 )
 
                 DownloadEnvironment.LOCAL_SIM -> DownloadEnvironmentConfig(

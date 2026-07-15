@@ -9,9 +9,11 @@ import com.xzq.appstore.core.downloader.DownloadStore
 import com.xzq.appstore.core.downloader.RealFileDownloader
 import com.xzq.appstore.core.downloader.SimulatedFileDownloader
 import com.xzq.appstore.core.installer.AndroidInstallPermissionGateway
+import com.xzq.appstore.core.installer.AndroidOwnedInstallSessionGateway
 import com.xzq.appstore.core.installer.AndroidPackageIdentityVerifier
 import com.xzq.appstore.core.installer.ApkVerificationPolicy
 import com.xzq.appstore.core.installer.InstallSessionStore
+import com.xzq.appstore.core.installer.InstallSessionReconciler
 import com.xzq.appstore.core.installer.InstallUserActionDispatcher
 import com.xzq.appstore.core.installer.RealPackageInstaller
 import com.xzq.appstore.core.installer.SystemPackageInstallerSessionAdapter
@@ -186,6 +188,19 @@ class AppContainer(context: Context) : AppServices {
     /** 统一读取安装前 APK archive 与安装后 PackageManager 事实。 */
     private val packageIdentityVerifier by lazy { AndroidPackageIdentityVerifier(appContext) }
 
+    /** 查询并清理本应用遗留的平台安装会话。 */
+    private val ownedInstallSessionGateway by lazy { AndroidOwnedInstallSessionGateway(appContext) }
+
+    /** 冷启动安装会话对账入口。 */
+    private val installSessionReconciler by lazy {
+        InstallSessionReconciler(installSessionStore, ownedInstallSessionGateway, packageIdentityVerifier)
+    }
+
+    /** 系统安装 Session 适配器，供真实安装器复用。 */
+    private val packageInstallerSessionAdapter by lazy {
+        SystemPackageInstallerSessionAdapter(appContext, installUserActionDispatcher)
+    }
+
     /** 除 Debug+LOCAL_SIM 外，所有环境都必须提供 versionCode 与签名摘要。 */
     private val apkVerificationPolicy by lazy {
         val allowMissingTrustMetadata = BuildConfig.DEBUG && downloadEnvConfig.environment == DownloadEnvironment.LOCAL_SIM
@@ -196,7 +211,7 @@ class AppContainer(context: Context) : AppServices {
     /** 安装执行器实例，供安装业务编排层复用。 */
     private val packageInstaller by lazy {
         RealPackageInstaller(
-            sessionAdapter = SystemPackageInstallerSessionAdapter(appContext, installUserActionDispatcher),
+            sessionAdapter = packageInstallerSessionAdapter,
             sessionStore = installSessionStore,
             apkVerifier = packageIdentityVerifier,
             installedPackageInspector = packageIdentityVerifier,
@@ -248,8 +263,12 @@ class AppContainer(context: Context) : AppServices {
     }
 
     init {
-        // 冷启动时先修正上次可能中断的安装会话，再启动下载链的恢复。
-        installSessionStore.markRecoveredSessionsAsInterrupted()
+        // 冷启动时先对齐本地记录、平台 Session 与 PackageManager 安装事实，再启动下载链恢复。
+        val reconciliation = installSessionReconciler.reconcile()
+        logger.d(
+            "AppContainer",
+            "install session reconciliation completed=${reconciliation.completedSessionCount}, interrupted=${reconciliation.interruptedSessionCount}, abandoned=${reconciliation.abandonedPlatformSessionCount}",
+        )
         // 访问下载管理器时会触发其初始化逻辑，顺带执行下载任务恢复。
         downloadManager
     }

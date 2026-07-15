@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Keep `Activity + FragmentManager` navigation and manual `AppContainer`; do not add Hilt, Navigation, or dependencies.
-- Keep production traffic HTTPS-only and production vehicle policy fail-closed.
+- Keep production traffic HTTPS-only. Platform policy must be capability-gated; only an enabled vehicle target should use fail-closed driving-state semantics.
 - Use `apply_patch` for edits and retain existing user modifications in `.gitignore`, `AppPrimaryActionExecutor`, and upgrade feature files.
 - Every production behavior change starts with a failing unit or Robolectric test.
 - Do not commit while unrelated user changes are present; provide a precise staged-file handoff instead.
@@ -68,7 +68,7 @@
 - [x] Route developer environment buttons through the shared controller and restart into the new container.
 - [ ] Run the provider and relevant Robolectric tests.
 
-### Task 4: Close installation permission and local vehicle paths
+### Task 4: Close installation permission and the optional local vehicle path
 
 **Files:**
 - Create: `core/src/main/java/com/xzq/appstore/core/installer/InstallPermissionGateway.kt`
@@ -86,7 +86,7 @@
 - [ ] Add failing tests for permission-required install failure and settings intent shape.
 - [x] Add `InstallFailureCode.PERMISSION_REQUIRED` and preflight it before session creation.
 - [x] Replace empty permission-banner callbacks with settings intents.
-- [x] Select a parked-only local simulation vehicle provider in debug LOCAL_SIM; production retains `StaticVehicleStateSignalProvider(parkingMode=false)` unless OEM broadcast config is supplied.
+- [x] Select a parked-only local simulation vehicle provider in debug LOCAL_SIM. Historical completion retained `StaticVehicleStateSignalProvider(parkingMode=false)` in production; after the cross-platform positioning correction this behavior is tracked for capability-gated decoupling on non-vehicle targets.
 - [x] Run core and business install tests.
 
 ### Task 5: Use PackageManager as installed-app truth
@@ -128,7 +128,7 @@
 - Modify: `docs/32-本地验证指南.md`
 
 - [x] Update Kotlin/version/module-count/build-status claims using fresh verification output.
-- [x] State the difference between implemented installation code, debug local simulation, and production OEM/permission requirements.
+- [x] State the difference between implemented Android installation code, debug local simulation, generic production permission requirements, and optional vehicle OEM requirements.
 - [x] List ignored APK assets and tracked local-sim tooling.
 - [x] Run `testDebugUnitTest`, `lintDebug`, `:app:assembleDebug`, and `:app:assembleRelease` with JDK 17.
 - [ ] Confirm `HEAD == origin/main` only if no commit is made; otherwise report the exact local diff and artifact paths.
