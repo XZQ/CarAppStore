@@ -23,13 +23,9 @@ import org.robolectric.annotation.Config
  * 且合并流依赖 StateFlow，是最能体现"多源数据聚合"的业务类。
  * 用 Robolectric 验证：
  * 1. 默认存储 + 健全 runtime 信号下 canDownload/canInstall/canUpgrade 给出合理判断；
- * 2. wifi / parking / lowStorage 三个开关任一翻转都让对应策略拦截；
+ * 2. 通用平台不受驻车信号影响，车载平台保留驻车安装限制；
  * 3. 设备可用空间低于阈值时单独触发 POLICY_DEVICE_STORAGE_LOW；
  * 4. updateSettings 立即把新策略写回 stored（同步可观察）。
- *
- * 注意：默认 PolicyRuntimeSignals.parkingMode=false 与默认 PolicySettings.parkingMode=true
- * 合并后 parking=false，会让 canInstall 默认拦截。所以 default state 测试要显式提供
- * parkingMode=true 的 runtime 信号。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -73,12 +69,23 @@ class DefaultPolicyCenterTest {
         val center = DefaultPolicyCenter(
             storageInfoProvider = plentifulStorage(),
             localDataSource = AppLocalDataSource(context),
-            runtimeSignalProvider = FakeSignalProvider(allClearSignals(parking = false)),
+            runtimeSignalProvider = FakeSignalProvider(allClearSignals(parking = false, vehiclePolicyEnabled = true)),
         )
 
         val result = center.canInstall("app-1")
         assertFalse(result.allow)
         assertEquals(BusinessText.POLICY_NOT_PARKING, result.reason)
+    }
+
+    @Test
+    fun `canInstall allows generic platform when vehicle signal says not parking`() {
+        val center = DefaultPolicyCenter(
+            storageInfoProvider = plentifulStorage(),
+            localDataSource = AppLocalDataSource(context),
+            runtimeSignalProvider = FakeSignalProvider(allClearSignals(parking = false)),
+        )
+
+        assertTrue(center.canInstall("app-1").allow)
     }
 
     @Test
@@ -133,7 +140,13 @@ class DefaultPolicyCenterTest {
         wifi: Boolean = true,
         parking: Boolean = true,
         lowStorage: Boolean = false,
-    ): PolicyRuntimeSignals = PolicyRuntimeSignals(wifiConnected = wifi, parkingMode = parking, lowStorageMode = lowStorage)
+        vehiclePolicyEnabled: Boolean = false,
+    ): PolicyRuntimeSignals = PolicyRuntimeSignals(
+        wifiConnected = wifi,
+        parkingMode = parking,
+        lowStorageMode = lowStorage,
+        vehicleInstallPolicyEnabled = vehiclePolicyEnabled,
+    )
 
     private fun plentifulStorage(): StorageInfoProvider = FixedStorageInfoProvider(Long.MAX_VALUE)
 

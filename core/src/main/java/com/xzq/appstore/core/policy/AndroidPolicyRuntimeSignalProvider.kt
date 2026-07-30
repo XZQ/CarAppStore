@@ -23,12 +23,14 @@ import kotlinx.coroutines.launch
  * 当前已接入：
  * 1. Wi‑Fi 网络状态
  * 2. 低存储状态
- * 3. 车况信号通过 VehicleStateSignalProvider 注入，默认兜底为非驻车
+ * 3. 可选车况信号通过 VehicleStateSignalProvider 注入；通用平台默认不启用车载限制
  */
 class AndroidPolicyRuntimeSignalProvider(
     context: Context,
     /** OEM 车况信号提供者，后续可替换为真实车机实现。 */
     private val vehicleStateSignalProvider: VehicleStateSignalProvider = StaticVehicleStateSignalProvider(),
+    /** 是否在当前平台启用驻车安装限制。 */
+    private val vehicleInstallPolicyEnabled: Boolean = false,
     /** 统一日志入口。 */
     private val logger: AppLogger = AppLogger(),
 ) : PolicyRuntimeSignalProvider {
@@ -123,6 +125,7 @@ class AndroidPolicyRuntimeSignalProvider(
             wifiConnected = readWifiConnected(connectivityManager),
             parkingMode = readParkingMode(),
             lowStorageMode = readLowStorageMode(),
+            vehicleInstallPolicyEnabled = vehicleInstallPolicyEnabled,
         )
     }
 

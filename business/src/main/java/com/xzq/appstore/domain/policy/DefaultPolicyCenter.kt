@@ -52,11 +52,11 @@ class DefaultPolicyCenter(
         }
     }
 
-    /** 校验安装链路是否满足驻车和空间等前置条件。 */
+    /** 校验安装链路是否满足通用空间限制，以及可选车载平台的驻车限制。 */
     override fun canInstall(appId: String): PolicyResult {
         val settings = getSettings()
         return when {
-            !settings.parkingMode -> PolicyResult(false, BusinessText.POLICY_NOT_PARKING)
+            settings.vehicleInstallPolicyEnabled && !settings.parkingMode -> PolicyResult(false, BusinessText.POLICY_NOT_PARKING)
             settings.lowStorageMode -> PolicyResult(false, BusinessText.POLICY_LOW_STORAGE)
             else -> PolicyResult(true)
         }

@@ -14,7 +14,8 @@ internal fun mergePolicySettings(
 ): PolicySettings {
     return PolicySettings(
         wifiConnected = stored.wifiConnected && runtime.wifiConnected,
-        parkingMode = stored.parkingMode && runtime.parkingMode,
+        parkingMode = if (runtime.vehicleInstallPolicyEnabled) stored.parkingMode && runtime.parkingMode else true,
         lowStorageMode = stored.lowStorageMode || runtime.lowStorageMode,
+        vehicleInstallPolicyEnabled = runtime.vehicleInstallPolicyEnabled,
     )
 }

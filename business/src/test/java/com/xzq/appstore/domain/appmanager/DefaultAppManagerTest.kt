@@ -99,7 +99,12 @@ class DefaultAppManagerTest {
 
     @Test
     fun `getPolicyPrompt 根据当前策略设置聚合提示文案`() {
-        policyCenter.settingsFlow.value = PolicySettings(wifiConnected = false, parkingMode = false, lowStorageMode = true)
+        policyCenter.settingsFlow.value = PolicySettings(
+            wifiConnected = false,
+            parkingMode = false,
+            lowStorageMode = true,
+            vehicleInstallPolicyEnabled = true,
+        )
         val manager = createManager()
 
         val result = manager.getPolicyPrompt()
@@ -108,6 +113,14 @@ class DefaultAppManagerTest {
             listOf(BusinessText.POLICY_DOWNLOAD_CELLULAR, BusinessText.POLICY_INSTALL_DRIVING, BusinessText.POLICY_STORAGE_LIMITED).joinToString("；"),
             result,
         )
+    }
+
+    @Test
+    fun `getPolicyPrompt 通用平台不显示驻车提示`() {
+        policyCenter.settingsFlow.value = PolicySettings(wifiConnected = true, parkingMode = false, lowStorageMode = false)
+        val manager = createManager()
+
+        assertEquals(BusinessText.POLICY_ALL_CLEAR, manager.getPolicyPrompt())
     }
 
     /** 创建待测聚合层实例。 */

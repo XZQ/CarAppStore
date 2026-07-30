@@ -18,13 +18,36 @@ class PolicySettingsMergerTest {
     }
 
     @Test
-    fun `mergePolicySettings 会把实时驻车限制合并到生效策略`() {
+    fun `mergePolicySettings 通用平台忽略无意义的非驻车信号`() {
         val result = mergePolicySettings(
             stored = PolicySettings(wifiConnected = true, parkingMode = true, lowStorageMode = false),
             runtime = PolicyRuntimeSignals(wifiConnected = true, parkingMode = false, lowStorageMode = false),
         )
 
-        assertEquals(PolicySettings(wifiConnected = true, parkingMode = false, lowStorageMode = false), result)
+        assertEquals(PolicySettings(wifiConnected = true, parkingMode = true, lowStorageMode = false), result)
+    }
+
+    @Test
+    fun `mergePolicySettings 车载平台合并实时驻车限制`() {
+        val result = mergePolicySettings(
+            stored = PolicySettings(wifiConnected = true, parkingMode = true, lowStorageMode = false),
+            runtime = PolicyRuntimeSignals(
+                wifiConnected = true,
+                parkingMode = false,
+                lowStorageMode = false,
+                vehicleInstallPolicyEnabled = true,
+            ),
+        )
+
+        assertEquals(
+            PolicySettings(
+                wifiConnected = true,
+                parkingMode = false,
+                lowStorageMode = false,
+                vehicleInstallPolicyEnabled = true,
+            ),
+            result,
+        )
     }
 
     @Test

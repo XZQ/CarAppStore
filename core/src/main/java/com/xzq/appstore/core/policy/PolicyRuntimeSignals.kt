@@ -10,4 +10,6 @@ data class PolicyRuntimeSignals(
     val parkingMode: Boolean = false,
     /** 当前设备是否处于低存储状态。 */
     val lowStorageMode: Boolean = false,
+    /** 当前平台是否启用了车载安装限制；通用平台默认不启用。 */
+    val vehicleInstallPolicyEnabled: Boolean = false,
 )

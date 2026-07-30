@@ -10,4 +10,6 @@ data class PolicySettings(
     val parkingMode: Boolean = true,
     /** 当前设备是否处于低存储状态。 */
     val lowStorageMode: Boolean = false,
+    /** 当前平台是否启用了车载安装限制；该字段来自运行态，不做持久化。 */
+    val vehicleInstallPolicyEnabled: Boolean = false,
 )

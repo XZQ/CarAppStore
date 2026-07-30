@@ -384,7 +384,7 @@ class DefaultAppManager(
         val settings = policyCenter.getSettings()
         val prompts = mutableListOf<String>()
         if (!settings.wifiConnected) prompts += BusinessText.POLICY_DOWNLOAD_CELLULAR
-        if (!settings.parkingMode) prompts += BusinessText.POLICY_INSTALL_DRIVING
+        if (settings.vehicleInstallPolicyEnabled && !settings.parkingMode) prompts += BusinessText.POLICY_INSTALL_DRIVING
         if (settings.lowStorageMode) prompts += BusinessText.POLICY_STORAGE_LIMITED
         return if (prompts.isEmpty()) BusinessText.POLICY_ALL_CLEAR else prompts.joinToString("；")
     }

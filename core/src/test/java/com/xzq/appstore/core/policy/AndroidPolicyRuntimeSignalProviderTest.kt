@@ -3,6 +3,7 @@ package com.xzq.appstore.core.policy
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -14,7 +15,7 @@ import org.robolectric.annotation.Config
  * 是最依赖 Android Context 的类，用 Robolectric 验证：
  * 1. 构造不会因真实 Context 崩溃；
  * 2. 初始信号读取链路（wifiConnected / parkingMode / lowStorageMode）能给出合理默认值；
- * 3. StaticVehicleStateSignalProvider 兜底下 parkingMode 为 false。
+ * 3. StaticVehicleStateSignalProvider 兜底下 parkingMode 为 false，但通用平台不启用车载限制。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -35,6 +36,20 @@ class AndroidPolicyRuntimeSignalProviderTest {
         val provider = AndroidPolicyRuntimeSignalProvider(context = context, vehicleStateSignalProvider = StaticVehicleStateSignalProvider())
 
         assertFalse(provider.currentSignals().parkingMode)
+        assertFalse(provider.currentSignals().vehicleInstallPolicyEnabled)
+    }
+
+    @Test
+    fun `vehicle install policy is enabled only when explicitly configured`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val provider = AndroidPolicyRuntimeSignalProvider(
+            context = context,
+            vehicleStateSignalProvider = StaticVehicleStateSignalProvider(),
+            vehicleInstallPolicyEnabled = true,
+        )
+
+        assertTrue(provider.currentSignals().vehicleInstallPolicyEnabled)
     }
 
     @Test

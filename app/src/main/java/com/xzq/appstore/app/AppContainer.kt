@@ -126,7 +126,13 @@ class AppContainer(context: Context) : AppServices {
     /** 全局状态中心。 */
     override val stateCenter: StateCenter by lazy { DefaultStateCenter() }
 
-    /** 全局策略中心。 */
+    /** OEM 车载策略仅在广播动作与驻车字段都配置完整时启用。 */
+    private val vehicleInstallPolicyEnabled: Boolean by lazy {
+        BuildConfig.CARAPPSTORE_OEM_VEHICLE_ACTION.isNotBlank() &&
+            BuildConfig.CARAPPSTORE_OEM_PARKING_EXTRA.isNotBlank()
+    }
+
+    /** 可选车况信号提供者；通用平台使用静态兜底但不会启用驻车限制。 */
     private val vehicleStateSignalProvider: VehicleStateSignalProvider by lazy {
         val action = BuildConfig.CARAPPSTORE_OEM_VEHICLE_ACTION.trim()
         val parkingExtra = BuildConfig.CARAPPSTORE_OEM_PARKING_EXTRA.trim()
@@ -146,7 +152,12 @@ class AppContainer(context: Context) : AppServices {
 
     /** 全局策略中心。 */
     private val runtimeSignalProvider by lazy {
-        AndroidPolicyRuntimeSignalProvider(appContext, vehicleStateSignalProvider, logger)
+        AndroidPolicyRuntimeSignalProvider(
+            context = appContext,
+            vehicleStateSignalProvider = vehicleStateSignalProvider,
+            vehicleInstallPolicyEnabled = vehicleInstallPolicyEnabled,
+            logger = logger,
+        )
     }
 
     /** 提供设备可用存储空间查询。 */
