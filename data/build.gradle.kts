@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.xzq.appstore.data"
-    compileSdk = 34
+    compileSdk = 36
 
     fun configValue(name: String): String =
         (project.findProperty(name) as String?)

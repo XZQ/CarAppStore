@@ -45,7 +45,8 @@ class AppSystemDataSource(
     fun getPackageInfoFromApk(apkPath: String): ApkPackageInfo? {
         return try {
             val info = context.packageManager.getPackageArchiveInfo(apkPath, 0) ?: return null
-            ApkPackageInfo(packageName = info.packageName, versionName = info.versionName)
+            val packageName = info.packageName?.takeIf { it.isNotBlank() } ?: return null
+            ApkPackageInfo(packageName = packageName, versionName = info.versionName.orEmpty())
         } catch (_: Exception) {
             null
         }
@@ -56,9 +57,9 @@ class AppSystemDataSource(
         return packageNames.mapNotNull { packageName ->
             try {
                 val info = context.packageManager.getPackageInfo(packageName, 0)
-                val appInfo = info.applicationInfo
+                val appInfo = info.applicationInfo ?: return@mapNotNull null
                 val name = context.packageManager.getApplicationLabel(appInfo).toString()
-                InstalledApp(appId = packageName, packageName = packageName, name = name, versionName = info.versionName)
+                InstalledApp(appId = packageName, packageName = packageName, name = name, versionName = info.versionName.orEmpty())
             } catch (_: PackageManager.NameNotFoundException) {
                 null
             }
