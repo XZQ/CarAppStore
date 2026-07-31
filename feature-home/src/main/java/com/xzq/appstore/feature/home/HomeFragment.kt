@@ -132,7 +132,7 @@ class HomeFragment : BaseFragment() {
     }
 
     private fun createRankIndex(index: Int): TextView = TextView(requireContext()).apply {
-        text = index.toString()
+        text = getString(CommonR.string.rank_index_format, index)
         gravity = android.view.Gravity.CENTER
         setTextColor(resources.getColor(CommonR.color.car_accent, null))
         textSize = TEXT_SIZE_RANK_INDEX

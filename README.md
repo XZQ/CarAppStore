@@ -26,8 +26,8 @@ CarAppStore 是一个跨平台应用分发与管理 App。当前仓库承载它�
 
 - 当前主分支：`main`
 - 已同步远端：`origin/main`
-- 最近完整验证：2026-07-31 已在 JDK 17 下通过 `testDebugUnitTest`、`compileDebugKotlin`、`lintDebug`、`:app:assembleDebug` 与 `:app:assembleRelease`；共 247 个测试，0 失败、0 错误。
-- GitHub Actions 已在远端成功运行；本轮平台策略解耦、API 36 和平台能力模型均已逐项提交并推送。
+- 最近完整验证：2026-07-31 已在 JDK 17 下通过 `testDebugUnitTest`、`compileDebugKotlin`、`lintDebug`、`:app:assembleDebug` 与 `:app:assembleRelease`；45 份测试报告共 247 个测试，0 失败、0 错误，13 份 Lint 报告为 0 告警、0 错误。
+- GitHub Actions 已在远端成功运行；本轮平台策略解耦、API 36、平台能力模型、文档校准和生产发布门禁均已逐项提交并推送。
 - 换机接手总览：[docs/29-换机接手与当前进度总览.md](docs/29-换机接手与当前进度总览.md)
 
 实际最新状态请以 `git status --short --branch` 和 `git log --oneline -5` 为准。

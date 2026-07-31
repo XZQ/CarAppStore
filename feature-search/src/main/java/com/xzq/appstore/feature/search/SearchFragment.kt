@@ -196,7 +196,7 @@ class SearchFragment : BaseFragment() {
         if (showIndex) {
             addView(
                 TextView(requireContext()).apply {
-                    text = index.toString()
+                    text = getString(CommonR.string.rank_index_format, index)
                     gravity = android.view.Gravity.CENTER
                     setTextColor(resources.getColor(CommonR.color.car_accent, null))
                     textSize = 16f
@@ -224,7 +224,7 @@ class SearchFragment : BaseFragment() {
                 )
                 addView(
                     TextView(requireContext()).apply {
-                        text = "${app.description}  ·  ${app.versionName}"
+                        text = getString(CommonR.string.app_description_version_format, app.description, app.versionName)
                         setTextColor(resources.getColor(CommonR.color.car_text_secondary, null))
                         textSize = 12f
                         maxLines = 1

@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 灰度头面板 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="@dimen/spacing_14dp"
     android:background="@drawable/bg_panel"
     android:orientation="vertical"
-    android:padding="@dimen/spacing_18dp">
+    android:padding="@dimen/spacing_18dp"
+    tools:ignore="Overdraw">
 
     <TextView
         android:layout_width="match_parent"
@@ -24,7 +26,7 @@
         android:textColor="@color/car_text_muted"
         android:textSize="@dimen/text_sm_13" />
 
-    <Switch
+    <com.google.android.material.materialswitch.MaterialSwitch
         android:id="@+id/swGrayscaleEnabled"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -40,6 +42,7 @@
         android:layout_marginTop="@dimen/spacing_12dp"
         android:background="@drawable/bg_card_alt"
         android:hint="@string/ui_debug_grayscale_hint_input"
+        android:importantForAutofill="no"
         android:inputType="text"
         android:padding="@dimen/spacing_12dp"
         android:textColor="@color/car_text_primary"

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- API 36 is the product baseline for this release train. -->
+    <issue id="OldTargetApi">
+        <ignore path="build.gradle.kts" />
+    </issue>
+
+    <!-- Dependency upgrades are isolated from warning cleanup so each can receive its own compatibility regression. -->
+    <issue id="GradleDependency">
+        <ignore path="../gradle/libs.versions.toml" />
+    </issue>
+    <issue id="NewerVersionAvailable">
+        <ignore path="../gradle/libs.versions.toml" />
+    </issue>
+</lint>

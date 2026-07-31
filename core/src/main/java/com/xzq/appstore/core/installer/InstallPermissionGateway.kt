@@ -2,8 +2,8 @@ package com.xzq.appstore.core.installer
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
+import androidx.core.net.toUri
 
 /** 安装未知来源 APK 所需的系统权限边界。 */
 interface InstallPermissionGateway {
@@ -20,5 +20,5 @@ class AndroidInstallPermissionGateway(context: Context) : InstallPermissionGatew
     override fun canRequestInstalls(): Boolean = appContext.packageManager.canRequestPackageInstalls()
 
     /** 创建当前应用的未知来源安装授权设置页 Intent。 */
-    fun settingsIntent(): Intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${appContext.packageName}"))
+    fun settingsIntent(): Intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${appContext.packageName}".toUri())
 }

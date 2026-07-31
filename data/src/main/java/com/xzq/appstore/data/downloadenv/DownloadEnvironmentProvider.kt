@@ -1,6 +1,7 @@
 package com.xzq.appstore.data.downloadenv
 
 import android.content.Context
+import androidx.core.content.edit
 import com.xzq.appstore.data.BuildConfig
 import com.xzq.appstore.data.local.entity.SettingsEntity
 import com.xzq.appstore.data.local.store.InMemoryLocalStoreFacade
@@ -46,7 +47,9 @@ class LocalDownloadEnvironmentProvider(
         localStoreFacade.saveSetting(
             SettingsEntity(key = LocalStoreKeys.DOWNLOAD_ENVIRONMENT, value = environment.name, updatedAt = System.currentTimeMillis())
         )
-        preferences.edit().putString(KEY_ENV, environment.name).apply()
+        preferences.edit {
+            putString(KEY_ENV, environment.name)
+        }
     }
 
     companion object {

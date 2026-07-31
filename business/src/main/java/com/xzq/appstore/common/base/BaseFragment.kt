@@ -1,8 +1,8 @@
 package com.xzq.appstore.common.base
 
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import com.xzq.appstore.common.navigation.MainNavigator
 
@@ -28,6 +28,6 @@ abstract class BaseFragment : Fragment() {
 
     /** 打开当前应用的未知来源安装授权设置页。 */
     protected fun openInstallPermissionSettings() {
-        startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${requireContext().packageName}")))
+        startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${requireContext().packageName}".toUri()))
     }
 }

@@ -1,6 +1,7 @@
 package com.xzq.appstore.common.grayscale
 
 import android.content.Context
+import androidx.core.content.edit
 import com.xzq.appstore.common.grayscale.GrayscaleHeaderStore.HEADER_NAME
 
 /**
@@ -41,7 +42,10 @@ object GrayscaleHeaderStore {
 
     /** 持久化灰度头配置。 */
     fun save(context: Context, enabled: Boolean, tag: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(KEY_ENABLED, enabled).putString(KEY_HEADER, tag).apply()
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_ENABLED, enabled)
+            putString(KEY_HEADER, tag)
+        }
     }
 
     /** 把配置转换为请求头键值对；未启用或标识为空时返回 null。 */

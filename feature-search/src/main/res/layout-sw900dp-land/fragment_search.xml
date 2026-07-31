@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/car_bg"
     android:orientation="vertical"
-    android:padding="@dimen/spacing_18dp">
+    android:padding="@dimen/spacing_18dp"
+    tools:ignore="NestedWeights,Overdraw">
 
     <LinearLayout
         android:id="@+id/catalogHeader"
@@ -52,6 +54,9 @@
                 android:layout_height="48dp"
                 android:layout_marginStart="@dimen/spacing_20dp"
                 android:background="@drawable/bg_search_input"
+                android:hint="@string/ui_search"
+                android:importantForAutofill="no"
+                android:inputType="text"
                 android:paddingStart="@dimen/spacing_16dp"
                 android:paddingEnd="@dimen/spacing_16dp"
                 android:singleLine="true"

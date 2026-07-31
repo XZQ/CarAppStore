@@ -67,7 +67,7 @@ kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 add('README.md', '''
 # CarAppStore
 
-一个基于 MVVM 的车载应用商店 Android 工程骨架。
+跨平台应用分发与管理 App 的 Android/MVVM 客户端工程骨架。
 
 ## 已落地约束
 - MVVM

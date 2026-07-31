@@ -8,7 +8,7 @@
     <string name="title_download_manager">&#x4e0b;&#x8f7d;&#x7ba1;&#x7406;</string>
     <string name="title_install_manager">&#x5b89;&#x88c5;&#x7ba1;&#x7406;</string>
     <string name="title_developer_settings">&#x5f00;&#x53d1;&#x8bbe;&#x7f6e;</string>
-    <string name="loading">&#x52a0;&#x8f7d;&#x4e2d;...</string>
+    <string name="loading">&#x52a0;&#x8f7d;&#x4e2d;&#x2026;</string>
     <string name="download">&#x4e0b;&#x8f7d;</string>
     <string name="install">&#x5b89;&#x88c5;</string>
     <string name="open">&#x6253;&#x5f00;</string>
@@ -16,7 +16,9 @@
     <string name="go_my_apps">&#x6211;&#x7684;&#x5e94;&#x7528;</string>
     <string name="back_home">&#x8fd4;&#x56de;&#x9996;&#x9875;</string>
     <string name="ui_carappstore">CarAppStore</string>
-    <string name="ui_service_center_subtitle">&#x9a7e;&#x9a76;&#x573a;&#x666f;&#x5e94;&#x7528;&#x670d;&#x52a1;&#x4e2d;&#x5fc3;</string>
+    <string name="ui_service_center_subtitle">&#x8de8;&#x5e73;&#x53f0;&#x5e94;&#x7528;&#x5206;&#x53d1;&#x4e0e;&#x7ba1;&#x7406;&#x4e2d;&#x5fc3;</string>
+    <string name="rank_index_format">%1$d</string>
+    <string name="app_description_version_format">%1$s  &#xb7;  %2$s</string>
     <string name="ui_home">&#x9996;&#x9875;</string>
     <string name="ui_game">&#x6e38;&#x620f;</string>
     <string name="ui_software">&#x8f6f;&#x4ef6;</string>

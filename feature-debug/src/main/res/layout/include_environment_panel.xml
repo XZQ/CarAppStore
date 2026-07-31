@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 环境切换面板 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_panel"
     android:orientation="vertical"
-    android:padding="@dimen/spacing_18dp">
+    android:padding="@dimen/spacing_18dp"
+    tools:ignore="ButtonStyle,Overdraw">
 
     <TextView
         android:layout_width="match_parent"

@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 版本信息面板 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="@dimen/spacing_14dp"
     android:background="@drawable/bg_panel"
     android:orientation="vertical"
-    android:padding="@dimen/spacing_18dp">
+    android:padding="@dimen/spacing_18dp"
+    tools:ignore="Overdraw">
 
     <TextView
         android:layout_width="match_parent"
