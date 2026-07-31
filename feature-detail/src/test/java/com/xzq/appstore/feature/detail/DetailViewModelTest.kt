@@ -1,6 +1,7 @@
 package com.xzq.appstore.feature.detail
 
 import com.xzq.appstore.data.model.AppDetail
+import com.xzq.appstore.data.model.AppPlatform
 import com.xzq.appstore.data.model.AppViewData
 import com.xzq.appstore.data.model.DownloadPreferences
 import com.xzq.appstore.data.model.DownloadTaskViewData
@@ -110,13 +111,37 @@ class DetailViewModelTest {
         assertTrue(downloadManager.startedAppIds.isEmpty())
     }
 
-    private class FakeAppManager : AppManager {
+    @Test
+    fun `other platform detail disables primary action and does not start download`() = runTest {
+        val downloadManager = RecordingDownloadManager()
+        val unsupportedDetail = TEST_APP_DETAIL.copy(supportedPlatforms = setOf(AppPlatform.IOS))
+        val viewModel = DetailViewModel(
+            appManager = FakeAppManager(unsupportedDetail),
+            downloadManager = downloadManager,
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            stateCenter = DefaultStateCenter(),
+            policyCenter = FakePolicyCenter(),
+        )
+
+        viewModel.load(unsupportedDetail.appId)
+        advanceUntilIdle()
+        viewModel.onPrimaryClick()
+        advanceUntilIdle()
+
+        assertEquals(PrimaryAction.UNSUPPORTED, viewModel.uiState.value.primaryAction)
+        assertTrue(downloadManager.startedAppIds.isEmpty())
+    }
+
+    private class FakeAppManager(
+        private val detail: AppDetail = TEST_APP_DETAIL,
+    ) : AppManager {
         /** 最近一次被请求打开的包名。 */
         var openedPackageName: String? = null
 
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
 
-        override suspend fun getAppDetail(appId: String): AppDetail = TEST_APP_DETAIL
+        override suspend fun getAppDetail(appId: String): AppDetail = detail
 
         override suspend fun getMyApps(): List<AppViewData> = emptyList()
 

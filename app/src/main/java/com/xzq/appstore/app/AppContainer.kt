@@ -36,6 +36,7 @@ import com.xzq.appstore.data.downloadenv.DownloadEnvironmentEntry
 import com.xzq.appstore.data.downloadenv.LocalDownloadEnvironmentProvider
 import com.xzq.appstore.data.local.store.JsonBackedLocalStoreFacade
 import com.xzq.appstore.data.local.store.LocalStoreFacade
+import com.xzq.appstore.data.model.ClientPlatformCapabilities
 import com.xzq.appstore.data.repository.AppRepository
 import com.xzq.appstore.data.repository.RealAppRepository
 import com.xzq.appstore.domain.appmanager.AppManager
@@ -125,6 +126,9 @@ class AppContainer(context: Context) : AppServices {
 
     /** 全局状态中心。 */
     override val stateCenter: StateCenter by lazy { DefaultStateCenter() }
+
+    /** 当前仓库交付 Android 客户端，其他平台客户端应在各自装配入口替换该值。 */
+    private val platformCapabilities = ClientPlatformCapabilities()
 
     /** OEM 车载策略仅在广播动作与驻车字段都配置完整时启用。 */
     private val vehicleInstallPolicyEnabled: Boolean by lazy {
@@ -240,6 +244,7 @@ class AppContainer(context: Context) : AppServices {
             fileDownloader = fileDownloader,
             logger = logger,
             tracker = eventTracker,
+            platformCapabilities = platformCapabilities,
         )
     }
 
@@ -252,6 +257,7 @@ class AppContainer(context: Context) : AppServices {
             packageInstaller = packageInstaller,
             logger = logger,
             tracker = eventTracker,
+            platformCapabilities = platformCapabilities,
         )
     }
 
@@ -265,12 +271,13 @@ class AppContainer(context: Context) : AppServices {
             installManager = installManager,
             logger = logger,
             tracker = eventTracker,
+            platformCapabilities = platformCapabilities,
         )
     }
 
     /** 应用管理聚合入口，给首页、详情页、我的应用、各任务中心使用。 */
     override val appManager: AppManager by lazy {
-        DefaultAppManager(repository, stateCenter, installSessionStore, policyCenter)
+        DefaultAppManager(repository, stateCenter, installSessionStore, policyCenter, platformCapabilities)
     }
 
     init {

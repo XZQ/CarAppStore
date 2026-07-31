@@ -10,6 +10,10 @@ data class AppDetail(
     val appId: String,
     /** 应用对应的安卓包名。 */
     val packageName: String,
+    /** 应用声明支持的软件平台；旧目录默认按 Android 处理。 */
+    val supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID),
+    /** 当前客户端平台，由业务装配层写入。 */
+    val currentPlatform: AppPlatform = AppPlatform.ANDROID,
     /** 展示给用户的应用名称。 */
     val name: String,
     /** 详情页展示的应用描述。 */
@@ -49,4 +53,8 @@ data class AppDetail(
     val checksumValue: String? = null,
     /** 解析下载源时优先采用的策略。 */
     val sourcePolicy: DownloadSourcePolicy = DownloadSourcePolicy.FALLBACK_SIMULATED,
-)
+) {
+    /** 当前客户端是否能直接下载并安装该应用。 */
+    val currentPlatformSupported: Boolean
+        get() = currentPlatform in supportedPlatforms
+}

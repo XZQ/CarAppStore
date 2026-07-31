@@ -9,6 +9,7 @@ import com.xzq.appstore.core.downloader.FileDownloader
 import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.AppDetail
+import com.xzq.appstore.data.model.ClientPlatformCapabilities
 import com.xzq.appstore.data.model.DownloadPreferences
 import com.xzq.appstore.data.model.DownloadTaskRecord
 import com.xzq.appstore.data.repository.AppRepository
@@ -46,6 +47,8 @@ class DefaultDownloadManager(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     /** 同时进行的 APK 下载任务上限，默认 3（用户要求「最多同时下载 3 个 apk」）。 */
     private val maxConcurrentDownloads: Int = DEFAULT_MAX_CONCURRENT_DOWNLOADS,
+    /** 当前客户端平台能力，用于阻止下载其他平台安装包。 */
+    private val platformCapabilities: ClientPlatformCapabilities = ClientPlatformCapabilities(),
 ) : DownloadManager {
     /** 用于冷启动恢复下载任务的后台协程作用域。 */
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -276,6 +279,15 @@ class DefaultDownloadManager(
         }
         // 读取应用详情和目标文件路径，并基于历史任务记录准备新的下载快照。
         val detail = repository.getAppDetail(appId)
+        if (!platformCapabilities.supports(detail.supportedPlatforms)) {
+            markFailed(
+                appId = appId,
+                record = repository.getDownloadTask(appId),
+                errorCode = PLATFORM_UNSUPPORTED_ERROR_CODE,
+                errorMessage = BusinessText.STATUS_PLATFORM_UNSUPPORTED,
+            )
+            return null
+        }
         val targetFile = repository.getOrCreateDownloadFile(appId)
         val current = repository.getDownloadTask(appId)
         val now = System.currentTimeMillis()
@@ -746,6 +758,7 @@ class DefaultDownloadManager(
     )
 
     private companion object {
+        private const val PLATFORM_UNSUPPORTED_ERROR_CODE = "PLATFORM_UNSUPPORTED"
         /** 默认同时下载的 APK 数量上限（用户要求「最多同时下载 3 个 apk」）。 */
         const val DEFAULT_MAX_CONCURRENT_DOWNLOADS = 3
     }

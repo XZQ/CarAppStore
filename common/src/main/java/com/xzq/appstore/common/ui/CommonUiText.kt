@@ -40,6 +40,9 @@ object CommonUiText {
     /** 重试安装动作文案。 */
     const val ACTION_RETRY_INSTALL = "重试安装"
 
+    /** 当前客户端平台不支持该应用。 */
+    const val ACTION_PLATFORM_UNSUPPORTED = "当前设备不支持"
+
     /** 处理中动作文案。 */
     const val ACTION_PROCESSING = "处理中"
 }

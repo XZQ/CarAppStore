@@ -13,6 +13,7 @@ import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppInfo
+import com.xzq.appstore.data.model.AppPlatform
 import com.xzq.appstore.data.model.DownloadPreferences
 import com.xzq.appstore.data.model.DownloadSegmentRecord
 import com.xzq.appstore.data.model.DownloadTaskRecord
@@ -69,6 +70,17 @@ class DefaultUpgradeManagerTest {
     }
 
     @Test
+    fun `checkUpgrade ignores updates for other platforms`() = runBlocking {
+        repository.supportedPlatforms = setOf(AppPlatform.IOS)
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+
+        val result = createManager().checkUpgrade(TEST_APP_ID)
+
+        assertEquals(false, result)
+        assertEquals(UpgradeStatus.NONE, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+    }
+
+    @Test
     fun `checkUpgrade 版本相同时返回 false`() = runBlocking {
         stateCenter.syncInstalled(TEST_APP_ID, "2.0.0")
         val manager = createManager()
@@ -82,6 +94,17 @@ class DefaultUpgradeManagerTest {
         val manager = createManager(policyCenter = DenyAllPolicyCenter())
         manager.startUpgrade(TEST_APP_ID)
         assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+    }
+
+    @Test
+    fun `startUpgrade blocks updates for other platforms`() = runBlocking {
+        repository.supportedPlatforms = setOf(AppPlatform.WINDOWS)
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+
+        createManager().startUpgrade(TEST_APP_ID)
+
+        assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+        assertEquals(BusinessText.STATUS_PLATFORM_UNSUPPORTED, stateCenter.snapshot(TEST_APP_ID).errorMessage)
     }
 
     @Test
@@ -331,6 +354,7 @@ class DefaultUpgradeManagerTest {
         private val apkPaths = mutableMapOf<String, String>()
         var stagedVersion: String? = null
         private val installedAppsList = mutableListOf<InstalledApp>()
+        var supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID)
 
         fun saveApk(appId: String, path: String) {
             apkPaths[appId] = path
@@ -343,6 +367,7 @@ class DefaultUpgradeManagerTest {
         override suspend fun getHomeApps() = emptyList<AppInfo>()
         override suspend fun getAppDetail(appId: String) = AppDetail(
             appId = appId, packageName = "com.nio.$appId", name = "App $appId",
+            supportedPlatforms = supportedPlatforms,
             description = "", versionName = "1.0.0", apkUrl = "https://example.com/$appId.apk",
         )
 

@@ -85,6 +85,9 @@ enum class PrimaryAction {
     /** 重试安装。 */
     RETRY_INSTALL,
 
+    /** 当前客户端平台不支持该应用的安装包。 */
+    UNSUPPORTED,
+
     /** 当前无可点击主动作。 */
     DISABLED,
 }

@@ -3,6 +3,7 @@ package com.xzq.appstore.domain.appmanager
 import com.xzq.appstore.core.installer.InstallSessionStore
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppInfo
+import com.xzq.appstore.data.model.AppPlatform
 import com.xzq.appstore.data.model.DownloadPreferences
 import com.xzq.appstore.data.model.DownloadSegmentRecord
 import com.xzq.appstore.data.model.DownloadTaskRecord
@@ -123,6 +124,16 @@ class DefaultAppManagerTest {
         assertEquals(BusinessText.POLICY_ALL_CLEAR, manager.getPolicyPrompt())
     }
 
+    @Test
+    fun `getHomeApps marks other platform catalog entries as unsupported`() = runBlocking {
+        val item = createManager().getHomeApps().single { it.appId == "ios.app" }
+
+        assertEquals(setOf(AppPlatform.IOS), item.supportedPlatforms)
+        assertEquals(AppPlatform.ANDROID, item.currentPlatform)
+        assertEquals(PrimaryAction.UNSUPPORTED, item.primaryAction)
+        assertEquals(BusinessText.STATUS_PLATFORM_UNSUPPORTED, item.stateText)
+    }
+
     /** 创建待测聚合层实例。 */
     private fun createManager(): DefaultAppManager {
         return DefaultAppManager(repository = repository, stateCenter = stateCenter, installSessionStore = installSessionStore, policyCenter = policyCenter)
@@ -168,6 +179,14 @@ class DefaultAppManagerTest {
                 recommendedReason = "长途陪伴",
                 searchKeywords = listOf("播客", "有声书"),
             ),
+            AppInfo(
+                appId = "ios.app",
+                packageName = "",
+                supportedPlatforms = setOf(AppPlatform.IOS),
+                name = "iOS App",
+                description = "仅支持 iOS",
+                versionName = "1.0.0",
+            ),
         )
 
         /** 已安装应用列表。 */
@@ -183,6 +202,7 @@ class DefaultAppManagerTest {
             return AppDetail(
                 appId = app.appId,
                 packageName = app.packageName,
+                supportedPlatforms = app.supportedPlatforms,
                 name = app.name,
                 description = app.description,
                 versionName = app.versionName,

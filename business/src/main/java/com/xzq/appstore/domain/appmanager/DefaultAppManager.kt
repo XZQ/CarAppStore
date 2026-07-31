@@ -5,7 +5,9 @@ import com.xzq.appstore.common.ui.CarUiStyle
 import com.xzq.appstore.core.installer.InstallSessionStatus
 import com.xzq.appstore.core.installer.InstallSessionStore
 import com.xzq.appstore.data.model.AppDetail
+import com.xzq.appstore.data.model.AppPlatform
 import com.xzq.appstore.data.model.AppViewData
+import com.xzq.appstore.data.model.ClientPlatformCapabilities
 import com.xzq.appstore.data.model.DownloadTaskViewData
 import com.xzq.appstore.data.model.InstallTaskViewData
 import com.xzq.appstore.data.model.SessionBucket
@@ -14,6 +16,7 @@ import com.xzq.appstore.data.model.TaskOverallStatus
 import com.xzq.appstore.data.model.UpgradeTaskViewData
 import com.xzq.appstore.data.repository.AppRepository
 import com.xzq.appstore.domain.policy.PolicyCenter
+import com.xzq.appstore.domain.platform.resolvePlatformPrimaryAction
 import com.xzq.appstore.domain.state.AppState
 import com.xzq.appstore.domain.state.DownloadStatus
 import com.xzq.appstore.domain.state.InstallStatus
@@ -36,6 +39,8 @@ class DefaultAppManager(
     private val installSessionStore: InstallSessionStore,
     /** 策略中心，供聚合层生成实时策略提示。 */
     private val policyCenter: PolicyCenter,
+    /** 当前客户端平台能力。 */
+    private val platformCapabilities: ClientPlatformCapabilities = ClientPlatformCapabilities(),
 ) : AppManager {
 
     /** 获取首页应用卡片列表，并补齐已安装版本与升级状态。 */
@@ -54,6 +59,7 @@ class DefaultAppManager(
                 description = app.recommendedReason.ifBlank { app.description },
                 versionName = app.versionName,
                 packageName = app.packageName,
+                supportedPlatforms = app.supportedPlatforms,
                 iconText = app.iconText,
                 heroText = app.heroText,
                 iconUrl = app.iconUrl,
@@ -77,6 +83,7 @@ class DefaultAppManager(
                 description = app.recommendedReason.ifBlank { app.description },
                 versionName = app.versionName,
                 packageName = app.packageName,
+                supportedPlatforms = app.supportedPlatforms,
                 iconText = app.iconText,
                 heroText = app.heroText,
                 iconUrl = app.iconUrl,
@@ -94,7 +101,7 @@ class DefaultAppManager(
             stateCenter.syncInstalled(appId, installedVersion)
             syncUpgradeAvailability(appId, installedVersion)
         }
-        return detail
+        return detail.copy(currentPlatform = platformCapabilities.currentPlatform)
     }
 
     /** 获取“我的应用”页面需要展示的应用列表。 */
@@ -119,6 +126,7 @@ class DefaultAppManager(
                 description = if (installed != null) BusinessText.DESCRIPTION_INSTALLED_APP else home?.description ?: BusinessText.DESCRIPTION_APP_TASK,
                 versionName = installed?.versionName ?: home?.versionName,
                 packageName = installed?.packageName ?: home?.packageName,
+                supportedPlatforms = home?.supportedPlatforms ?: setOf(AppPlatform.ANDROID),
                 iconText = home?.iconText,
                 heroText = home?.heroText,
                 iconUrl = home?.iconUrl,
@@ -140,6 +148,7 @@ class DefaultAppManager(
             description = app.recommendedReason.ifBlank { app.description },
             versionName = app.versionName,
             packageName = app.packageName,
+            supportedPlatforms = app.supportedPlatforms,
             iconText = app.iconText,
             heroText = app.heroText,
             iconUrl = app.iconUrl,
@@ -192,6 +201,7 @@ class DefaultAppManager(
                 description = home?.description ?: BusinessText.DESCRIPTION_DOWNLOAD_INSTALL_TASK,
                 versionName = stateCenter.snapshot(appId).installedVersion ?: home?.versionName ?: installed?.versionName,
                 packageName = home?.packageName ?: installed?.packageName,
+                supportedPlatforms = home?.supportedPlatforms ?: setOf(AppPlatform.ANDROID),
                 iconText = home?.iconText,
                 heroText = home?.heroText,
                 iconUrl = home?.iconUrl,
@@ -404,6 +414,11 @@ class DefaultAppManager(
             stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
             return
         }
+        val detail = repository.getAppDetail(appId)
+        if (!platformCapabilities.supports(detail.supportedPlatforms)) {
+            stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
+            return
+        }
         val upgradeInfo = repository.getUpgradeInfo(appId)
         if (upgradeInfo.hasUpgrade && VersionUtils.isNewerVersion(installedVersion, upgradeInfo.latestVersion)) {
             stateCenter.updateUpgrade(appId, UpgradeStatus.AVAILABLE)
@@ -419,6 +434,7 @@ class DefaultAppManager(
         description: String?,
         versionName: String?,
         packageName: String?,
+        supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID),
         iconText: String? = null,
         heroText: String? = null,
         iconUrl: String? = null,
@@ -429,20 +445,24 @@ class DefaultAppManager(
             return null
         }
         val state = stateCenter.snapshot(appId)
+        val currentPlatformSupported = platformCapabilities.supports(supportedPlatforms)
+        val primaryAction = resolvePlatformPrimaryAction(state.primaryAction, currentPlatformSupported)
         return AppViewData(
             appId = appId,
             name = name,
             description = description.orEmpty(),
             versionName = state.installedVersion ?: versionName,
             packageName = packageName.orEmpty(),
+            supportedPlatforms = supportedPlatforms,
+            currentPlatform = platformCapabilities.currentPlatform,
             iconText = iconText.orEmpty(),
             heroText = heroText.orEmpty(),
             iconUrl = iconUrl.orEmpty(),
             bannerUrl = bannerUrl.orEmpty(),
             screenshotUrls = screenshotUrls.orEmpty(),
-            stateText = state.statusText,
+            stateText = if (primaryAction == PrimaryAction.UNSUPPORTED) BusinessText.STATUS_PLATFORM_UNSUPPORTED else state.statusText,
             progress = state.progress,
-            primaryAction = state.primaryAction,
+            primaryAction = primaryAction,
             statusTone = CarUiStyle.resolveStatusTone(state),
         )
     }

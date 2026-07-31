@@ -50,6 +50,9 @@ object BusinessText {
     /** 未安装状态文案。 */
     const val STATUS_NOT_INSTALLED = "未安装"
 
+    /** 当前客户端平台不支持该应用安装包。 */
+    const val STATUS_PLATFORM_UNSUPPORTED = "当前设备不支持"
+
     const val POLICY_NOT_WIFI = "当前非 Wi‑Fi 网络"
     const val POLICY_LOW_STORAGE = "当前存储空间不足"
     const val POLICY_DEVICE_STORAGE_LOW = "设备可用存储不足"
@@ -72,7 +75,7 @@ object BusinessText {
     const val POLICY_DOWNLOAD_CELLULAR = "当前为蜂窝网络，下载会受限"
     const val POLICY_INSTALL_DRIVING = "当前为行车状态，安装会受限"
     const val POLICY_STORAGE_LIMITED = "当前存储不足，下载和安装会受限"
-    const val POLICY_ALL_CLEAR = "当前策略正常：可在 Wi‑Fi + 驻车 + 存储正常条件下执行任务"
+    const val POLICY_ALL_CLEAR = "当前策略正常，可执行任务"
     const val UPGRADE_DOWNLOAD_FAILED = "升级包下载失败"
     const val UPGRADE_DOWNLOAD_INTERRUPTED = "升级包下载未完成"
     const val UPGRADE_INSTALL_FAILED = "升级安装失败"

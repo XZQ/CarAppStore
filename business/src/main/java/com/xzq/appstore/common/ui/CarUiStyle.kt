@@ -117,17 +117,18 @@ object CarUiStyle {
             PrimaryAction.UPGRADE -> CommonUiText.ACTION_UPGRADE
             PrimaryAction.RETRY_DOWNLOAD -> CommonUiText.ACTION_RETRY_DOWNLOAD
             PrimaryAction.RETRY_INSTALL -> CommonUiText.ACTION_RETRY_INSTALL
+            PrimaryAction.UNSUPPORTED -> CommonUiText.ACTION_PLATFORM_UNSUPPORTED
             PrimaryAction.DISABLED -> CommonUiText.ACTION_PROCESSING
         }
         val tone = when (action) {
             PrimaryAction.DOWNLOAD, PrimaryAction.RESUME, PrimaryAction.INSTALL, PrimaryAction.UPGRADE -> ActionTone.PRIMARY
             PrimaryAction.OPEN -> ActionTone.SUCCESS
             PrimaryAction.PAUSE, PrimaryAction.RETRY_DOWNLOAD, PrimaryAction.RETRY_INSTALL -> ActionTone.WARNING
-            PrimaryAction.DISABLED -> ActionTone.DISABLED
+            PrimaryAction.UNSUPPORTED, PrimaryAction.DISABLED -> ActionTone.DISABLED
         }
         return ActionStyle(
             text = text,
-            enabled = action != PrimaryAction.DISABLED,
+            enabled = action != PrimaryAction.DISABLED && action != PrimaryAction.UNSUPPORTED,
             backgroundRes = when (tone) {
                 ActionTone.PRIMARY -> R.drawable.bg_primary_button
                 ActionTone.SUCCESS -> R.drawable.bg_primary_button_success

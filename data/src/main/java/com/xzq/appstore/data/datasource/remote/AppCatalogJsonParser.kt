@@ -1,6 +1,7 @@
 package com.xzq.appstore.data.datasource.remote
 
 import com.xzq.appstore.core.downloader.DownloadSourcePolicy
+import com.xzq.appstore.data.model.AppPlatform
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -28,6 +29,7 @@ object AppCatalogJsonParser {
         return AppCatalogItemResponse(
             appId = appId,
             packageName = json.optString("packageName"),
+            supportedPlatforms = parseSupportedPlatforms(json),
             name = json.optString("name"),
             description = json.optString("description"),
             versionName = json.optString("versionName"),
@@ -70,6 +72,19 @@ object AppCatalogJsonParser {
             return emptyList()
         }
         return List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() }
+    }
+
+    /**
+     * 旧目录没有平台字段时保持 Android 兼容；显式字段中的未知平台会被忽略，
+     * 且不会回退成 Android，避免旧客户端误下载未来平台的安装包。
+     */
+    private fun parseSupportedPlatforms(json: JSONObject): Set<AppPlatform> {
+        if (!json.has("supportedPlatforms")) {
+            return setOf(AppPlatform.ANDROID)
+        }
+        return parseStringList(json.optJSONArray("supportedPlatforms"))
+            .mapNotNull(AppPlatform::fromWireValue)
+            .toSet()
     }
 
     /** 规范化证书摘要，避免大小写或重复值造成不一致。 */

@@ -7,6 +7,7 @@ import com.xzq.appstore.core.installer.PackageInstaller
 import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.AppDetail
+import com.xzq.appstore.data.model.AppPlatform
 import com.xzq.appstore.data.repository.AppRepository
 import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.policy.PolicyResult
@@ -65,6 +66,18 @@ class DefaultInstallManagerTest {
         val state = stateCenter.snapshot(TEST_APP_ID)
         assertEquals(InstallStatus.FAILED, state.installStatus)
         assertTrue(requireNotNull(state.errorMessage).contains("安装受限"))
+    }
+
+    @Test
+    fun `install blocks catalog entries for other platforms before creating a session`() = runBlocking {
+        repository.supportedPlatforms = setOf(AppPlatform.IOS)
+
+        createManager().install(TEST_APP_ID)
+
+        val state = stateCenter.snapshot(TEST_APP_ID)
+        assertEquals(InstallStatus.FAILED, state.installStatus)
+        assertEquals("PLATFORM_UNSUPPORTED", state.errorCode)
+        assertNull(installer.capturedRequest)
     }
 
     @Test
@@ -287,6 +300,7 @@ class DefaultInstallManagerTest {
         private val stagedVersions = mutableMapOf<String, String>()
         val installedApps = mutableSetOf<String>()
         val taskRemoved = mutableSetOf<String>()
+        var supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID)
 
         fun saveApk(appId: String, path: String) {
             apkPaths[appId] = path
@@ -301,6 +315,7 @@ class DefaultInstallManagerTest {
         override suspend fun getAppDetail(appId: String) = AppDetail(
             appId = appId,
             packageName = "com.nio.test",
+            supportedPlatforms = supportedPlatforms,
             name = "Test App",
             description = "test",
             versionName = "1.0.0",

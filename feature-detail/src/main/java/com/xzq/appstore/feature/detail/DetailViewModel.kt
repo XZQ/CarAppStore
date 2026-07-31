@@ -8,8 +8,11 @@ import com.xzq.appstore.domain.action.AppPrimaryActionExecutor
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
 import com.xzq.appstore.domain.install.InstallManager
+import com.xzq.appstore.domain.platform.resolvePlatformPrimaryAction
 import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.state.StateCenter
+import com.xzq.appstore.domain.state.PrimaryAction
+import com.xzq.appstore.domain.text.BusinessText
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
@@ -58,10 +61,14 @@ class DetailViewModel(
         observeStateJob = stateCenter.observe(appId).onEach { appState ->
             // 页面只消费已经归一化的状态文本、主按钮和进度，不自己做业务判断。
             _uiState.update {
+                val primaryAction = resolvePlatformPrimaryAction(
+                    action = appState.primaryAction,
+                    currentPlatformSupported = it.appDetail?.currentPlatformSupported ?: true,
+                )
                 it.copy(
-                    stateText = appState.statusText,
+                    stateText = if (primaryAction == PrimaryAction.UNSUPPORTED) BusinessText.STATUS_PLATFORM_UNSUPPORTED else appState.statusText,
                     statusTone = CarUiStyle.resolveStatusTone(appState),
-                    primaryAction = appState.primaryAction,
+                    primaryAction = primaryAction,
                     progress = appState.progress,
                 )
             }
@@ -92,11 +99,17 @@ class DetailViewModel(
             detail
         }.onSuccess { detail ->
             _uiState.update {
+                val primaryAction = resolvePlatformPrimaryAction(
+                    action = stateCenter.snapshot(appId).primaryAction,
+                    currentPlatformSupported = detail.currentPlatformSupported,
+                )
                 it.copy(
                     appDetail = detail,
                     screenState = DetailScreenState.Content,
+                    stateText = if (primaryAction == PrimaryAction.UNSUPPORTED) BusinessText.STATUS_PLATFORM_UNSUPPORTED else it.stateText,
+                    primaryAction = primaryAction,
                     policyPrompt = appManager.getPolicyPrompt(),
-                    interceptReason = computeInterceptReason(appId),
+                    interceptReason = computeInterceptReason(appId, detail.currentPlatformSupported),
                 )
             }
         }.onFailure { throwable ->
@@ -107,5 +120,13 @@ class DetailViewModel(
     }
 
     /** 计算当前应用是否被策略拦截下载，返回拦截原因文案（未拦截时为空）。 */
-    private fun computeInterceptReason(appId: String): String = policyCenter.canDownload(appId).let { result -> if (!result.allow) result.reason else "" }
+    private fun computeInterceptReason(
+        appId: String,
+        currentPlatformSupported: Boolean = _uiState.value.appDetail?.currentPlatformSupported ?: true,
+    ): String {
+        if (!currentPlatformSupported) {
+            return BusinessText.STATUS_PLATFORM_UNSUPPORTED
+        }
+        return policyCenter.canDownload(appId).let { result -> if (!result.allow) result.reason else "" }
+    }
 }

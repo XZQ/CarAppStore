@@ -6,6 +6,7 @@ import com.xzq.appstore.core.installer.InstallRequest
 import com.xzq.appstore.core.installer.PackageInstaller
 import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.tracker.EventTracker
+import com.xzq.appstore.data.model.ClientPlatformCapabilities
 import com.xzq.appstore.data.repository.AppRepository
 import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.state.DownloadStatus
@@ -27,6 +28,8 @@ class DefaultInstallManager(
     private val logger: AppLogger,
     /** 安装链路打点器。 */
     private val tracker: EventTracker,
+    /** 当前客户端平台能力，用于阻止安装其他平台产物。 */
+    private val platformCapabilities: ClientPlatformCapabilities = ClientPlatformCapabilities(),
 ) : InstallManager {
 
     /**
@@ -36,6 +39,16 @@ class DefaultInstallManager(
      */
     override suspend fun install(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
+        val detail = repository.getAppDetail(appId)
+        if (!platformCapabilities.supports(detail.supportedPlatforms)) {
+            stateCenter.updateInstall(
+                appId,
+                InstallStatus.FAILED,
+                errorMessage = BusinessText.STATUS_PLATFORM_UNSUPPORTED,
+                errorCode = PLATFORM_UNSUPPORTED_ERROR_CODE,
+            )
+            return
+        }
         // 安装前先做策略判断，避免在不允许安装时继续进入系统会话。
         val policy = policyCenter.canInstall(appId)
         if (!policy.allow) {
@@ -69,7 +82,6 @@ class DefaultInstallManager(
         }
 
         // 准备安装请求时，同时考虑 staged upgrade 的目标版本覆盖。
-        val detail = repository.getAppDetail(appId)
         val targetVersion = repository.peekStagedUpgradeVersion(appId) ?: detail.versionName
         val apkFile = File(apkPath)
 
@@ -185,5 +197,9 @@ class DefaultInstallManager(
         }
         // 最后统一清空错误展示，保证页面从失败态中退出来。
         stateCenter.resetError(appId)
+    }
+
+    private companion object {
+        private const val PLATFORM_UNSUPPORTED_ERROR_CODE = "PLATFORM_UNSUPPORTED"
     }
 }

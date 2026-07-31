@@ -3,6 +3,7 @@ package com.xzq.appstore.data.datasource.remote
 import com.xzq.appstore.core.downloader.DownloadSourcePolicy
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppInfo
+import com.xzq.appstore.data.model.AppPlatform
 import com.xzq.appstore.data.model.UpgradeInfo
 
 /**
@@ -21,6 +22,8 @@ data class AppCatalogItemResponse(
     val appId: String,
     /** 应用包名。 */
     val packageName: String,
+    /** 应用支持的软件平台。 */
+    val supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID),
     /** 应用名称。 */
     val name: String,
     /** 简要描述。 */
@@ -94,6 +97,7 @@ fun AppCatalogItemResponse.toRemoteCatalogItem(): RemoteCatalogItem {
         appInfo = AppInfo(
             appId = appId,
             packageName = packageName,
+            supportedPlatforms = supportedPlatforms,
             name = name,
             description = description,
             versionName = effectiveVersion,
@@ -110,6 +114,7 @@ fun AppCatalogItemResponse.toRemoteCatalogItem(): RemoteCatalogItem {
         appDetail = AppDetail(
             appId = appId,
             packageName = packageName,
+            supportedPlatforms = supportedPlatforms,
             name = name,
             description = description,
             versionName = effectiveVersion,

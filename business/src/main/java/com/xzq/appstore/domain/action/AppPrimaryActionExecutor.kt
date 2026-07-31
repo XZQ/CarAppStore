@@ -43,7 +43,7 @@ class AppPrimaryActionExecutor(
 
             PrimaryAction.OPEN -> packageName?.let { appManager.openApp(it) }
             PrimaryAction.UPGRADE -> upgradeManager?.startUpgrade(appId)
-            PrimaryAction.DISABLED -> Unit
+            PrimaryAction.UNSUPPORTED, PrimaryAction.DISABLED -> Unit
         }
     }
 }

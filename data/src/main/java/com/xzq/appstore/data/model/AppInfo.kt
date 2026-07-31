@@ -8,6 +8,8 @@ data class AppInfo(
     val appId: String,
     /** 应用对应的安卓包名。 */
     val packageName: String,
+    /** 应用声明支持的软件平台；旧目录默认按 Android 处理。 */
+    val supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID),
     /** 展示给用户的应用名称。 */
     val name: String,
     /** 列表中展示的简要描述。 */

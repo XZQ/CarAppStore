@@ -17,6 +17,10 @@ data class AppViewData(
     val versionName: String,
     /** 已知时使用的安卓包名。 */
     val packageName: String? = null,
+    /** 应用声明支持的软件平台。 */
+    val supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID),
+    /** 当前客户端平台。 */
+    val currentPlatform: AppPlatform = AppPlatform.ANDROID,
     val iconText: String = "",
     val heroText: String = "",
     val iconUrl: String = "",
@@ -32,4 +36,8 @@ data class AppViewData(
     val progress: Int = 0,
     /** 应用当前是否已安装。 */
     val installed: Boolean = false,
-)
+) {
+    /** 当前客户端是否能直接下载并安装该应用。 */
+    val currentPlatformSupported: Boolean
+        get() = currentPlatform in supportedPlatforms
+}

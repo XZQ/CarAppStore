@@ -3,6 +3,7 @@ package com.xzq.appstore.domain.upgrade
 import com.xzq.appstore.common.result.VersionUtils
 import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.tracker.EventTracker
+import com.xzq.appstore.data.model.ClientPlatformCapabilities
 import com.xzq.appstore.data.repository.AppRepository
 import com.xzq.appstore.domain.download.DownloadManager
 import com.xzq.appstore.domain.install.InstallManager
@@ -35,11 +36,17 @@ class DefaultUpgradeManager(
     private val pollIntervalMs: Long = POLL_INTERVAL_MS,
     /** 单个升级阶段的最大等待时间；生产默认 30 分钟。 */
     private val waitTimeoutMs: Long = WAIT_TIMEOUT_MS,
+    /** 当前客户端平台能力，用于阻止升级到其他平台安装包。 */
+    private val platformCapabilities: ClientPlatformCapabilities = ClientPlatformCapabilities(),
 ) : UpgradeManager {
     /** 检查当前应用是否存在可升级版本，并同步升级状态。 */
     override suspend fun checkUpgrade(appId: String): Boolean {
         require(appId.isNotBlank()) { "appId 不能为空" }
         val installedVersion = stateCenter.snapshot(appId).installedVersion ?: return false
+        if (!isCurrentPlatformSupported(appId)) {
+            stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
+            return false
+        }
         val info = repository.getUpgradeInfo(appId)
         val available = info.hasUpgrade && VersionUtils.isNewerVersion(installedVersion, info.latestVersion)
         stateCenter.updateUpgrade(appId, if (available) UpgradeStatus.AVAILABLE else UpgradeStatus.NONE)
@@ -63,6 +70,12 @@ class DefaultUpgradeManager(
         val skipped = mutableMapOf<String, String>()
         for (appId in appIds) {
             require(appId.isNotBlank()) { "升级列表中的 appId 不能为空" }
+            if (!isCurrentPlatformSupported(appId)) {
+                val reason = BusinessText.STATUS_PLATFORM_UNSUPPORTED
+                stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = reason)
+                skipped[appId] = reason
+                return@startBatchUpgrade UpgradeBatchResult(succeeded = succeeded, failed = failed, skipped = skipped)
+            }
             // 与单任务升级一致：APK 已落盘时不再要求下载链路条件。
             val policy = policyCenter.canUpgrade(appId, isApkCached(appId))
             if (!policy.allow) {
@@ -90,6 +103,10 @@ class DefaultUpgradeManager(
      */
     override suspend fun startUpgrade(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
+        if (!isCurrentPlatformSupported(appId)) {
+            stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.STATUS_PLATFORM_UNSUPPORTED)
+            return
+        }
         // 升级前先做策略判断，APK 已落盘时跳过下载相关条件，避免 Wi-Fi 漂移等误拦已就绪任务。
         val apkAlreadyDownloaded = isApkCached(appId)
         val policy = policyCenter.canUpgrade(appId, apkAlreadyDownloaded)
@@ -157,6 +174,11 @@ class DefaultUpgradeManager(
             }
         }
         error("下载等待循环不应在未返回终态时结束")
+    }
+
+    /** 读取目录声明并判断当前客户端能否处理该应用安装包。 */
+    private suspend fun isCurrentPlatformSupported(appId: String): Boolean {
+        return platformCapabilities.supports(repository.getAppDetail(appId).supportedPlatforms)
     }
 
     /** 等待安装阶段进入终态，超时返回 null。 */

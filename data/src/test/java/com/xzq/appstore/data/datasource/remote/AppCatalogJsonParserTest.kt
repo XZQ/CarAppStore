@@ -1,6 +1,7 @@
 package com.xzq.appstore.data.datasource.remote
 
 import com.xzq.appstore.core.downloader.DownloadSourcePolicy
+import com.xzq.appstore.data.model.AppPlatform
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -30,6 +31,7 @@ class AppCatalogJsonParserTest {
         assertEquals(listOf("carappstore-test"), item.allowedChannels)
         assertEquals(listOf("carappstore-legacy"), item.blockedChannels)
         assertEquals("2.0.5", item.rollbackVersion)
+        assertEquals(setOf(AppPlatform.ANDROID), item.supportedPlatforms)
     }
 
     @Test
@@ -51,6 +53,52 @@ class AppCatalogJsonParserTest {
         assertEquals("适配座舱导航场景", item.appInfo.recommendedReason)
         assertEquals("蔚来地图团队", item.appDetail.developerName)
         assertEquals("新增沿途充电推荐", item.upgradeInfo.changelog)
+        assertEquals(setOf(AppPlatform.ANDROID), item.appDetail.supportedPlatforms)
+        assertEquals(true, item.appDetail.currentPlatformSupported)
+    }
+
+    @Test
+    fun `parse explicit other platforms does not fall back to Android`() {
+        val catalog = AppCatalogJsonParser.parse(
+            """
+            {
+              "apps": [
+                {
+                  "appId": "other.platform.app",
+                  "packageName": "",
+                  "supportedPlatforms": ["ios", "windows", "future-os"],
+                  "name": "Other Platform App",
+                  "description": "Not installable on Android",
+                  "versionName": "1.0.0"
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        val detail = catalog.single().appDetail
+        assertEquals(setOf(AppPlatform.IOS, AppPlatform.WINDOWS), detail.supportedPlatforms)
+        assertEquals(false, detail.currentPlatformSupported)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `parse Android catalog item still requires a valid package name`() {
+        AppCatalogJsonParser.parse(
+            """
+            {
+              "apps": [
+                {
+                  "appId": "android.app",
+                  "packageName": "",
+                  "supportedPlatforms": ["android"],
+                  "name": "Android App",
+                  "description": "Missing package",
+                  "versionName": "1.0.0"
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
     }
 
     @Test

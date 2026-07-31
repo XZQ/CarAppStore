@@ -10,6 +10,7 @@ import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppInfo
+import com.xzq.appstore.data.model.AppPlatform
 import com.xzq.appstore.data.model.DownloadPreferences
 import com.xzq.appstore.data.model.DownloadSegmentRecord
 import com.xzq.appstore.data.model.DownloadTaskRecord
@@ -37,6 +38,19 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class DefaultDownloadManagerTest {
+    @Test
+    fun `startDownload blocks catalog entries for other platforms`() = runBlocking {
+        val harness = TestHarness {
+            supportedPlatforms = setOf(AppPlatform.IOS)
+        }
+
+        harness.manager.startDownload(TEST_APP_ID)
+        waitUntil { harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.FAILED }
+
+        assertEquals(0, harness.downloader.startCount.get())
+        assertEquals("PLATFORM_UNSUPPORTED", harness.stateCenter.snapshot(TEST_APP_ID).errorCode)
+    }
+
     @Test
     fun `startDownload 重复触发时只会启动一个活动任务`() = runBlocking {
         val harness = TestHarness()
@@ -436,6 +450,9 @@ class DefaultDownloadManagerTest {
             apkUrl = "https://example.com/test.apk",
         )
 
+        /** 当前测试目录声明的平台集合。 */
+        var supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID)
+
         /** 下载任务记录表。 */
         private val downloadTasks = linkedMapOf<String, DownloadTaskRecord>()
 
@@ -453,7 +470,7 @@ class DefaultDownloadManagerTest {
 
         override suspend fun getHomeApps(): List<AppInfo> = emptyList()
 
-        override suspend fun getAppDetail(appId: String): AppDetail = detail
+        override suspend fun getAppDetail(appId: String): AppDetail = detail.copy(supportedPlatforms = supportedPlatforms)
 
         override suspend fun getInstalledApps(): List<InstalledApp> = emptyList()
 
