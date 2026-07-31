@@ -6,6 +6,10 @@
 .codex/
 local.properties
 *.iml
+*.jks
+*.keystore
+*.p12
+*.pfx
 captures/
 externalNativeBuild/
 .DS_Store
@@ -13,3 +17,4 @@ externalNativeBuild/
 /local-apks/
 __pycache__/
 *.py[cod]
+/tools/production/production.env

@@ -3,14 +3,23 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+fun configValue(name: String): String =
+    (project.findProperty(name) as String?)
+        ?: System.getenv(name)
+        ?: ""
+
+fun buildConfigString(name: String): String {
+    val escaped = configValue(name)
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+    return "\"$escaped\""
+}
+
 android {
     namespace = "com.xzq.appstore.data"
     compileSdk = 36
-
-    fun configValue(name: String): String =
-        (project.findProperty(name) as String?)
-            ?: System.getenv(name)
-            ?: ""
 
     defaultConfig {
         minSdk = 26
@@ -47,14 +56,16 @@ android {
     }
 
     defaultConfig {
-        buildConfigField("String", "CARAPPSTORE_CATALOG_DEV_URL", "\"${configValue("CARAPPSTORE_CATALOG_DEV_URL")}\"")
-        buildConfigField("String", "CARAPPSTORE_CATALOG_TEST_URL", "\"${configValue("CARAPPSTORE_CATALOG_TEST_URL")}\"")
-        buildConfigField("String", "CARAPPSTORE_CATALOG_PROD_URL", "\"${configValue("CARAPPSTORE_CATALOG_PROD_URL")}\"")
-        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_DEV_BASE_URL", "\"${configValue("CARAPPSTORE_DOWNLOAD_DEV_BASE_URL")}\"")
-        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_TEST_BASE_URL", "\"${configValue("CARAPPSTORE_DOWNLOAD_TEST_BASE_URL")}\"")
-        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_PROD_BASE_URL", "\"${configValue("CARAPPSTORE_DOWNLOAD_PROD_BASE_URL")}\"")
-        buildConfigField("String", "CARAPPSTORE_CATALOG_AUTH_HEADER", "\"${configValue("CARAPPSTORE_CATALOG_AUTH_HEADER")}\"")
-        buildConfigField("String", "CARAPPSTORE_CATALOG_AUTH_VALUE", "\"${configValue("CARAPPSTORE_CATALOG_AUTH_VALUE")}\"")
+        buildConfigField("String", "CARAPPSTORE_CATALOG_DEV_URL", buildConfigString("CARAPPSTORE_CATALOG_DEV_URL"))
+        buildConfigField("String", "CARAPPSTORE_CATALOG_TEST_URL", buildConfigString("CARAPPSTORE_CATALOG_TEST_URL"))
+        buildConfigField("String", "CARAPPSTORE_CATALOG_PROD_URL", buildConfigString("CARAPPSTORE_CATALOG_PROD_URL"))
+        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_DEV_BASE_URL", buildConfigString("CARAPPSTORE_DOWNLOAD_DEV_BASE_URL"))
+        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_TEST_BASE_URL", buildConfigString("CARAPPSTORE_DOWNLOAD_TEST_BASE_URL"))
+        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_PROD_BASE_URL", buildConfigString("CARAPPSTORE_DOWNLOAD_PROD_BASE_URL"))
+        buildConfigField("String", "CARAPPSTORE_CATALOG_AUTH_HEADER", buildConfigString("CARAPPSTORE_CATALOG_AUTH_HEADER"))
+        buildConfigField("String", "CARAPPSTORE_CATALOG_AUTH_VALUE", buildConfigString("CARAPPSTORE_CATALOG_AUTH_VALUE"))
+        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_AUTH_HEADER", buildConfigString("CARAPPSTORE_DOWNLOAD_AUTH_HEADER"))
+        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_AUTH_VALUE", buildConfigString("CARAPPSTORE_DOWNLOAD_AUTH_VALUE"))
     }
 }
 

@@ -187,6 +187,7 @@ class AppContainer(context: Context) : AppServices {
                 ),
             ),
             fallbackDownloader = SimulatedFileDownloader(),
+            requestHeaders = downloadEnvConfig.downloadRequestHeaders,
         )
     }
 

@@ -18,6 +18,7 @@ class DownloadEnvironmentConfigTest {
 
         assertFalse(config.catalogEndpointUrl.orEmpty().contains("example", ignoreCase = true))
         assertFalse(config.downloadBaseUrl.contains("example", ignoreCase = true))
+        assertEquals("android", config.catalogRequestHeaders["X-Client-Platform"])
         if (config.catalogEndpointUrl.isNullOrBlank()) {
             assertNull(config.catalogEndpointUrl)
         }

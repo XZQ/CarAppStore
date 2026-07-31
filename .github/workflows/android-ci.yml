@@ -31,15 +31,43 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+          packages: 'platform-tools platforms;android-36 build-tools;36.1.0'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
 
+      - name: Create ephemeral CI signing key
+        run: |
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          echo "CARAPPSTORE_CI_KEY_PASSWORD=$password" >> "$GITHUB_ENV"
+          keytool -genkeypair \
+            -keystore "$RUNNER_TEMP/carappstore-ci.p12" \
+            -storetype PKCS12 \
+            -storepass "$password" \
+            -keypass "$password" \
+            -alias carappstore-ci \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 1 \
+            -dname "CN=CarAppStore CI,OU=Engineering,O=CarAppStore,L=CI,ST=CI,C=US"
+
       - name: Verify tests, lint and APK builds
-        run: ./gradlew testDebugUnitTest compileDebugKotlin lintDebug :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace
+        env:
+          CARAPPSTORE_CATALOG_PROD_URL: https://catalog.ci.carappstore.dev/catalog.json
+          CARAPPSTORE_DOWNLOAD_PROD_BASE_URL: https://downloads.ci.carappstore.dev/apks
+          CARAPPSTORE_CATALOG_AUTH_HEADER: X-CI-Catalog-Proof
+          CARAPPSTORE_CATALOG_AUTH_VALUE: ci-validation-marker
+          CARAPPSTORE_DOWNLOAD_AUTH_MODE: HEADER
+          CARAPPSTORE_DOWNLOAD_AUTH_HEADER: X-CI-Download-Proof
+          CARAPPSTORE_DOWNLOAD_AUTH_VALUE: ci-validation-marker
+          CARAPPSTORE_RELEASE_STORE_FILE: ${{ runner.temp }}/carappstore-ci.p12
+          CARAPPSTORE_RELEASE_STORE_PASSWORD: ${{ env.CARAPPSTORE_CI_KEY_PASSWORD }}
+          CARAPPSTORE_RELEASE_KEY_ALIAS: carappstore-ci
+          CARAPPSTORE_RELEASE_KEY_PASSWORD: ${{ env.CARAPPSTORE_CI_KEY_PASSWORD }}
+        run: ./gradlew testDebugUnitTest compileDebugKotlin lintDebug :app:assembleDebug assembleProductionRelease --no-daemon --stacktrace
 
       - name: Upload verification outputs
         if: success()

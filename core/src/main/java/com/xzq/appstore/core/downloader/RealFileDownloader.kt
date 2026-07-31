@@ -23,6 +23,8 @@ class RealFileDownloader(
     private val segmentPlanner: SegmentPlanner = SegmentPlanner(),
     /** 当下载源不允许真实 HTTP 时使用的兜底下载器。 */
     private val fallbackDownloader: FileDownloader? = null,
+    /** 每次 HEAD/GET 请求都携带的 CDN 鉴权头；签名 URL 模式保持为空。 */
+    private val requestHeaders: Map<String, String> = emptyMap(),
     /** 建立连接的超时时间。 */
     private val connectTimeoutMs: Int = DEFAULT_CONNECT_TIMEOUT_MS,
     /** 读取响应体的超时时间。 */
@@ -38,6 +40,15 @@ class RealFileDownloader(
     /** 合并前测试钩子，供测试场景注入分片文件扰动。 */
     private val beforeMergeHook: ((segments: List<DownloadSegmentRecord>, finalFile: File) -> Unit)? = null,
 ) : FileDownloader {
+    init {
+        require(requestHeaders.keys.all(HTTP_HEADER_NAME_PATTERN::matches)) {
+            "download request contains an invalid HTTP header name"
+        }
+        require(requestHeaders.values.none { it.contains('\r') || it.contains('\n') }) {
+            "download request contains an invalid HTTP header value"
+        }
+    }
+
     /** 分片内存缓存：taskId -> (segmentId -> record)，避免每 32KB 触发全量 JSON 读写。 */
     private val segmentCache: MutableMap<String, MutableMap<String, DownloadSegmentRecord>> = mutableMapOf()
 
@@ -675,6 +686,7 @@ class RealFileDownloader(
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
         connection.requestMethod = if (head) "HEAD" else "GET"
+        requestHeaders.forEach(connection::setRequestProperty)
         connection.setRequestProperty("Accept", "*/*")
         if (rangeStart != null) {
             val value = if (rangeEnd != null && rangeEnd >= rangeStart) {
@@ -684,7 +696,8 @@ class RealFileDownloader(
             }
             connection.setRequestProperty("Range", value)
         }
-        connection.instanceFollowRedirects = true
+        // 固定鉴权头模式禁止自动重定向，避免认证信息被转发到非预期主机。
+        connection.instanceFollowRedirects = requestHeaders.isEmpty()
         connection.doInput = true
         return connection
     }
@@ -707,6 +720,9 @@ class RealFileDownloader(
 
         /** 运行态默认刷盘节流间隔：500ms，避免 32KB buffer 触发的全量 JSON 重写。 */
         const val DEFAULT_RUNNING_FLUSH_INTERVAL_MS = 500L
+
+        /** RFC 9110 token 字符集合，用于拒绝非法或可注入的 header 名称。 */
+        val HTTP_HEADER_NAME_PATTERN = Regex("""^[!#$%&'*+.^_`|~0-9A-Za-z-]+$""")
 
         /** 请求的分段并发数。 */
         const val REQUESTED_SEGMENT_COUNT = 2

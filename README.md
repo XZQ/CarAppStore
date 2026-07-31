@@ -26,7 +26,7 @@ CarAppStore 是一个跨平台应用分发与管理 App。当前仓库承载它�
 
 - 当前主分支：`main`
 - 已同步远端：`origin/main`
-- 最近完整验证：2026-07-31 已在 JDK 17 下通过 `testDebugUnitTest`、`compileDebugKotlin`、`lintDebug`、`:app:assembleDebug` 与 `:app:assembleRelease`；共 246 个测试，0 失败、0 错误。
+- 最近完整验证：2026-07-31 已在 JDK 17 下通过 `testDebugUnitTest`、`compileDebugKotlin`、`lintDebug`、`:app:assembleDebug` 与 `:app:assembleRelease`；共 247 个测试，0 失败、0 错误。
 - GitHub Actions 已在远端成功运行；本轮平台策略解耦、API 36 和平台能力模型均已逐项提交并推送。
 - 换机接手总览：[docs/29-换机接手与当前进度总览.md](docs/29-换机接手与当前进度总览.md)
 
@@ -86,7 +86,7 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 - 首页、搜索、详情、我的应用、下载中心、安装中心、升级中心和开发者设置页面
 - 手机、平板、桌面级大屏/横屏响应式壳层，扩展窗口提供侧边导航和任务摘要栏
 - 应用图标、详情头图和详情截图加载能力，支持 `asset://`、`file://`、`http(s)://`，失败时回退文本兜底
-- 本地事件打点落盘、生产配置自检提示、Release 签名环境变量入口
+- 本地事件打点落盘、生产目录/CDN/认证/签名门禁、Release 签名环境变量入口和设备证据采集脚本
 - 目录运营治理字段：灰度、黑白名单、隐藏/下架和回滚版本本地过滤
 - APK 安装前包名、`versionCode`、签名证书 SHA-256 校验，以及安装后 PackageManager 事实核对
 - 目录 `appId` / `packageName` 白名单、重复项拒绝和下载任务 canonical path containment
@@ -100,8 +100,8 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 
 | 接入项 | 当前状态 |
 | --- | --- |
-| 远端目录 API | 客户端链路、缓存回退、鉴权头和 Gradle/环境变量注入已完成；生产目录还必须提供 APK `versionCode` 和 `signerCertificateSha256` |
-| APK 联网下载源 | 下载器、任务状态、断点续传、checksum 和安装前身份校验链路已具备；真实 APK CDN、签名摘要和灰度策略下一步接入 |
+| 远端目录 API | 客户端链路、缓存回退、鉴权头、HTTPS/签名门禁和 Gradle/环境变量注入已完成；真实服务仍须提供 APK `versionCode`、`signerCertificateSha256` 并完成联调 |
+| APK 联网下载源 | 下载器已支持固定 Header 与签名 URL 两种 CDN 认证模式，覆盖 HEAD/GET/Range、断点续传、checksum 和安装前身份校验；真实 CDN、包体和灰度策略仍须外部接入 |
 | Android 设备安装行为 | 已接 Android `PackageInstaller`，并在创建会话前检查“允许安装未知应用”权限；不同 Android 版本和 ROM 的确认页、回调码及权限行为仍需设备矩阵验证 |
 | 通用平台策略解耦 | 已完成：只有 OEM 车况动作和驻车字段配置完整时才启用车载驻车安装限制；普通手机、平板和大屏不依赖车况信号 |
 | 应用平台能力 | 目录已支持 `supportedPlatforms`，客户端显式维护 `currentPlatform`；Android 客户端会禁用并在下载、安装、升级业务层拒绝其他平台安装包 |
@@ -139,6 +139,14 @@ macOS / Linux / Git Bash:
 ./gradlew :app:assembleRelease --no-daemon
 ```
 
+`:app:assembleRelease` 只用于常规工程验证，未提供签名参数时允许生成未签名产物。生产发布必须先按 [生产发布配置与设备验证基线](docs/33-生产发布配置与设备验证基线.md) 准备非仓库密钥，再执行：
+
+```powershell
+.\tools\production\verify-production-readiness.ps1
+```
+
+该入口会校验生产目录/CDN 的 HTTPS 地址、目录与 CDN 认证模式、keystore/alias/password，并构建和验证签名 Release APK；配置值和密钥不会写入 Git。
+
 ## 项目结构
 
 ```text
@@ -170,6 +178,7 @@ CarAppStore/
 | [产品定位与平台边界](docs/00-产品定位与平台边界.md) | 跨平台产品定义、当前 Android 实现和可选车载适配边界 |
 | [换机接手与当前进度总览](docs/29-换机接手与当前进度总览.md) | 换电脑、重新 clone、交给新 Agent 时先确认的同步基线 |
 | [当前项目状态与接手指南](docs/21-当前项目状态与接手指南.md) | 当前阶段、测试覆盖、风险和接手顺序 |
+| [生产发布配置与设备验证基线](docs/33-生产发布配置与设备验证基线.md) | 生产端点、认证、签名门禁与 Android 设备矩阵证据规则 |
 | [架构总览](docs/01-架构总览.md) | 整体分层与依赖方向 |
 | [七个业务模块详解](docs/03-七个业务模块详解.md) | 业务模块边界和职责 |
 | [整体业务主链路总流程](docs/16-整体业务主链路总流程.md) | 下载、安装、升级主链路流程 |
@@ -181,4 +190,4 @@ CarAppStore/
 
 ## 发布说明
 
-本仓库已经具备跨平台应用分发产品的 Android 主体 UI、工程分层、下载/安装/升级主链路、`supportedPlatforms/currentPlatform` 分流、本地事件源、APK 身份校验、Release 环境隔离、安装会话冷启动对账和 CI 工作流。下一步通用主线是接入携带 `versionCode` 与签名摘要的真实生产目录和 APK 下载源、配置生产签名、接入埋点上传并完成 Android 设备矩阵回归；OEM 车况和车载 ROM 验收只在车载发行目标中执行。
+本仓库已经具备跨平台应用分发产品的 Android 主体 UI、工程分层、下载/安装/升级主链路、`supportedPlatforms/currentPlatform` 分流、本地事件源、APK 身份校验、Release 环境隔离、生产配置/签名门禁、安装会话冷启动对账和 CI 工作流。下一步通用主线是把真实生产目录、APK CDN、认证凭据和正式签名从安全环境注入，接入埋点上传并完成 Android 设备矩阵回归；OEM 车况和车载 ROM 验收只在车载发行目标中执行。

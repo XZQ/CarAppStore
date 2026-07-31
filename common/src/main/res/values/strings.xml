@@ -175,6 +175,17 @@
     <string name="ui_debug_version_format">版本：%1$s（%2$d）</string>
     <string name="ui_debug_package_format">包名：%1$s</string>
     <string name="ui_debug_download_base_url_format">下载基地址：%1$s</string>
+    <string name="ui_debug_production_issue_not_prod">当前不是 PROD 环境，商用验收前需要切到生产环境复查。</string>
+    <string name="ui_debug_production_issue_catalog_missing">目录接口未接真实后端，当前仍依赖缓存或内置目录。</string>
+    <string name="ui_debug_production_issue_catalog_https">生产目录接口必须使用 HTTPS。</string>
+    <string name="ui_debug_production_issue_cdn_missing">APK CDN 基地址尚未配置。</string>
+    <string name="ui_debug_production_issue_cdn_https">生产 APK CDN 必须使用 HTTPS。</string>
+    <string name="ui_debug_production_issue_catalog_auth">生产目录未配置鉴权请求头。</string>
+    <string name="ui_debug_production_issue_mock">生产环境不应允许模拟下载源。</string>
+    <string name="ui_debug_production_cdn_signed_url">CDN 使用目录下发签名 URL；若协议要求固定请求头，请改用 HEADER 模式。</string>
+    <string name="ui_debug_production_cdn_header">CDN 固定鉴权头已配置。</string>
+    <string name="ui_debug_production_ready_format">运行时生产端点自检通过；%1$s 完整发布仍须执行 Gradle 生产配置门禁和 Android 设备矩阵回归。</string>
+    <string name="ui_debug_production_issues_format">生产配置自检：\n%1$s</string>
     <string name="ui_debug_cache_management">缓存管理</string>
     <string name="ui_debug_clear_cache">清除缓存</string>
     <string name="ui_debug_cache_cleared">缓存已清除</string>

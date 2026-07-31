@@ -113,14 +113,14 @@ HTTP 远端目录 → 本地缓存目录 → 资源目录（raw/app_store_catalo
 
 ```
 X-Client-Channel: carappstore-test
-X-Client-Platform: android-car
+X-Client-Platform: android
 ```
 
 当前预设的请求头（生产环境）：
 
 ```
 X-Client-Channel: carappstore-prod
-X-Client-Platform: android-car
+X-Client-Platform: android
 ```
 
 验收标准：
@@ -129,6 +129,7 @@ X-Client-Platform: android-car
 - [ ] **灰度标识通过请求头传递**：后端如需灰度分流，应基于请求头中的标识字段路由
 - [ ] **鉴权失败返回标准错误码**：后端鉴权不通过时应返回 401 或 403，客户端回退到缓存
 - [ ] **请求头可按环境切换**：通过开发者设置切换环境后，请求头随之变更
+- [ ] **CDN 认证模式明确**：`HEADER` 模式的 HEAD/GET/Range 请求均携带固定鉴权头且端点不依赖重定向；`SIGNED_URL` 模式只接受目录下发的短时签名 HTTPS URL
 
 ## 2. 可选车载 OEM 信号验收标准
 

@@ -96,22 +96,40 @@ class DeveloperSettingsFragment : BaseFragment() {
     private fun buildProductionReadinessText(config: DownloadEnvironmentConfig): String {
         val items = mutableListOf<String>()
         val catalogEndpointUrl = config.catalogEndpointUrl
+        val catalogHasAuthentication = config.catalogRequestHeaders.keys.any {
+            it != "X-Client-Channel" && it != "X-Client-Platform"
+        }
         if (config.environment != DownloadEnvironment.PROD) {
-            items += "当前不是 PROD 环境，商用验收前需要切到生产环境复查。"
+            items += getString(R.string.ui_debug_production_issue_not_prod)
         }
         if (catalogEndpointUrl.isNullOrBlank() || catalogEndpointUrl.contains("example", ignoreCase = true)) {
-            items += "目录接口未接真实后端，当前仍依赖缓存或内置目录。"
+            items += getString(R.string.ui_debug_production_issue_catalog_missing)
+        } else if (!catalogEndpointUrl.startsWith("https://", ignoreCase = true)) {
+            items += getString(R.string.ui_debug_production_issue_catalog_https)
         }
-        if (config.downloadBaseUrl.contains("example", ignoreCase = true)) {
-            items += "APK 联网下载基地址仍是占位；按当前要求先不接联网下载。"
+        if (config.downloadBaseUrl.isBlank() || config.downloadBaseUrl.contains("example", ignoreCase = true)) {
+            items += getString(R.string.ui_debug_production_issue_cdn_missing)
+        } else if (!config.downloadBaseUrl.startsWith("https://", ignoreCase = true)) {
+            items += getString(R.string.ui_debug_production_issue_cdn_https)
+        }
+        if (config.environment == DownloadEnvironment.PROD && !catalogHasAuthentication) {
+            items += getString(R.string.ui_debug_production_issue_catalog_auth)
         }
         if (config.environment == DownloadEnvironment.PROD && config.allowMockSource) {
-            items += "生产环境不应允许模拟下载源。"
+            items += getString(R.string.ui_debug_production_issue_mock)
         }
         return if (items.isEmpty()) {
-            "生产配置自检通过；仍需真机安装、升级和 OEM 策略回归。"
+            val cdnAuthentication = if (config.downloadRequestHeaders.isEmpty()) {
+                getString(R.string.ui_debug_production_cdn_signed_url)
+            } else {
+                getString(R.string.ui_debug_production_cdn_header)
+            }
+            getString(R.string.ui_debug_production_ready_format, cdnAuthentication)
         } else {
-            "生产配置自检：\n" + items.joinToString(separator = "\n") { "- $it" }
+            getString(
+                R.string.ui_debug_production_issues_format,
+                items.joinToString(separator = "\n") { "- $it" },
+            )
         }
     }
 

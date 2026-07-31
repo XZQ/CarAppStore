@@ -30,6 +30,8 @@ data class DownloadEnvironmentConfig(
     val catalogEndpointUrl: String? = null,
     /** 当前环境下商店目录附加请求头。 */
     val catalogRequestHeaders: Map<String, String> = emptyMap(),
+    /** 当前环境下 APK/CDN 下载附加请求头；目录下发签名 URL 时保持为空。 */
+    val downloadRequestHeaders: Map<String, String> = emptyMap(),
     /** 当前环境下 APK 下载基地址，用于构造未显式配置应用的默认下载 URL。 */
     val downloadBaseUrl: String = "https://example.com",
 ) {
@@ -43,7 +45,8 @@ data class DownloadEnvironmentConfig(
                     allowMockSource = true,
                     allowDirectHttp = true,
                     catalogEndpointUrl = configuredCatalogUrl(BuildConfig.CARAPPSTORE_CATALOG_DEV_URL, null),
-                    catalogRequestHeaders = configuredHeaders("carappstore-dev"),
+                    catalogRequestHeaders = configuredCatalogHeaders("carappstore-dev"),
+                    downloadRequestHeaders = configuredDownloadHeaders(),
                     downloadBaseUrl = configuredDownloadBaseUrl(BuildConfig.CARAPPSTORE_DOWNLOAD_DEV_BASE_URL, "https://example.com"),
                 )
 
@@ -56,7 +59,8 @@ data class DownloadEnvironmentConfig(
                         BuildConfig.CARAPPSTORE_CATALOG_TEST_URL,
                         "https://test.example.org/carappstore/catalog.json",
                     ),
-                    catalogRequestHeaders = configuredHeaders("carappstore-test"),
+                    catalogRequestHeaders = configuredCatalogHeaders("carappstore-test"),
+                    downloadRequestHeaders = configuredDownloadHeaders(),
                     downloadBaseUrl = configuredDownloadBaseUrl(
                         BuildConfig.CARAPPSTORE_DOWNLOAD_TEST_BASE_URL,
                         "https://test-download.example.org",
@@ -69,7 +73,8 @@ data class DownloadEnvironmentConfig(
                     allowMockSource = false,
                     allowDirectHttp = true,
                     catalogEndpointUrl = configuredCatalogUrl(BuildConfig.CARAPPSTORE_CATALOG_PROD_URL, null),
-                    catalogRequestHeaders = configuredHeaders("carappstore-prod"),
+                    catalogRequestHeaders = configuredCatalogHeaders("carappstore-prod"),
+                    downloadRequestHeaders = configuredDownloadHeaders(),
                     downloadBaseUrl = configuredDownloadBaseUrl(BuildConfig.CARAPPSTORE_DOWNLOAD_PROD_BASE_URL, ""),
                 )
 
@@ -79,7 +84,8 @@ data class DownloadEnvironmentConfig(
                     allowMockSource = true,
                     allowDirectHttp = true,
                     catalogEndpointUrl = "http://10.0.2.2:8080/catalog.json",
-                    catalogRequestHeaders = configuredHeaders("carappstore-local"),
+                    catalogRequestHeaders = configuredCatalogHeaders("carappstore-local"),
+                    downloadRequestHeaders = configuredDownloadHeaders(),
                     downloadBaseUrl = "http://10.0.2.2:8080",
                 )
             }
@@ -93,14 +99,28 @@ data class DownloadEnvironmentConfig(
             return configured.trim().trimEnd('/').ifBlank { fallback }
         }
 
-        private fun configuredHeaders(channel: String): Map<String, String> {
-            val headers = linkedMapOf("X-Client-Channel" to channel, "X-Client-Platform" to "android-car")
-            val authHeader = BuildConfig.CARAPPSTORE_CATALOG_AUTH_HEADER.trim()
-            val authValue = BuildConfig.CARAPPSTORE_CATALOG_AUTH_VALUE.trim()
-            if (authHeader.isNotBlank() && authValue.isNotBlank()) {
-                headers[authHeader] = authValue
-            }
+        private fun configuredCatalogHeaders(channel: String): Map<String, String> {
+            val headers = linkedMapOf("X-Client-Channel" to channel, "X-Client-Platform" to "android")
+            headers += configuredAuthenticationHeaders(
+                BuildConfig.CARAPPSTORE_CATALOG_AUTH_HEADER,
+                BuildConfig.CARAPPSTORE_CATALOG_AUTH_VALUE,
+            )
             return headers
+        }
+
+        private fun configuredDownloadHeaders(): Map<String, String> =
+            configuredAuthenticationHeaders(
+                BuildConfig.CARAPPSTORE_DOWNLOAD_AUTH_HEADER,
+                BuildConfig.CARAPPSTORE_DOWNLOAD_AUTH_VALUE,
+            )
+
+        private fun configuredAuthenticationHeaders(rawHeader: String, rawValue: String): Map<String, String> {
+            val authHeader = rawHeader.trim()
+            val authValue = rawValue.trim()
+            if (authHeader.isNotBlank() && authValue.isNotBlank()) {
+                return mapOf(authHeader to authValue)
+            }
+            return emptyMap()
         }
     }
 }

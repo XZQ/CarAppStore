@@ -59,6 +59,8 @@ class HttpUrlConnectionAppCatalogHttpClient : AppCatalogHttpClient {
             readTimeout = READ_TIMEOUT_MILLIS
             requestMethod = METHOD_GET
             doInput = true
+            // 目录请求可能携带认证头；禁止自动跨主机重定向，避免凭据泄漏到非预期目标。
+            instanceFollowRedirects = false
             setRequestProperty(HEADER_ACCEPT, MIME_JSON)
             request.headers.forEach { (name, value) ->
                 if (name.isNotBlank() && value.isNotBlank()) {

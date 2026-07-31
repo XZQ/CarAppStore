@@ -21,6 +21,24 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class RealFileDownloaderTest {
     @Test
+    fun `download sends configured request header on probe and content requests`() = runBlocking {
+        val fixture = TestFixture(
+            headDelayMs = 0L,
+            bodyChunkDelayMs = 0L,
+            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 23 },
+            requestHeaders = mapOf("X-Test-Download-Proof" to "expected-header-value"),
+        )
+
+        fixture.use {
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) {}
+
+            val headerValues = fixture.server.receivedHeaderValues("X-Test-Download-Proof")
+            assertTrue(headerValues.size >= 2)
+            assertTrue(headerValues.all { it == "expected-header-value" })
+        }
+    }
+
+    @Test
     fun `download 在进入分片下载前收到取消后会快速停止`() = runBlocking {
         val fixture = TestFixture(
             headDelayMs = SLOW_HEAD_DELAY_MS,
@@ -339,6 +357,8 @@ class RealFileDownloaderTest {
         requestLastModified: String? = null,
         /** 合并前测试钩子。 */
         beforeMergeHook: ((segments: List<DownloadSegmentRecord>, finalFile: File) -> Unit)? = null,
+        /** 注入到 HEAD/GET 请求的测试鉴权头。 */
+        requestHeaders: Map<String, String> = emptyMap(),
     ) : AutoCloseable {
         /** 测试工作目录。 */
         private val workDir = Files.createTempDirectory("real-file-downloader-test").toFile()
@@ -373,6 +393,7 @@ class RealFileDownloaderTest {
             maxParallelSegments = 1,
             maxSegmentRetryCount = 0,
             beforeMergeHook = beforeMergeHook,
+            requestHeaders = requestHeaders,
         )
 
         /** 当前测试下载请求。 */
@@ -469,6 +490,9 @@ class RealFileDownloaderTest {
         /** 当前服务地址。 */
         val url: String = "http://127.0.0.1:${serverSocket.localPort}/demo.apk"
 
+        /** 服务端收到的每组请求头。 */
+        private val receivedRequestHeaders = Collections.synchronizedList(mutableListOf<Map<String, String>>())
+
         init {
             acceptThread.isDaemon = true
             acceptThread.start()
@@ -485,6 +509,7 @@ class RealFileDownloaderTest {
                 val reader = client.getInputStream().bufferedReader()
                 val requestLine = reader.readLine() ?: return
                 val headers = readHeaders(reader)
+                receivedRequestHeaders += headers.toMap()
                 when (requestLine.substringBefore(' ').uppercase()) {
                     "HEAD" -> handleHead(client.getOutputStream())
                     "GET" -> handleGet(client.getOutputStream(), headers["Range"])
@@ -494,6 +519,13 @@ class RealFileDownloaderTest {
                         headers = mapOf("Content-Length" to "0"),
                     )
                 }
+            }
+        }
+
+        /** 返回指定请求头在所有请求中的取值，匹配时忽略大小写。 */
+        fun receivedHeaderValues(name: String): List<String> = synchronized(receivedRequestHeaders) {
+            receivedRequestHeaders.mapNotNull { headers ->
+                headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
             }
         }
 

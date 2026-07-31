@@ -9,6 +9,15 @@ fun configValue(name: String): String {
         ?: ""
 }
 
+fun buildConfigString(name: String): String {
+    val escaped = configValue(name)
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+    return "\"$escaped\""
+}
+
 val releaseStoreFilePath = configValue("CARAPPSTORE_RELEASE_STORE_FILE")
 val releaseStorePassword = configValue("CARAPPSTORE_RELEASE_STORE_PASSWORD")
 val releaseKeyAlias = configValue("CARAPPSTORE_RELEASE_KEY_ALIAS")
@@ -31,9 +40,9 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        buildConfigField("String", "CARAPPSTORE_OEM_VEHICLE_ACTION", "\"${configValue("CARAPPSTORE_OEM_VEHICLE_ACTION")}\"")
-        buildConfigField("String", "CARAPPSTORE_OEM_PARKING_EXTRA", "\"${configValue("CARAPPSTORE_OEM_PARKING_EXTRA")}\"")
-        buildConfigField("String", "CARAPPSTORE_OEM_POWER_EXTRA", "\"${configValue("CARAPPSTORE_OEM_POWER_EXTRA")}\"")
+        buildConfigField("String", "CARAPPSTORE_OEM_VEHICLE_ACTION", buildConfigString("CARAPPSTORE_OEM_VEHICLE_ACTION"))
+        buildConfigField("String", "CARAPPSTORE_OEM_PARKING_EXTRA", buildConfigString("CARAPPSTORE_OEM_PARKING_EXTRA"))
+        buildConfigField("String", "CARAPPSTORE_OEM_POWER_EXTRA", buildConfigString("CARAPPSTORE_OEM_POWER_EXTRA"))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
