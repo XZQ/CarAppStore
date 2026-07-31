@@ -26,7 +26,8 @@ CarAppStore 是一个跨平台应用分发与管理 App。当前仓库承载它�
 
 - 当前主分支：`main`
 - 已同步远端：`origin/main`
-- 当前工作区验证：2026-07-16 已在 JDK 17 下通过 `testDebugUnitTest`、`compileDebugKotlin`、`lintDebug`、`:app:assembleDebug` 与 `:app:assembleRelease`；当前包含未提交的 Release 环境隔离、跨实例存储锁、安装会话对账和 CI 改动，提交基线请以 Git 历史为准。
+- 最近完整验证：2026-07-31 已在 JDK 17 下通过 `testDebugUnitTest`、`compileDebugKotlin`、`lintDebug`、`:app:assembleDebug` 与 `:app:assembleRelease`；共 246 个测试，0 失败、0 错误。
+- GitHub Actions 已在远端成功运行；本轮平台策略解耦、API 36 和平台能力模型均已逐项提交并推送。
 - 换机接手总览：[docs/29-换机接手与当前进度总览.md](docs/29-换机接手与当前进度总览.md)
 
 实际最新状态请以 `git status --short --branch` 和 `git log --oneline -5` 为准。
@@ -102,7 +103,8 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 | 远端目录 API | 客户端链路、缓存回退、鉴权头和 Gradle/环境变量注入已完成；生产目录还必须提供 APK `versionCode` 和 `signerCertificateSha256` |
 | APK 联网下载源 | 下载器、任务状态、断点续传、checksum 和安装前身份校验链路已具备；真实 APK CDN、签名摘要和灰度策略下一步接入 |
 | Android 设备安装行为 | 已接 Android `PackageInstaller`，并在创建会话前检查“允许安装未知应用”权限；不同 Android 版本和 ROM 的确认页、回调码及权限行为仍需设备矩阵验证 |
-| 通用平台策略解耦 | 当前实现仍保留 `parkingMode` 的车载默认语义；非车载发行前需要增加平台能力开关，未启用车载适配时不得因缺少 OEM 信号阻断安装/升级 |
+| 通用平台策略解耦 | 已完成：只有 OEM 车况动作和驻车字段配置完整时才启用车载驻车安装限制；普通手机、平板和大屏不依赖车况信号 |
+| 应用平台能力 | 目录已支持 `supportedPlatforms`，客户端显式维护 `currentPlatform`；Android 客户端会禁用并在下载、安装、升级业务层拒绝其他平台安装包 |
 | 可选车载平台适配 | 已定义 `VehicleStateSignalProvider` 并支持广播型 OEM 接入；只有发行目标包含车载设备时才需要接真实协议并执行驻车/行车专项验收 |
 | 运营观测 | 本地事件落盘已接入；上传服务、告警看板和隐私合规字段需要接生产平台 |
 
@@ -112,7 +114,7 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 - JDK/JBR 17
 - Android Gradle Plugin 8.13.2
 - Kotlin 2.0.0
-- compileSdk 34，minSdk 26
+- compileSdk 36，targetSdk 36，minSdk 26
 
 ## 构建与测试
 
@@ -179,4 +181,4 @@ CarAppStore/
 
 ## 发布说明
 
-本仓库已经具备跨平台应用分发产品的 Android 主体 UI、工程分层、下载/安装/升级主链路、本地事件源、APK 身份校验、Release 环境隔离、安装会话冷启动对账和 CI 工作流。下一步通用主线是接入携带 `versionCode` 与签名摘要的真实目录和 APK 下载源、完成平台能力开关、生产签名、埋点上传及 Android 设备矩阵回归；OEM 车况和车载 ROM 验收只在车载发行目标中执行。
+本仓库已经具备跨平台应用分发产品的 Android 主体 UI、工程分层、下载/安装/升级主链路、`supportedPlatforms/currentPlatform` 分流、本地事件源、APK 身份校验、Release 环境隔离、安装会话冷启动对账和 CI 工作流。下一步通用主线是接入携带 `versionCode` 与签名摘要的真实生产目录和 APK 下载源、配置生产签名、接入埋点上传并完成 Android 设备矩阵回归；OEM 车况和车载 ROM 验收只在车载发行目标中执行。
