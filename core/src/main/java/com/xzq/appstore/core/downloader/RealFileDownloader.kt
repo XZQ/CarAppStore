@@ -84,12 +84,18 @@ class RealFileDownloader(
         val (meta, totalBytes) = probeResult
 
         val plannedSegments = preparePlannedSegments(request, totalBytes)
-        val batchResult = executeBatches(request, meta, plannedSegments, totalBytes, control, onEvent)
-        if (dispatchBatchOutcome(request, batchResult, totalBytes, control, onEvent)) {
-            return@withContext
-        }
+        try {
+            val batchResult = executeBatches(request, meta, plannedSegments, totalBytes, control, onEvent)
+            if (dispatchBatchOutcome(request, batchResult, totalBytes, control, onEvent)) {
+                return@withContext
+            }
 
-        finalizeDownload(request, plannedSegments, batchResult.segmentResults, totalBytes, control, onEvent)
+            finalizeDownload(request, plannedSegments, batchResult.segmentResults, totalBytes, control, onEvent)
+        } finally {
+            // 本次执行无论以哪种方式终止（完成/停止/失败/异常），都释放该任务的内存缓存；
+            // 终态分片在此之前已刷盘，恢复或重试时由 preparePlannedSegments 从存储重建。
+            releaseTaskCache(request.taskId)
+        }
     }
 
     /** 基于元数据与历史分片记录生成本次下载的分片方案，并落盘。 */
@@ -615,6 +621,18 @@ class RealFileDownloader(
         }
         store.saveSegments(taskId, snapshot)
     }
+
+    /** 任务执行终止后释放其分片缓存与节流时间戳，避免随任务数无限累积。 */
+    private fun releaseTaskCache(taskId: String) {
+        synchronized(segmentCacheLock) {
+            segmentCache.remove(taskId)
+            lastFlushNanos.remove(taskId)
+            runningEventLastEmitNanos.remove(taskId)
+        }
+    }
+
+    /** 当前仍在内存中持有分片缓存的任务数；供测试与内存观测使用。 */
+    internal fun cachedSegmentTaskCount(): Int = synchronized(segmentCacheLock) { segmentCache.size }
 
     /**
      * 判断当前任务是否应发射 Running 事件。

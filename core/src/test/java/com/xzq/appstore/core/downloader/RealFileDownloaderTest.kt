@@ -58,6 +58,31 @@ class RealFileDownloaderTest {
             assertEquals(1, events.count { it is DownloadEvent.Running })
             val completed = events.last() as DownloadEvent.Completed
             assertEquals(TEST_TOTAL_BYTES, completed.totalBytes)
+            // 任务终止后内存分片缓存必须被释放，否则随任务数无限累积。
+            assertEquals(0, fixture.downloader.cachedSegmentTaskCount())
+        }
+    }
+
+    @Test
+    fun `download 以失败终止后会释放内存分片缓存但保留已刷盘分片`() = runBlocking {
+        val fixture = TestFixture(
+            headDelayMs = 0L,
+            bodyChunkDelayMs = 0L,
+            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 3 },
+            stallAfterFirstChunkMs = SOCKET_TIMEOUT_MS.toLong() + EXTRA_STALL_BUFFER_MS,
+        )
+
+        fixture.use {
+            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                events += event
+            }
+
+            assertTrue(events.last() is DownloadEvent.Failed)
+            // 内存缓存释放，但终态分片已先刷入存储，断点续传数据不受影响。
+            assertEquals(0, fixture.downloader.cachedSegmentTaskCount())
+            assertTrue(fixture.store.readSegments(fixture.request.taskId).isNotEmpty())
         }
     }
 

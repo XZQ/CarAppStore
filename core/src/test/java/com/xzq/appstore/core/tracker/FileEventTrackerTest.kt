@@ -32,4 +32,25 @@ class FileEventTrackerTest {
         assertTrue(text.contains("event_a"))
         assertTrue(text.contains("event_b"))
     }
+
+    @Test
+    fun `track 在文件超过大小上限时会轮转并继续写入新文件`() {
+        val dir = Files.createTempDirectory("event-tracker-rotate").toFile()
+        val file = dir.resolve("events.tsv")
+        val tracker = FileEventTracker(
+            eventLogFile = file,
+            writeScope = CoroutineScope(Dispatchers.Unconfined),
+            // 上限设为 1 字节：第一次写入后必然超限，第二次写入前触发轮转。
+            maxLogBytes = 1L,
+        )
+
+        tracker.track("before_rotate")
+        tracker.track("after_rotate")
+
+        // 旧内容整体挪入 .1，当前文件只包含轮转后的新事件。
+        val rotated = dir.resolve("events.tsv.1")
+        assertTrue(rotated.exists())
+        assertTrue(rotated.readText(Charsets.UTF_8).contains("before_rotate"))
+        assertTrue(file.readText(Charsets.UTF_8).contains("after_rotate"))
+    }
 }

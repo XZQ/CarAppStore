@@ -49,6 +49,8 @@ class FileEventTracker(
     logger: AppLogger = AppLogger(),
     /** 事件落盘协程作用域；默认单线程串行 IO，测试可注入即时作用域获得同步语义。 */
     private val writeScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1)),
+    /** 单个事件文件的大小上限，超过后在下一次写入前轮转；测试可注入小值验证轮转。 */
+    private val maxLogBytes: Long = DEFAULT_MAX_LOG_BYTES,
 ) : EventTracker(reporter, logger) {
     override fun track(event: String) {
         super.track(event)
@@ -56,6 +58,7 @@ class FileEventTracker(
         val timestamp = clock()
         writeScope.launch {
             runCatching {
+                rotateIfNeeded()
                 eventLogFile.parentFile?.mkdirs()
                 eventLogFile.appendText("$timestamp\t$safeEvent\n", Charsets.UTF_8)
             }.onFailure { error ->
@@ -65,7 +68,26 @@ class FileEventTracker(
         forward(TrackedEvent(timestamp, safeEvent))
     }
 
+    /**
+     * 文件超过 [maxLogBytes] 时轮转：旧一代（.1）删除，当前文件改名为 .1，新事件写回空文件。
+     * 在单线程写作用域内执行，无并发竞争；保留一代足够满足本地分析用途。
+     */
+    private fun rotateIfNeeded() {
+        if (!eventLogFile.exists() || eventLogFile.length() <= maxLogBytes) {
+            return
+        }
+        val rotated = File(eventLogFile.parentFile, eventLogFile.name + ROTATED_FILE_SUFFIX)
+        rotated.delete()
+        eventLogFile.renameTo(rotated)
+    }
+
     private companion object {
         const val TAG = "FileEventTracker"
+
+        /** 事件文件默认上限 1MB。 */
+        const val DEFAULT_MAX_LOG_BYTES = 1024L * 1024L
+
+        /** 轮转保留一代的后缀。 */
+        const val ROTATED_FILE_SUFFIX = ".1"
     }
 }
