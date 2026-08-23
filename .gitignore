@@ -14,6 +14,7 @@ captures/
 externalNativeBuild/
 .DS_Store
 /.workbuddy/
+/.zcode/
 /local-apks/
 __pycache__/
 *.py[cod]
