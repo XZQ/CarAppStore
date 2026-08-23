@@ -14,6 +14,8 @@ import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.text.BusinessText
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -34,6 +36,8 @@ class DetailViewModel(
     /** 用于监听页面策略变化。 */
     private val policyCenter: PolicyCenter,
     private val eventTracker: EventTracker = EventTracker(),
+    /** 主动作执行使用的调度器，测试时可注入 TestDispatcher 让异步任务确定性执行。 */
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : BaseViewModel<DetailUiState>(DetailUiState()) {
     /** 当前详情页正在展示的应用 id。 */
     private lateinit var currentAppId: String
@@ -51,6 +55,7 @@ class DetailViewModel(
         installManager = installManager,
         upgradeManager = upgradeManager,
         tracker = eventTracker,
+        ioDispatcher = ioDispatcher,
     )
 
     /** 加载指定应用的详情页数据，并订阅其运行态。重复调用会先取消上一次订阅，避免 collector 累积。 */

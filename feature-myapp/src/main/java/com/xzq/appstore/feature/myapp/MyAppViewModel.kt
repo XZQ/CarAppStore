@@ -4,17 +4,25 @@ import androidx.lifecycle.viewModelScope
 import com.xzq.appstore.common.base.BaseViewModel
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.state.StateCenter
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
+@OptIn(FlowPreview::class)
 class MyAppViewModel(
     /** “我的应用”聚合入口。 */
     private val appManager: AppManager,
     /** 用于监听全局状态变化。 */
     private val stateCenter: StateCenter,
+    /** 页面数据加载使用的调度器，测试时可注入 TestDispatcher。 */
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : BaseViewModel<MyAppUiState>(MyAppUiState()) {
     /** “我的应用”状态订阅任务。 */
     private var observeJob: Job? = null
@@ -27,26 +35,35 @@ class MyAppViewModel(
         }
     }
 
-    /** 监听页面全局状态变化，并在变化时刷新列表。 */
+    /** 监听页面全局状态变化，并在变化时刷新列表。
+     * 进度事件高频触发，用 debounce 合并，避免主线程反复全量重算。 */
     private fun observeStateChanges() {
         if (observeJob != null) {
             return
         }
-        observeJob = stateCenter.observeAll().onEach {
+        observeJob = stateCenter.observeAll().debounce(REFRESH_DEBOUNCE_MS).onEach {
             refreshApps()
         }.launchIn(viewModelScope)
     }
 
-    /** 重新加载“我的应用”列表。 */
+    /** 重新加载“我的应用”列表。
+     * 列表聚合涉及本地存储读写与系统包查询，统一切到 IO 线程，避免阻塞主线程。 */
     private suspend fun refreshApps(showLoading: Boolean = false) {
         if (showLoading) {
             _uiState.update { it.copy(screenState = MyAppScreenState.Loading) }
         }
         runCatching {
-            val apps = appManager.getMyApps()
-            MyAppUiState(apps = apps, screenState = if (apps.isEmpty()) MyAppScreenState.Empty else MyAppScreenState.Content)
+            withContext(ioDispatcher) {
+                val apps = appManager.getMyApps()
+                MyAppUiState(apps = apps, screenState = if (apps.isEmpty()) MyAppScreenState.Empty else MyAppScreenState.Content)
+            }
         }.onSuccess { _uiState.value = it }.onFailure { throwable ->
             _uiState.value = MyAppUiState(screenState = MyAppScreenState.Error(throwable.message.orEmpty()))
         }
+    }
+
+    private companion object {
+        /** 状态变化刷新防抖窗口（毫秒）。 */
+        const val REFRESH_DEBOUNCE_MS = 300L
     }
 }

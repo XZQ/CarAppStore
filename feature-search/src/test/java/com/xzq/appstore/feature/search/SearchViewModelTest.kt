@@ -51,6 +51,7 @@ class SearchViewModelTest {
             installManager = installManager,
             upgradeManager = upgradeManager,
             policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.onPrimaryClick(TEST_RESUME_APP)
@@ -73,6 +74,7 @@ class SearchViewModelTest {
             installManager = installManager,
             upgradeManager = upgradeManager,
             policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.onPrimaryClick(TEST_UPGRADE_APP)
@@ -95,6 +97,7 @@ class SearchViewModelTest {
             installManager = installManager,
             upgradeManager = upgradeManager,
             policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.onPrimaryClick(TEST_DISABLED_APP)
@@ -224,7 +227,7 @@ class SearchViewModelTest {
 
     class MainDispatcherRule(
         /** 测试主线程调度器。 */
-        private val dispatcher: TestDispatcher = StandardTestDispatcher(),
+        val dispatcher: TestDispatcher = StandardTestDispatcher(),
     ) : TestWatcher() {
         override fun starting(description: Description) {
             Dispatchers.setMain(dispatcher)

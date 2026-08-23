@@ -44,6 +44,7 @@ class InstallCenterViewModelTest {
             installManager = RecordingInstallManager(),
             upgradeManager = RecordingUpgradeManager(),
             installSessionStore = InstallSessionStore(Files.createTempFile("install-center-load", ".json").toFile()),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.load()
@@ -62,6 +63,7 @@ class InstallCenterViewModelTest {
             installManager = installManager,
             upgradeManager = RecordingUpgradeManager(),
             installSessionStore = InstallSessionStore(Files.createTempFile("install-center", ".json").toFile()),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.onPrimaryClick(TEST_RETRY_INSTALL_TASK.appId, TEST_RETRY_INSTALL_TASK.primaryAction)
@@ -78,6 +80,7 @@ class InstallCenterViewModelTest {
             installManager = RecordingInstallManager(),
             upgradeManager = RecordingUpgradeManager(),
             installSessionStore = InstallSessionStore(Files.createTempFile("install-center-fail", ".json").toFile()),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.load()
@@ -145,7 +148,7 @@ class InstallCenterViewModelTest {
 
     class MainDispatcherRule(
         /** 测试主线程调度器。 */
-        private val dispatcher: TestDispatcher = StandardTestDispatcher(),
+        val dispatcher: TestDispatcher = StandardTestDispatcher(),
     ) : TestWatcher() {
         override fun starting(description: Description) {
             Dispatchers.setMain(dispatcher)

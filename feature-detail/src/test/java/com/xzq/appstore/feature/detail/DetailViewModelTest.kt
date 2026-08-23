@@ -52,6 +52,7 @@ class DetailViewModelTest {
             upgradeManager = upgradeManager,
             stateCenter = stateCenter,
             policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.load(TEST_APP_DETAIL.appId)
@@ -73,6 +74,7 @@ class DetailViewModelTest {
             upgradeManager = RecordingUpgradeManager(),
             stateCenter = stateCenter,
             policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.load(TEST_APP_DETAIL.appId)
@@ -97,6 +99,7 @@ class DetailViewModelTest {
             upgradeManager = RecordingUpgradeManager(),
             stateCenter = stateCenter,
             policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.load(TEST_APP_DETAIL.appId)
@@ -122,6 +125,7 @@ class DetailViewModelTest {
             upgradeManager = RecordingUpgradeManager(),
             stateCenter = DefaultStateCenter(),
             policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.load(unsupportedDetail.appId)
@@ -253,7 +257,7 @@ class DetailViewModelTest {
 
     class MainDispatcherRule(
         /** 测试主线程调度器。 */
-        private val dispatcher: TestDispatcher = StandardTestDispatcher(),
+        val dispatcher: TestDispatcher = StandardTestDispatcher(),
     ) : TestWatcher() {
         override fun starting(description: Description) {
             Dispatchers.setMain(dispatcher)

@@ -10,13 +10,19 @@ import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.xzq.appstore.data.model.TaskOverallStatus
 
+@OptIn(FlowPreview::class)
 class UpgradeViewModel(
     /** 升级中心聚合入口。 */
     private val appManager: AppManager,
@@ -24,6 +30,8 @@ class UpgradeViewModel(
     private val stateCenter: StateCenter,
     /** 升级业务入口。 */
     private val upgradeManager: UpgradeManager,
+    /** 页面数据加载使用的调度器，测试时可注入 TestDispatcher。 */
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : BaseViewModel<UpgradeUiState>(UpgradeUiState()) {
     /** 升级中心状态订阅任务。 */
     private var observeJob: Job? = null
@@ -32,7 +40,7 @@ class UpgradeViewModel(
     private var selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL
 
     /** 升级中心单项任务主动作分发器。 */
-    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, upgradeManager = upgradeManager)
+    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, upgradeManager = upgradeManager, ioDispatcher = ioDispatcher)
 
     /** 初始化升级中心并开始监听状态变化。 */
     fun load() {
@@ -53,11 +61,13 @@ class UpgradeViewModel(
     /** 重试失败升级任务。 */
     fun onRetryFailed() {
         viewModelScope.launch {
-            val failed = appManager.getUpgradeTasks().filter {
-                it.overallStatus == TaskOverallStatus.FAILED || it.primaryAction == PrimaryAction.UPGRADE
-            }
-            failed.forEach { task ->
-                primaryActionExecutor.execute(task.appId, task.primaryAction, task.packageName)
+            withContext(ioDispatcher) {
+                val failed = appManager.getUpgradeTasks().filter {
+                    it.overallStatus == TaskOverallStatus.FAILED || it.primaryAction == PrimaryAction.UPGRADE
+                }
+                failed.forEach { task ->
+                    primaryActionExecutor.execute(task.appId, task.primaryAction, task.packageName)
+                }
             }
             refresh()
         }
@@ -66,10 +76,12 @@ class UpgradeViewModel(
     /** 批量启动当前筛选范围内所有可执行升级任务。 */
     fun onStartAllRunnable() {
         viewModelScope.launch {
-            val runnable = appManager.getUpgradeTasks().filter {
-                (it.primaryAction == PrimaryAction.UPGRADE) && selectedFilter.matches(it.overallStatus)
+            withContext(ioDispatcher) {
+                val runnable = appManager.getUpgradeTasks().filter {
+                    (it.primaryAction == PrimaryAction.UPGRADE) && selectedFilter.matches(it.overallStatus)
+                }
+                runnable.forEach { task -> primaryActionExecutor.execute(task.appId, task.primaryAction, task.packageName) }
             }
-            runnable.forEach { task -> primaryActionExecutor.execute(task.appId, task.primaryAction, task.packageName) }
             refresh()
         }
     }
@@ -80,41 +92,50 @@ class UpgradeViewModel(
         viewModelScope.launch { refresh() }
     }
 
-    /** 监听页面全局状态变化。 */
+    /** 监听页面全局状态变化。
+     * 进度事件高频触发，用 debounce 合并，避免主线程反复全量重算。 */
     private fun observeStateChanges() {
         if (observeJob != null) {
             return
         }
-        observeJob = stateCenter.observeAll().onEach { refresh() }.launchIn(viewModelScope)
+        observeJob = stateCenter.observeAll().debounce(REFRESH_DEBOUNCE_MS).onEach { refresh() }.launchIn(viewModelScope)
     }
 
-    /** 重新计算升级中心页面状态。 */
+    /** 重新计算升级中心页面状态。
+     * 任务聚合涉及目录过滤、升级信息查询和系统包查询，统一切到 IO 线程，避免阻塞主线程。 */
     private suspend fun refresh(showLoading: Boolean = false) {
         if (showLoading) {
             _uiState.update { it.copy(screenState = UpgradeScreenState.Loading) }
         }
         runCatching {
-            val allTasks = appManager.getUpgradeTasks()
-            val visible = allTasks.filter { selectedFilter.matches(it.overallStatus) }
-            val failedCount = allTasks.count { !it.reasonText.isNullOrBlank() }
-            val runnableCount = visible.count { it.primaryAction == PrimaryAction.UPGRADE }
-            UpgradeUiState(
-                tasks = visible,
-                availableCount = allTasks.size,
-                failedCount = failedCount,
-                stats = appManager.getUpgradeTaskStats(),
-                selectedFilter = selectedFilter,
-                batchRunnableCount = runnableCount,
-                showFailurePanel = failedCount > 0,
-                controlsUiState = UpgradeCenterControlsUiState(runnableCount = runnableCount, failedCount = failedCount),
-                screenState = if (visible.isEmpty()) {
-                    UpgradeScreenState.Empty
-                } else {
-                    UpgradeScreenState.Content
-                },
-            )
+            withContext(ioDispatcher) {
+                val allTasks = appManager.getUpgradeTasks()
+                val visible = allTasks.filter { selectedFilter.matches(it.overallStatus) }
+                val failedCount = allTasks.count { !it.reasonText.isNullOrBlank() }
+                val runnableCount = visible.count { it.primaryAction == PrimaryAction.UPGRADE }
+                UpgradeUiState(
+                    tasks = visible,
+                    availableCount = allTasks.size,
+                    failedCount = failedCount,
+                    stats = appManager.getUpgradeTaskStats(),
+                    selectedFilter = selectedFilter,
+                    batchRunnableCount = runnableCount,
+                    showFailurePanel = failedCount > 0,
+                    controlsUiState = UpgradeCenterControlsUiState(runnableCount = runnableCount, failedCount = failedCount),
+                    screenState = if (visible.isEmpty()) {
+                        UpgradeScreenState.Empty
+                    } else {
+                        UpgradeScreenState.Content
+                    },
+                )
+            }
         }.onSuccess { _uiState.value = it }.onFailure { throwable ->
             _uiState.value = UpgradeUiState(selectedFilter = selectedFilter, screenState = UpgradeScreenState.Error(throwable.message.orEmpty()))
         }
+    }
+
+    private companion object {
+        /** 状态变化刷新防抖窗口（毫秒）。 */
+        const val REFRESH_DEBOUNCE_MS = 300L
     }
 }

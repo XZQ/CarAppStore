@@ -59,6 +59,7 @@ class DownloadManagerViewModel(
         downloadManager = downloadManager,
         installManager = installManager,
         upgradeManager = upgradeManager,
+        ioDispatcher = ioDispatcher,
     )
 
     /** 初始化页面数据并开始观察状态变化。 */
@@ -111,10 +112,12 @@ class DownloadManagerViewModel(
     /** 清理所有失败任务。 */
     fun onClearFailed() {
         viewModelScope.launch {
-            val failedTasks = appManager.getDownloadTasks().filter {
-                it.overallStatus == TaskOverallStatus.FAILED
+            withContext(ioDispatcher) {
+                val failedTasks = appManager.getDownloadTasks().filter {
+                    it.overallStatus == TaskOverallStatus.FAILED
+                }
+                failedTasks.forEach { downloadManager.removeTask(it.appId, clearFile = true) }
             }
-            failedTasks.forEach { downloadManager.removeTask(it.appId, clearFile = true) }
             refresh()
         }
     }
@@ -122,9 +125,11 @@ class DownloadManagerViewModel(
     /** 重试失败的下载和安装任务。 */
     fun onRetryFailed() {
         viewModelScope.launch {
-            val installFailed = appManager.getInstallTasks().filter { it.primaryAction == PrimaryAction.RETRY_INSTALL }
-            installFailed.forEach { primaryActionExecutor.execute(it.appId, it.primaryAction, it.packageName) }
-            downloadManager.retryFailedTasks()
+            withContext(ioDispatcher) {
+                val installFailed = appManager.getInstallTasks().filter { it.primaryAction == PrimaryAction.RETRY_INSTALL }
+                installFailed.forEach { primaryActionExecutor.execute(it.appId, it.primaryAction, it.packageName) }
+                downloadManager.retryFailedTasks()
+            }
             refresh()
         }
     }
@@ -132,10 +137,12 @@ class DownloadManagerViewModel(
     /** 批量安装所有已下载完成的任务。 */
     fun onBatchInstallReady() {
         viewModelScope.launch {
-            val readyDownloads = appManager.getDownloadTasks().filter {
-                it.primaryAction == PrimaryAction.INSTALL || it.primaryAction == PrimaryAction.RETRY_INSTALL
+            withContext(ioDispatcher) {
+                val readyDownloads = appManager.getDownloadTasks().filter {
+                    it.primaryAction == PrimaryAction.INSTALL || it.primaryAction == PrimaryAction.RETRY_INSTALL
+                }
+                readyDownloads.forEach { primaryActionExecutor.execute(it.appId, it.primaryAction) }
             }
-            readyDownloads.forEach { primaryActionExecutor.execute(it.appId, it.primaryAction) }
             refresh()
         }
     }

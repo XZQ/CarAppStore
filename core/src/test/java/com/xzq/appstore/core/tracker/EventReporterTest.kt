@@ -1,6 +1,8 @@
 package com.xzq.appstore.core.tracker
 
 import com.xzq.appstore.core.logger.AppLogger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -33,7 +35,8 @@ class EventReporterTest {
             }
         }
 
-        FileEventTracker(directory, logger = logger).track("install_start_demo")
+        // Unconfined 作用域让落盘在调用线程内联执行，保证同步断言语义。
+        FileEventTracker(directory, logger = logger, writeScope = CoroutineScope(Dispatchers.Unconfined)).track("install_start_demo")
 
         assertEquals(1, failures.size)
         assertTrue(failures.single() != null)
@@ -78,7 +81,7 @@ class EventReporterTest {
         val reporter = object : EventReporter {
             override fun report(events: List<TrackedEvent>): Boolean = throw IllegalStateException("network down")
         }
-        val tracker = FileEventTracker(file, reporter, clock = { 2_000L }, logger = logger)
+        val tracker = FileEventTracker(file, reporter, clock = { 2_000L }, logger = logger, writeScope = CoroutineScope(Dispatchers.Unconfined))
 
         tracker.track("install_ok_demo")
 

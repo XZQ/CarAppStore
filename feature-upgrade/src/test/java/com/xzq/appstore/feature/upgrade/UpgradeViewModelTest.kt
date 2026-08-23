@@ -35,7 +35,7 @@ class UpgradeViewModelTest {
 
     @Test
     fun `load 有任务时会进入内容态`() = runTest {
-        val viewModel = UpgradeViewModel(appManager = FakeAppManager(), stateCenter = DefaultStateCenter(), upgradeManager = RecordingUpgradeManager())
+        val viewModel = UpgradeViewModel(appManager = FakeAppManager(), stateCenter = DefaultStateCenter(), upgradeManager = RecordingUpgradeManager(), ioDispatcher = mainDispatcherRule.dispatcher)
 
         viewModel.load()
         advanceUntilIdle()
@@ -48,7 +48,7 @@ class UpgradeViewModelTest {
     fun `onPrimaryClick 为升级动作时会发起升级`() = runTest {
         val appManager = FakeAppManager()
         val upgradeManager = RecordingUpgradeManager()
-        val viewModel = UpgradeViewModel(appManager = appManager, stateCenter = DefaultStateCenter(), upgradeManager = upgradeManager)
+        val viewModel = UpgradeViewModel(appManager = appManager, stateCenter = DefaultStateCenter(), upgradeManager = upgradeManager, ioDispatcher = mainDispatcherRule.dispatcher)
 
         viewModel.onPrimaryClick(TEST_UPGRADE_TASK)
         advanceUntilIdle()
@@ -61,7 +61,7 @@ class UpgradeViewModelTest {
     fun `onPrimaryClick 为打开动作时会打开应用`() = runTest {
         val appManager = FakeAppManager()
         val upgradeManager = RecordingUpgradeManager()
-        val viewModel = UpgradeViewModel(appManager = appManager, stateCenter = DefaultStateCenter(), upgradeManager = upgradeManager)
+        val viewModel = UpgradeViewModel(appManager = appManager, stateCenter = DefaultStateCenter(), upgradeManager = upgradeManager, ioDispatcher = mainDispatcherRule.dispatcher)
 
         viewModel.onPrimaryClick(TEST_OPEN_TASK)
         advanceUntilIdle()
@@ -72,7 +72,7 @@ class UpgradeViewModelTest {
 
     @Test
     fun `load 失败时会进入错误态`() = runTest {
-        val viewModel = UpgradeViewModel(appManager = FailingAppManager(), stateCenter = DefaultStateCenter(), upgradeManager = RecordingUpgradeManager())
+        val viewModel = UpgradeViewModel(appManager = FailingAppManager(), stateCenter = DefaultStateCenter(), upgradeManager = RecordingUpgradeManager(), ioDispatcher = mainDispatcherRule.dispatcher)
 
         viewModel.load()
         advanceUntilIdle()
@@ -139,7 +139,7 @@ class UpgradeViewModelTest {
 
     class MainDispatcherRule(
         /** 测试主线程调度器。 */
-        private val dispatcher: TestDispatcher = StandardTestDispatcher(),
+        val dispatcher: TestDispatcher = StandardTestDispatcher(),
     ) : TestWatcher() {
         override fun starting(description: Description) {
             Dispatchers.setMain(dispatcher)

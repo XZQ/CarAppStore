@@ -32,7 +32,7 @@ class MyAppViewModelTest {
 
     @Test
     fun `load 有应用时会进入内容态`() = runTest {
-        val viewModel = MyAppViewModel(appManager = FakeAppManager(apps = listOf(TEST_APP)), stateCenter = DefaultStateCenter())
+        val viewModel = MyAppViewModel(appManager = FakeAppManager(apps = listOf(TEST_APP)), stateCenter = DefaultStateCenter(), ioDispatcher = mainDispatcherRule.dispatcher)
 
         viewModel.load()
         advanceUntilIdle()
@@ -43,7 +43,7 @@ class MyAppViewModelTest {
 
     @Test
     fun `load 失败时会进入错误态`() = runTest {
-        val viewModel = MyAppViewModel(appManager = FailingAppManager(), stateCenter = DefaultStateCenter())
+        val viewModel = MyAppViewModel(appManager = FailingAppManager(), stateCenter = DefaultStateCenter(), ioDispatcher = mainDispatcherRule.dispatcher)
 
         viewModel.load()
         advanceUntilIdle()
@@ -92,7 +92,7 @@ class MyAppViewModelTest {
 
     class MainDispatcherRule(
         /** 测试主线程调度器。 */
-        private val dispatcher: TestDispatcher = StandardTestDispatcher(),
+        val dispatcher: TestDispatcher = StandardTestDispatcher(),
     ) : TestWatcher() {
         override fun starting(description: Description) {
             Dispatchers.setMain(dispatcher)

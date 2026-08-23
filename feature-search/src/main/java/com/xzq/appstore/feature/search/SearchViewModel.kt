@@ -11,10 +11,13 @@ import com.xzq.appstore.domain.install.InstallManager
 import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -36,6 +39,8 @@ class SearchViewModel(
     /** 用于监听页面策略变化。 */
     private val policyCenter: PolicyCenter,
     private val eventTracker: EventTracker = EventTracker(),
+    /** 页面数据加载与主动作执行使用的调度器，测试时可注入 TestDispatcher。 */
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : BaseViewModel<SearchUiState>(SearchUiState()) {
     /** 搜索页状态订阅任务。 */
     private var observeJob: Job? = null
@@ -46,6 +51,9 @@ class SearchViewModel(
     /** 目录全量快照，用于生成搜索联想候选（避免每次输入都重新拉取目录）。 */
     private var catalogSnapshot: List<AppViewData> = emptyList()
 
+    /** 搜索输入流：初始为 null 表示尚未输入，与状态/策略流共用防抖窗口。 */
+    private val keywordFlow = MutableStateFlow<String?>(null)
+
     /** 搜索结果和详情共用的主动作分发器。 */
     private val primaryActionExecutor = AppPrimaryActionExecutor(
         appManager = appManager,
@@ -53,24 +61,34 @@ class SearchViewModel(
         installManager = installManager,
         upgradeManager = upgradeManager,
         tracker = eventTracker,
+        ioDispatcher = ioDispatcher,
     )
 
     /** 初始化搜索页数据并开始监听状态变化。 */
     fun load() {
         viewModelScope.launch {
             runCatching {
-                withContext(Dispatchers.IO) { appManager.searchApps("") }
+                withContext(ioDispatcher) { appManager.searchApps("") }
             }.onSuccess { catalogSnapshot = it }
             refresh(_uiState.value.keyword)
             observeStateChanges()
             observePolicyChanges()
+            observeKeywordChanges()
         }
     }
 
-    /** 根据关键字刷新搜索结果。 */
+    /** 根据关键字刷新搜索结果。
+     * 关键字立即写入 UI 状态，重查询通过 [keywordFlow] 防抖合并，避免每个键击都全量重算。 */
     fun search(keyword: String) {
         _uiState.update { it.copy(keyword = keyword, screenState = SearchScreenState.Loading) }
-        viewModelScope.launch { refresh(keyword) }
+        keywordFlow.value = keyword
+    }
+
+    /** 监听防抖后的搜索输入并刷新结果。 */
+    private fun observeKeywordChanges() {
+        keywordFlow.filterNotNull().debounce(REFRESH_DEBOUNCE_MS).onEach { keyword ->
+            refresh(keyword)
+        }.launchIn(viewModelScope)
     }
 
     /** 监听页面全局状态变化，并在变化时刷新当前关键字结果。

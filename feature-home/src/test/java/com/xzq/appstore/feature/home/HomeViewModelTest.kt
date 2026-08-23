@@ -52,6 +52,7 @@ class HomeViewModelTest {
             installManager = installManager,
             upgradeManager = upgradeManager,
             policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.onPrimaryClick(TEST_DOWNLOAD_APP)
@@ -75,6 +76,7 @@ class HomeViewModelTest {
             installManager = installManager,
             upgradeManager = upgradeManager,
             policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.onPrimaryClick(TEST_INSTALL_APP)
@@ -98,6 +100,7 @@ class HomeViewModelTest {
             installManager = installManager,
             upgradeManager = upgradeManager,
             policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
         )
 
         viewModel.onPrimaryClick(TEST_OPEN_APP)
@@ -233,7 +236,7 @@ class HomeViewModelTest {
 
     class MainDispatcherRule(
         /** 测试主线程调度器。 */
-        private val dispatcher: TestDispatcher = StandardTestDispatcher(),
+        val dispatcher: TestDispatcher = StandardTestDispatcher(),
     ) : TestWatcher() {
         override fun starting(description: Description) {
             Dispatchers.setMain(dispatcher)
