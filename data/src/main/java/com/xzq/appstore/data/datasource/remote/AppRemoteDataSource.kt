@@ -61,9 +61,13 @@ class AppRemoteDataSource(
 
     /** 返回指定应用的升级信息。 */
     suspend fun getUpgradeInfo(appId: String): UpgradeInfo {
+        // 复用已找到的目录项补全下载源，避免 getAppDetail 内部再做一次目录查找。
         val app = findItem(appId)
-        val detail = getAppDetail(appId)
-        return app.upgradeInfo.copy(apkUrl = detail.apkUrl)
+        val source = sourceCatalog.get(app.appId)
+        val detail = app.appDetail
+        return app.upgradeInfo.copy(
+            apkUrl = detail.apkUrl.ifBlank { source.apkUrl },
+        )
     }
 
     /** 查找指定应用的远端目录项。 */

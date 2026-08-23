@@ -48,7 +48,19 @@ class InstallSessionStore(
 
     /** 获取指定应用最近一次安装会话。 */
     fun getLatestByAppId(appId: String): InstallSessionRecord? {
-        return readAll().filter { it.appId == appId }.maxByOrNull { it.updatedAt }
+        return getLatestByAppId(listOf(appId))[appId]
+    }
+
+    /** 批量获取一组应用各自最近一次安装会话：单次读取全量记录后在内存分组，避免逐应用重复解析整个文件。 */
+    fun getLatestByAppId(appIds: Collection<String>): Map<String, InstallSessionRecord> {
+        val latest = mutableMapOf<String, InstallSessionRecord>()
+        readAll().filter { it.appId in appIds }.forEach { record ->
+            val current = latest[record.appId]
+            if (current == null || record.updatedAt >= current.updatedAt) {
+                latest[record.appId] = record
+            }
+        }
+        return latest
     }
 
     /** 获取启动恢复时需要处理的安装会话。 */

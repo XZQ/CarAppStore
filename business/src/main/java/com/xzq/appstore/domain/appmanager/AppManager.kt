@@ -5,6 +5,7 @@ import com.xzq.appstore.data.model.AppViewData
 import com.xzq.appstore.data.model.DownloadTaskViewData
 import com.xzq.appstore.data.model.InstallTaskViewData
 import com.xzq.appstore.data.model.TaskCenterStats
+import com.xzq.appstore.data.model.TaskCenterStatsSnapshot
 import com.xzq.appstore.data.model.UpgradeTaskViewData
 
 interface AppManager {
@@ -48,6 +49,13 @@ interface AppManager {
 
     /** 获取升级中心统计信息。 */
     suspend fun getUpgradeTaskStats(): TaskCenterStats
+
+    /** 一次性获取三个任务中心的统计快照；默认实现逐个查询，实现方可共享目录与已装数据避免重复加载。 */
+    suspend fun getTaskCenterStatsSnapshot(): TaskCenterStatsSnapshot = TaskCenterStatsSnapshot(
+        downloadStats = getDownloadTaskStats(),
+        installStats = getInstallTaskStats(),
+        upgradeStats = getUpgradeTaskStats(),
+    )
 
     /** 生成当前策略提示文案。 */
     fun getPolicyPrompt(): String

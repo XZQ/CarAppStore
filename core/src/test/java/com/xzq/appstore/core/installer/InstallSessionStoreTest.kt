@@ -90,6 +90,56 @@ class InstallSessionStoreTest {
         assertEquals(InstallSessionStatus.PENDING_USER_ACTION, store.get(3)?.status)
     }
 
+    @Test
+    fun `批量 getLatestByAppId 返回每个应用最新的会话`() {
+        val store = InstallSessionStore(createTempFile("install-sessions-batch.json"))
+        store.save(
+            InstallSessionRecord(
+                sessionId = 1,
+                appId = "app.a",
+                packageName = "pkg.a",
+                apkPath = "/tmp/a.apk",
+                targetVersion = "1.0.0",
+                status = InstallSessionStatus.FAILED_COMMIT,
+                createdAt = 1,
+                updatedAt = 2,
+            )
+        )
+        store.save(
+            InstallSessionRecord(
+                sessionId = 2,
+                appId = "app.a",
+                packageName = "pkg.a",
+                apkPath = "/tmp/a.apk",
+                targetVersion = "1.1.0",
+                status = InstallSessionStatus.PENDING_USER_ACTION,
+                createdAt = 3,
+                updatedAt = 4,
+            )
+        )
+        store.save(
+            InstallSessionRecord(
+                sessionId = 3,
+                appId = "app.b",
+                packageName = "pkg.b",
+                apkPath = "/tmp/b.apk",
+                targetVersion = "2.0.0",
+                status = InstallSessionStatus.COMMITTED,
+                createdAt = 5,
+                updatedAt = 6,
+            )
+        )
+
+        val latest = store.getLatestByAppId(listOf("app.a", "app.b", "app.missing"))
+
+        assertEquals(2, latest.size)
+        assertEquals(2, latest["app.a"]?.sessionId)
+        assertEquals(3, latest["app.b"]?.sessionId)
+        assertNull(latest["app.missing"])
+        // 单应用版本与批量版本保持一致语义。
+        assertEquals(2, store.getLatestByAppId("app.a")?.sessionId)
+    }
+
     private fun createTempFile(fileName: String): File {
         return Files.createTempDirectory("install-session-store-test").resolve(fileName).toFile()
     }

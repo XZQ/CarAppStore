@@ -58,6 +58,16 @@ data class TaskCenterStats(
     val totalCount: Int get() = activeCount + pendingCount + failedCount + completedCount
 }
 
+/** 三个任务中心统计信息的一次性快照，供壳层任务摘要等场景复用同一次目录与已装数据。 */
+data class TaskCenterStatsSnapshot(
+    /** 下载中心统计信息。 */
+    val downloadStats: TaskCenterStats,
+    /** 安装中心统计信息。 */
+    val installStats: TaskCenterStats,
+    /** 升级中心统计信息。 */
+    val upgradeStats: TaskCenterStats,
+)
+
 data class TaskCenterActionUiState(
     /** 操作区展示的中心名称。 */
     val centerName: String,

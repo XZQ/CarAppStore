@@ -25,6 +25,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import java.nio.file.Files
 
 class DefaultAppManagerTest {
@@ -134,6 +135,20 @@ class DefaultAppManagerTest {
         assertEquals(BusinessText.STATUS_PLATFORM_UNSUPPORTED, item.stateText)
     }
 
+    @Test
+    fun `getTaskCenterStatsSnapshot 一次共享加载产出与逐个查询一致的统计`() = runBlocking {
+        repository.installedApps += InstalledApp(appId = "music.app", packageName = "com.nio.music", name = "车载音乐", versionName = "1.0.0")
+
+        val manager = createManager()
+        val snapshot = manager.getTaskCenterStatsSnapshot()
+
+        // 快照内部只加载一次目录，避免三个中心统计各自重复拉取。
+        assertEquals(1, repository.homeAppsQueryCount.get())
+        assertEquals(manager.getDownloadTaskStats(), snapshot.downloadStats)
+        assertEquals(manager.getInstallTaskStats(), snapshot.installStats)
+        assertEquals(manager.getUpgradeTaskStats(), snapshot.upgradeStats)
+    }
+
     /** 创建待测聚合层实例。 */
     private fun createManager(): DefaultAppManager {
         return DefaultAppManager(repository = repository, stateCenter = stateCenter, installSessionStore = installSessionStore, policyCenter = policyCenter)
@@ -192,10 +207,16 @@ class DefaultAppManagerTest {
         /** 已安装应用列表。 */
         val installedApps = mutableListOf<InstalledApp>()
 
+        /** getHomeApps 调用计数，用于验证统计快照共享加载。 */
+        val homeAppsQueryCount = AtomicInteger(0)
+
         /** 下载偏好设置。 */
         private var downloadPreferences = DownloadPreferences()
 
-        override suspend fun getHomeApps(): List<AppInfo> = homeApps
+        override suspend fun getHomeApps(): List<AppInfo> {
+            homeAppsQueryCount.incrementAndGet()
+            return homeApps
+        }
 
         override suspend fun getAppDetail(appId: String): AppDetail {
             val app = requireNotNull(homeApps.firstOrNull { it.appId == appId })
