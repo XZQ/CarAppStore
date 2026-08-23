@@ -15,9 +15,10 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -51,8 +52,8 @@ class SearchViewModel(
     /** 目录全量快照，用于生成搜索联想候选（避免每次输入都重新拉取目录）。 */
     private var catalogSnapshot: List<AppViewData> = emptyList()
 
-    /** 搜索输入流：初始为 null 表示尚未输入，与状态/策略流共用防抖窗口。 */
-    private val keywordFlow = MutableStateFlow<String?>(null)
+    /** 搜索输入流：用 SharedFlow 而非 StateFlow，重复提交同一关键词也必须触发防抖重查，否则页面会卡在 Loading。 */
+    private val keywordFlow = MutableSharedFlow<String>(extraBufferCapacity = KEYWORD_FLOW_BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     /** 搜索结果和详情共用的主动作分发器。 */
     private val primaryActionExecutor = AppPrimaryActionExecutor(
@@ -81,12 +82,12 @@ class SearchViewModel(
      * 关键字立即写入 UI 状态，重查询通过 [keywordFlow] 防抖合并，避免每个键击都全量重算。 */
     fun search(keyword: String) {
         _uiState.update { it.copy(keyword = keyword, screenState = SearchScreenState.Loading) }
-        keywordFlow.value = keyword
+        keywordFlow.tryEmit(keyword)
     }
 
     /** 监听防抖后的搜索输入并刷新结果。 */
     private fun observeKeywordChanges() {
-        keywordFlow.filterNotNull().debounce(REFRESH_DEBOUNCE_MS).onEach { keyword ->
+        keywordFlow.debounce(REFRESH_DEBOUNCE_MS).onEach { keyword ->
             refresh(keyword)
         }.launchIn(viewModelScope)
     }
@@ -154,5 +155,8 @@ class SearchViewModel(
 
         /** 搜索联想候选最大条数。 */
         const val SUGGESTION_LIMIT = 6
+
+        /** 搜索输入流缓冲容量：防抖消费很快，超出即丢最旧值，只保留最新输入语义。 */
+        const val KEYWORD_FLOW_BUFFER = 8
     }
 }

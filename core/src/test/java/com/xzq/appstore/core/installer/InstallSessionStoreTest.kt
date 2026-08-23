@@ -140,6 +140,39 @@ class InstallSessionStoreTest {
         assertEquals(2, store.getLatestByAppId("app.a")?.sessionId)
     }
 
+    @Test
+    fun `批量 getLatestByAppId 在 updatedAt 平局时保留先出现的记录`() {
+        val store = InstallSessionStore(createTempFile("install-sessions-tie.json"))
+        store.save(
+            InstallSessionRecord(
+                sessionId = 1,
+                appId = "app.a",
+                packageName = "pkg.a",
+                apkPath = "/tmp/a.apk",
+                targetVersion = "1.0.0",
+                status = InstallSessionStatus.COMMITTED,
+                createdAt = 1,
+                updatedAt = 5,
+            )
+        )
+        store.save(
+            InstallSessionRecord(
+                sessionId = 2,
+                appId = "app.a",
+                packageName = "pkg.a",
+                apkPath = "/tmp/a.apk",
+                targetVersion = "1.1.0",
+                status = InstallSessionStatus.COMMITTED,
+                createdAt = 2,
+                updatedAt = 5,
+            )
+        )
+
+        // 与单数版 maxByOrNull 平局语义一致：先写入的记录胜出。
+        assertEquals(1, store.getLatestByAppId("app.a")?.sessionId)
+        assertEquals(1, store.getLatestByAppId(listOf("app.a"))["app.a"]?.sessionId)
+    }
+
     private fun createTempFile(fileName: String): File {
         return Files.createTempDirectory("install-session-store-test").resolve(fileName).toFile()
     }

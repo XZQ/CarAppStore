@@ -183,6 +183,10 @@ class DetailFragment : BaseFragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        // 视图销毁后重置静态绑定标记：返回栈重建视图时，即使 collect 重放同一个详情实例也要重新绑定，
+        // 否则名称/图标/截图等静态内容不会绑进新容器。
+        boundDetail = null
+        boundScreenState = null
         _binding = null
     }
 

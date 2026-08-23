@@ -110,6 +110,30 @@ class SearchViewModelTest {
         assertTrue(upgradeManager.checkedUpgradeAppIds.isEmpty())
     }
 
+    @Test
+    fun `重复提交同一关键词也会结束 Loading 状态`() = runTest {
+        val viewModel = SearchViewModel(
+            appManager = FakeAppManager(),
+            stateCenter = DefaultStateCenter(),
+            downloadManager = RecordingDownloadManager(),
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        viewModel.load()
+        advanceUntilIdle()
+
+        viewModel.search("demo")
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.screenState != SearchScreenState.Loading)
+
+        // 点击与当前关键词完全相同的联想词时，输入流必须再次发射并触发防抖重查，否则页面卡在 Loading。
+        viewModel.search("demo")
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.screenState != SearchScreenState.Loading)
+    }
+
     private class FakeAppManager : AppManager {
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
 

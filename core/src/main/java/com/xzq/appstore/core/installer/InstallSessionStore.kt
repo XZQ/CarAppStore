@@ -56,7 +56,8 @@ class InstallSessionStore(
         val latest = mutableMapOf<String, InstallSessionRecord>()
         readAll().filter { it.appId in appIds }.forEach { record ->
             val current = latest[record.appId]
-            if (current == null || record.updatedAt >= current.updatedAt) {
+            // 与单数版 maxByOrNull 的平局语义一致：updatedAt 相同时保留先出现的记录。
+            if (current == null || record.updatedAt > current.updatedAt) {
                 latest[record.appId] = record
             }
         }
