@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
@@ -87,18 +88,21 @@ class SearchViewModel(
 
     /** 监听防抖后的搜索输入并刷新结果。 */
     private fun observeKeywordChanges() {
-        keywordFlow.debounce(REFRESH_DEBOUNCE_MS).onEach { keyword ->
+        keywordFlow.debounce(SEARCH_DEBOUNCE_MS).onEach { keyword ->
             refresh(keyword)
         }.launchIn(viewModelScope)
     }
 
     /** 监听页面全局状态变化，并在变化时刷新当前关键字结果。
-     * 进度事件高频触发，用 debounce 合并，避免主线程反复全量重算。 */
+     * 进度事件高频触发，用周期采样限频，保证持续下载期间搜索结果仍会刷新。 */
     private fun observeStateChanges() {
         if (observeJob != null) {
             return
         }
-        observeJob = stateCenter.observeAll().debounce(REFRESH_DEBOUNCE_MS).onEach { refresh(_uiState.value.keyword) }.launchIn(viewModelScope)
+        observeJob = stateCenter.observeAll().onEach {
+            delay(STATE_REFRESH_SAMPLE_MS)
+            refresh(_uiState.value.keyword)
+        }.launchIn(viewModelScope)
     }
 
     /** 监听页面策略变化，并在变化时刷新当前关键字结果。 */
@@ -106,7 +110,7 @@ class SearchViewModel(
         if (observePolicyJob != null) {
             return
         }
-        observePolicyJob = policyCenter.observeSettings().debounce(REFRESH_DEBOUNCE_MS).onEach { refresh(_uiState.value.keyword) }.launchIn(viewModelScope)
+        observePolicyJob = policyCenter.observeSettings().debounce(POLICY_REFRESH_DEBOUNCE_MS).onEach { refresh(_uiState.value.keyword) }.launchIn(viewModelScope)
     }
 
     /** 处理搜索结果卡片主动作点击。 */
@@ -120,7 +124,7 @@ class SearchViewModel(
      * searchApps 涉及目录解析与本地存储读写，统一切到 IO 线程，避免阻塞主线程。 */
     private suspend fun refresh(keyword: String) {
         val result = runCatching {
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 val apps = appManager.searchApps(keyword)
                 apps to appManager.getPolicyPrompt()
             }
@@ -150,8 +154,14 @@ class SearchViewModel(
     }
 
     private companion object {
-        /** 状态/策略变化刷新防抖窗口（毫秒）。 */
-        const val REFRESH_DEBOUNCE_MS = 300L
+        /** 搜索输入防抖窗口（毫秒）。 */
+        const val SEARCH_DEBOUNCE_MS = 300L
+
+        /** 高频状态变化刷新采样周期（毫秒）。 */
+        const val STATE_REFRESH_SAMPLE_MS = 300L
+
+        /** 低频策略变化刷新防抖窗口（毫秒）。 */
+        const val POLICY_REFRESH_DEBOUNCE_MS = 300L
 
         /** 搜索联想候选最大条数。 */
         const val SUGGESTION_LIMIT = 6

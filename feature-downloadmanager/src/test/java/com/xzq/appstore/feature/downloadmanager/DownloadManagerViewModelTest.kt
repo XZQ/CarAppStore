@@ -16,6 +16,7 @@ import com.xzq.appstore.domain.install.InstallManager
 import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.policy.PolicyResult
 import com.xzq.appstore.domain.state.DefaultStateCenter
+import com.xzq.appstore.domain.state.DownloadStatus
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.upgrade.UpgradeBatchResult
 import com.xzq.appstore.domain.upgrade.UpgradeManager
@@ -24,8 +25,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
@@ -121,9 +124,40 @@ class DownloadManagerViewModelTest {
         assertEquals(DownloadManagerScreenState.Error("download tasks unavailable"), viewModel.uiState.value.screenState)
     }
 
+    @Test
+    fun `连续进度事件期间会按采样周期刷新任务`() = runTest {
+        val appManager = FakeAppManager()
+        val stateCenter = DefaultStateCenter()
+        val viewModel = DownloadManagerViewModel(
+            appManager = appManager,
+            stateCenter = stateCenter,
+            downloadManager = RecordingDownloadManager(),
+            installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(),
+            policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        viewModel.load()
+        runCurrent()
+        val initialQueryCount = appManager.downloadTaskQueryCount
+
+        repeat(5) { index ->
+            stateCenter.updateDownload(TEST_RESUME_TASK.appId, DownloadStatus.RUNNING, progress = index + 1)
+            advanceTimeBy(200L)
+            runCurrent()
+        }
+
+        // 事件间隔始终短于 300ms；若使用 debounce，这里仍只有初始化查询。
+        assertTrue(appManager.downloadTaskQueryCount >= initialQueryCount + 3)
+    }
+
     private open class FakeAppManager : AppManager {
         /** 最近一次被请求打开的包名。 */
         var openedPackageName: String? = null
+
+        /** 下载任务查询次数，用于验证持续状态流不会饿死页面刷新。 */
+        var downloadTaskQueryCount: Int = 0
+            private set
 
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
 
@@ -137,7 +171,10 @@ class DownloadManagerViewModelTest {
 
         override suspend fun getDownloadManageApps(): List<AppViewData> = emptyList()
 
-        override suspend fun getDownloadTasks(): List<DownloadTaskViewData> = listOf(TEST_RESUME_TASK)
+        override suspend fun getDownloadTasks(): List<DownloadTaskViewData> {
+            downloadTaskQueryCount += 1
+            return listOf(TEST_RESUME_TASK)
+        }
 
         override suspend fun getUpgradeManageApps(): List<AppViewData> = emptyList()
 

@@ -6,6 +6,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * 业务事件打点基类。
@@ -77,8 +79,7 @@ class FileEventTracker(
             return
         }
         val rotated = File(eventLogFile.parentFile, eventLogFile.name + ROTATED_FILE_SUFFIX)
-        rotated.delete()
-        eventLogFile.renameTo(rotated)
+        Files.move(eventLogFile.toPath(), rotated.toPath(), StandardCopyOption.REPLACE_EXISTING)
     }
 
     private companion object {

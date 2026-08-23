@@ -1,7 +1,9 @@
 package com.xzq.appstore.core.tracker
 
+import com.xzq.appstore.core.logger.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
@@ -52,5 +54,35 @@ class FileEventTrackerTest {
         assertTrue(rotated.exists())
         assertTrue(rotated.readText(Charsets.UTF_8).contains("before_rotate"))
         assertTrue(file.readText(Charsets.UTF_8).contains("after_rotate"))
+    }
+
+    @Test
+    fun `track 在日志轮转失败时会告警且不继续追加`() {
+        val dir = Files.createTempDirectory("event-tracker-rotate-failure").toFile()
+        val file = dir.resolve("events.tsv").apply { writeText("oversized", Charsets.UTF_8) }
+        // 非空目录无法被普通文件通过 REPLACE_EXISTING 覆盖，用于稳定触发 Files.move 失败。
+        dir.resolve("events.tsv.1").apply {
+            mkdir()
+            resolve("keep.txt").writeText("keep", Charsets.UTF_8)
+        }
+        val warnings = mutableListOf<String>()
+        val logger = object : AppLogger() {
+            override fun d(tag: String, message: String) = Unit
+
+            override fun w(tag: String, message: String, throwable: Throwable?) {
+                warnings += message
+            }
+        }
+        val tracker = FileEventTracker(
+            eventLogFile = file,
+            logger = logger,
+            writeScope = CoroutineScope(Dispatchers.Unconfined),
+            maxLogBytes = 1L,
+        )
+
+        tracker.track("must_not_append")
+
+        assertEquals("oversized", file.readText(Charsets.UTF_8))
+        assertTrue(warnings.single().contains("failed to persist event"))
     }
 }

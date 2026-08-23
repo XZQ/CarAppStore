@@ -24,6 +24,8 @@ class AppRemoteDataSource(
     catalogCacheFile: File? = null,
     /** 商店目录缓存元数据文件。 */
     catalogCacheMetadataFile: File? = null,
+    /** 目录内存缓存使用的单调时钟；测试可注入以覆盖 TTL 边界。 */
+    private val monotonicClockNanos: () -> Long = System::nanoTime,
 ) {
     private val catalogChannel = catalogRequestHeaders["X-Client-Channel"].orEmpty()
 
@@ -87,23 +89,26 @@ class AppRemoteDataSource(
      */
     private val catalogCacheLock = Mutex()
     private var cachedVisibleCatalog: List<RemoteCatalogItem>? = null
-    private var cachedVisibleCatalogAt: Long = 0L
-
-    /** 目录内存缓存有效期。弱网/车机场景下 30s 的轻微延迟可接受，同时避免频繁全量重拉。 */
-    private val CATALOG_CACHE_TTL_MS = 30_000L
+    private var cachedVisibleCatalogAtNanos: Long = 0L
 
     /** 加载当前生效的商店目录。 */
     private suspend fun loadCatalog(): List<RemoteCatalogItem> = catalogSource.load()
 
     private suspend fun loadVisibleCatalog(): List<RemoteCatalogItem> = catalogCacheLock.withLock {
-        val now = System.currentTimeMillis()
+        val nowNanos = monotonicClockNanos()
         val cached = cachedVisibleCatalog
-        if (cached != null && now - cachedVisibleCatalogAt < CATALOG_CACHE_TTL_MS) {
+        val elapsedNanos = nowNanos - cachedVisibleCatalogAtNanos
+        if (cached != null && elapsedNanos >= 0L && elapsedNanos < CATALOG_CACHE_TTL_NANOS) {
             return@withLock cached
         }
         val fresh = loadCatalog().filter { item -> item.governance.isVisible(item.appId, catalogChannel) }
         cachedVisibleCatalog = fresh
-        cachedVisibleCatalogAt = now
+        cachedVisibleCatalogAtNanos = nowNanos
         fresh
+    }
+
+    private companion object {
+        /** 目录内存缓存有效期。弱网场景下 30s 的轻微延迟可接受，同时避免频繁全量重拉。 */
+        const val CATALOG_CACHE_TTL_NANOS = 30_000_000_000L
     }
 }

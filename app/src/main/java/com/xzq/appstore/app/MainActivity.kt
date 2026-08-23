@@ -27,8 +27,7 @@ import com.xzq.appstore.feature.search.CatalogPage
 import com.xzq.appstore.feature.search.SearchFragment
 import com.xzq.appstore.feature.upgrade.UpgradeFragment
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.xzq.appstore.common.R as CommonR
@@ -188,12 +187,12 @@ class MainActivity : AppCompatActivity(), MainNavigator {
         }
     }
 
-    @OptIn(FlowPreview::class)
     private fun observeTaskSummaryStats() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                // 下载进度会高频推进状态流，先防抖再重算任务摘要，避免每个进度 tick 都做三组重查询。
-                appServices.stateCenter.observeAll().debounce(TASK_SUMMARY_DEBOUNCE_MS).collect {
+                // 下载进度持续推进时也要周期刷新摘要；采样可限频且不会像防抖一样被连续事件长期饿死。
+                appServices.stateCenter.observeAll().collect {
+                    delay(TASK_SUMMARY_SAMPLE_MS)
                     updateTaskSummary()
                 }
             }
@@ -305,8 +304,8 @@ class MainActivity : AppCompatActivity(), MainNavigator {
     private val optionalViewCache = mutableMapOf<Int, View?>()
 
     private companion object {
-        /** 任务摘要刷新防抖窗口（毫秒），与下载进度节流同量级。 */
-        const val TASK_SUMMARY_DEBOUNCE_MS = 500L
+        /** 任务摘要刷新采样周期（毫秒），与下载进度节流同量级。 */
+        const val TASK_SUMMARY_SAMPLE_MS = 500L
 
         /** 一级页面与详情页的导航标识，用于同页去重。 */
         const val TAG_HOME = "home"

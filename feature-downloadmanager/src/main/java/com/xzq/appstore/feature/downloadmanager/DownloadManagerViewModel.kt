@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -187,12 +188,15 @@ class DownloadManagerViewModel(
     }
 
     /** 监听全局任务状态变化，并在变化时刷新页面。
-     * 进度事件（下载每 32KB 发射一次 Running）高频触发，用 debounce 合并，避免主线程反复全量重算。 */
+     * 进度事件高频触发，用周期采样限频，保证持续下载期间任务列表仍会刷新。 */
     private fun observeStateChanges() {
         if (observeJob != null) {
             return
         }
-        observeJob = stateCenter.observeAll().debounce(REFRESH_DEBOUNCE_MS).onEach { refresh() }.launchIn(viewModelScope)
+        observeJob = stateCenter.observeAll().onEach {
+            delay(STATE_REFRESH_SAMPLE_MS)
+            refresh()
+        }.launchIn(viewModelScope)
     }
 
     /** 监听策略变化，并在变化时刷新下载中心。 */
@@ -200,7 +204,7 @@ class DownloadManagerViewModel(
         if (observePolicyJob != null) {
             return
         }
-        observePolicyJob = policyCenter.observeSettings().debounce(REFRESH_DEBOUNCE_MS).onEach { refresh() }.launchIn(viewModelScope)
+        observePolicyJob = policyCenter.observeSettings().debounce(POLICY_REFRESH_DEBOUNCE_MS).onEach { refresh() }.launchIn(viewModelScope)
     }
 
     /** 重新计算页面所需的下载中心 UI 状态。
@@ -265,7 +269,10 @@ class DownloadManagerViewModel(
     }
 
     private companion object {
-        /** 状态/策略变化刷新防抖窗口（毫秒）。 */
-        const val REFRESH_DEBOUNCE_MS = 300L
+        /** 高频状态变化刷新采样周期（毫秒）。 */
+        const val STATE_REFRESH_SAMPLE_MS = 300L
+
+        /** 低频策略变化刷新防抖窗口（毫秒）。 */
+        const val POLICY_REFRESH_DEBOUNCE_MS = 300L
     }
 }

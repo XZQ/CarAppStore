@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -67,12 +68,15 @@ class HomeViewModel(
     }
 
     /** 监听页面全局状态变化，并刷新推荐列表。
-     * 进度事件高频触发，用 debounce 合并，避免主线程反复全量重算。 */
+     * 进度事件高频触发，用周期采样限频，保证持续下载期间页面仍会刷新。 */
     private fun observeStateChanges() {
         if (observeJob != null) {
             return
         }
-        observeJob = stateCenter.observeAll().debounce(REFRESH_DEBOUNCE_MS).onEach { refresh() }.launchIn(viewModelScope)
+        observeJob = stateCenter.observeAll().onEach {
+            delay(STATE_REFRESH_SAMPLE_MS)
+            refresh()
+        }.launchIn(viewModelScope)
     }
 
     /** 监听页面策略变化，并刷新策略提示。 */
@@ -80,7 +84,7 @@ class HomeViewModel(
         if (observePolicyJob != null) {
             return
         }
-        observePolicyJob = policyCenter.observeSettings().debounce(REFRESH_DEBOUNCE_MS).onEach { refresh() }.launchIn(viewModelScope)
+        observePolicyJob = policyCenter.observeSettings().debounce(POLICY_REFRESH_DEBOUNCE_MS).onEach { refresh() }.launchIn(viewModelScope)
     }
 
     /** 重新拉取首页推荐应用与策略提示。
@@ -107,7 +111,10 @@ class HomeViewModel(
     }
 
     private companion object {
-        /** 状态/策略变化刷新防抖窗口（毫秒）。 */
-        const val REFRESH_DEBOUNCE_MS = 300L
+        /** 高频状态变化刷新采样周期（毫秒）。 */
+        const val STATE_REFRESH_SAMPLE_MS = 300L
+
+        /** 低频策略变化刷新防抖窗口（毫秒）。 */
+        const val POLICY_REFRESH_DEBOUNCE_MS = 300L
     }
 }

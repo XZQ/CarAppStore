@@ -15,9 +15,8 @@ import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -25,7 +24,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.xzq.appstore.data.model.InstallTaskViewData
 
-@OptIn(FlowPreview::class)
 class InstallCenterViewModel(
     /** 提供安装中心聚合任务数据。 */
     private val appManager: AppManager,
@@ -156,12 +154,15 @@ class InstallCenterViewModel(
     }
 
     /** 监听全局安装状态变化。
-     * 进度事件高频触发，用 debounce 合并，避免主线程反复全量重算。 */
+     * 进度事件高频触发，用周期采样限频，保证持续下载期间安装任务仍会刷新。 */
     private fun observeStateChanges() {
         if (observeJob != null) {
             return
         }
-        observeJob = stateCenter.observeAll().debounce(REFRESH_DEBOUNCE_MS).onEach { refresh() }.launchIn(viewModelScope)
+        observeJob = stateCenter.observeAll().onEach {
+            delay(STATE_REFRESH_SAMPLE_MS)
+            refresh()
+        }.launchIn(viewModelScope)
     }
 
     /** 重新计算安装中心页面状态。
@@ -214,7 +215,7 @@ class InstallCenterViewModel(
     }
 
     private companion object {
-        /** 状态变化刷新防抖窗口（毫秒）。 */
-        const val REFRESH_DEBOUNCE_MS = 300L
+        /** 高频状态变化刷新采样周期（毫秒）。 */
+        const val STATE_REFRESH_SAMPLE_MS = 300L
     }
 }
