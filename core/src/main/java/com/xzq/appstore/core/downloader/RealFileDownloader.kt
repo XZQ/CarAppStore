@@ -37,6 +37,8 @@ class RealFileDownloader(
     private val maxSegmentRetryCount: Int = DEFAULT_MAX_SEGMENT_RETRY_COUNT,
     /** 运行态刷盘节流间隔，避免每 32KB 一次全量重写。 */
     private val runningFlushIntervalMs: Long = DEFAULT_RUNNING_FLUSH_INTERVAL_MS,
+    /** Running 事件发射节流间隔，避免每 32KB 一次事件风暴；0 表示不节流。 */
+    private val runningEventIntervalMs: Long = DEFAULT_RUNNING_EVENT_INTERVAL_MS,
     /** 合并前测试钩子，供测试场景注入分片文件扰动。 */
     private val beforeMergeHook: ((segments: List<DownloadSegmentRecord>, finalFile: File) -> Unit)? = null,
 ) : FileDownloader {
@@ -54,6 +56,9 @@ class RealFileDownloader(
 
     /** 上次运行态刷盘时间，用于节流。 */
     private val lastFlushMs: MutableMap<String, Long> = mutableMapOf()
+
+    /** 上次 Running 事件发射时间（按任务），用于节流高频进度事件。 */
+    private val runningEventLastEmitMs: MutableMap<String, Long> = mutableMapOf()
 
     /** 保护 segmentCache / lastFlushMs 的锁。 */
     private val segmentCacheLock = Any()
@@ -213,6 +218,10 @@ class RealFileDownloader(
                         downloadSegmentWithRetry(request, meta, segment, control) { speed ->
                             eventMutex.withLock {
                                 if (control.isStopRequested()) {
+                                    return@withLock
+                                }
+                                // Running 事件按任务节流：终止事件自带最终字节数，中间精度损失无影响。
+                                if (!shouldEmitRunningEvent(request.taskId)) {
                                     return@withLock
                                 }
                                 onEvent(
@@ -605,6 +614,27 @@ class RealFileDownloader(
         store.saveSegments(taskId, snapshot)
     }
 
+    /**
+     * 判断当前任务是否应发射 Running 事件。
+     *
+     * 按任务维度做时间节流，首个事件总是发射；[runningEventIntervalMs] 为 0 时关闭节流。
+     */
+    private fun shouldEmitRunningEvent(taskId: String): Boolean {
+        if (runningEventIntervalMs <= 0L) {
+            return true
+        }
+        val now = System.currentTimeMillis()
+        return synchronized(segmentCacheLock) {
+            val last = runningEventLastEmitMs[taskId]
+            if (last == null || now - last >= runningEventIntervalMs) {
+                runningEventLastEmitMs[taskId] = now
+                true
+            } else {
+                false
+            }
+        }
+    }
+
     /** 单个分片下载完成后的归一化结果。 */
     private data class SegmentResult(
         /** 分片唯一标识。 */
@@ -720,6 +750,9 @@ class RealFileDownloader(
 
         /** 运行态默认刷盘节流间隔：500ms，避免 32KB buffer 触发的全量 JSON 重写。 */
         const val DEFAULT_RUNNING_FLUSH_INTERVAL_MS = 500L
+
+        /** Running 事件默认发射节流间隔：200ms，避免每 32KB 触发的事件风暴。 */
+        const val DEFAULT_RUNNING_EVENT_INTERVAL_MS = 200L
 
         /** RFC 9110 token 字符集合，用于拒绝非法或可注入的 header 名称。 */
         val HTTP_HEADER_NAME_PATTERN = Regex("""^[!#$%&'*+.^_`|~0-9A-Za-z-]+$""")

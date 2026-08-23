@@ -39,6 +39,29 @@ class RealFileDownloaderTest {
     }
 
     @Test
+    fun `download 会对 Running 事件按间隔节流且不影响完成`() = runBlocking {
+        val fixture = TestFixture(
+            headDelayMs = 0L,
+            bodyChunkDelayMs = 0L,
+            payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 13 },
+            runningEventIntervalMs = THROTTLED_EVENT_INTERVAL_MS,
+        )
+
+        fixture.use {
+            val events = Collections.synchronizedList(mutableListOf<DownloadEvent>())
+
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
+                events += event
+            }
+
+            // 首个 Running 事件总是发射，后续在节流窗口内被抑制。
+            assertEquals(1, events.count { it is DownloadEvent.Running })
+            val completed = events.last() as DownloadEvent.Completed
+            assertEquals(TEST_TOTAL_BYTES, completed.totalBytes)
+        }
+    }
+
+    @Test
     fun `download 在进入分片下载前收到取消后会快速停止`() = runBlocking {
         val fixture = TestFixture(
             headDelayMs = SLOW_HEAD_DELAY_MS,
@@ -359,6 +382,8 @@ class RealFileDownloaderTest {
         beforeMergeHook: ((segments: List<DownloadSegmentRecord>, finalFile: File) -> Unit)? = null,
         /** 注入到 HEAD/GET 请求的测试鉴权头。 */
         requestHeaders: Map<String, String> = emptyMap(),
+        /** Running 事件发射节流间隔；默认 0 关闭节流，保持既有用例逐块断言的确定性。 */
+        runningEventIntervalMs: Long = 0L,
     ) : AutoCloseable {
         /** 测试工作目录。 */
         private val workDir = Files.createTempDirectory("real-file-downloader-test").toFile()
@@ -394,6 +419,7 @@ class RealFileDownloaderTest {
             maxSegmentRetryCount = 0,
             beforeMergeHook = beforeMergeHook,
             requestHeaders = requestHeaders,
+            runningEventIntervalMs = runningEventIntervalMs,
         )
 
         /** 当前测试下载请求。 */
@@ -678,6 +704,9 @@ class RealFileDownloaderTest {
 
         /** 取消前留给 HEAD 探测进入阻塞区的等待时间。 */
         const val PROBE_SETTLE_DELAY_MS = 200L
+
+        /** 超长节流窗口，用于确定性验证 Running 事件只发射首个。 */
+        const val THROTTLED_EVENT_INTERVAL_MS = 10 * 60 * 1000L
 
         /** 让读取超时测试稳定命中的额外等待缓冲。 */
         const val EXTRA_STALL_BUFFER_MS = 300

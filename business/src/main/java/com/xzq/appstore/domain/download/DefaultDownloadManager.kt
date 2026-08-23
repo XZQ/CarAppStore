@@ -29,6 +29,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 class DefaultDownloadManager(
     /** 统一数据入口，负责下载任务、分片和 APK 路径持久化。 */
@@ -64,6 +65,12 @@ class DefaultDownloadManager(
 
     /** 当前仍在执行中的下载任务。 */
     private val activeExecutions = mutableMapOf<String, ActiveDownloadExecution>()
+
+    /** RUNNING 态落盘节流标记：记录每个应用最近一次落盘的进度与时间。 */
+    private data class RunningPersistMark(val progress: Int, val atMs: Long)
+
+    /** 每个应用最近一次 RUNNING 态落盘标记，用于跳过无实质变化的全量 JSON 读写。 */
+    private val runningPersistMarks = ConcurrentHashMap<String, RunningPersistMark>()
 
     /** 活动下载任务在业务层保存的运行句柄。 */
     private data class ActiveDownloadExecution(
@@ -383,6 +390,18 @@ class DefaultDownloadManager(
         }
         // 下载过程中把字节进度映射成页面进度，并同步速度等运行态信息。
         val progress = calculateProgress(event.downloadedBytes, event.totalBytes)
+        if (!shouldPersistRunningProgress(appId, progress)) {
+            // 进度百分比未变化且未到落盘间隔时，只同步内存运行态；StateFlow 内容相等会自动去重，不产生页面风暴。
+            stateCenter.updateDownload(
+                appId = appId,
+                status = DownloadStatus.RUNNING,
+                progress = progress,
+                localApkPath = null,
+                errorMessage = null,
+                errorCode = null,
+            )
+            return
+        }
         val updated = repository.getDownloadTask(appId)?.copy(
             status = DownloadStatus.RUNNING,
             progress = progress,
@@ -428,6 +447,7 @@ class DefaultDownloadManager(
 
     /** 处理下载完成事件，收口 APK 路径、清空分片并切换到完成态。 */
     private suspend fun handleCompletedEvent(appId: String, prepared: DownloadTaskRecord, event: DownloadEvent.Completed, control: DownloadExecutionControl) {
+        runningPersistMarks.remove(appId)
         if (control.isStopRequested()) {
             return
         }
@@ -496,6 +516,7 @@ class DefaultDownloadManager(
 
     /** 将失败态同时回写到持久化记录和状态中心。 */
     private suspend fun markFailed(appId: String, record: DownloadTaskRecord?, errorCode: String, errorMessage: String) {
+        runningPersistMarks.remove(appId)
         val now = System.currentTimeMillis()
         val failedRecord = record?.copy(
             status = DownloadStatus.FAILED,
@@ -521,6 +542,7 @@ class DefaultDownloadManager(
 
     /** 将暂停态同时回写到持久化记录和状态中心。 */
     private suspend fun markPaused(appId: String, record: DownloadTaskRecord, downloadedBytes: Long, totalBytes: Long) {
+        runningPersistMarks.remove(appId)
         val normalizedTotalBytes = totalBytes.takeIf { it > 0L } ?: record.totalBytes
         val progress = calculateProgress(downloadedBytes, normalizedTotalBytes)
         val pausedRecord = record.copy(
@@ -546,6 +568,7 @@ class DefaultDownloadManager(
 
     /** 将取消态同时回写到持久化记录和状态中心。 */
     private suspend fun markCanceled(appId: String, record: DownloadTaskRecord) {
+        runningPersistMarks.remove(appId)
         repository.clearDownloadedApk(appId)
         repository.saveDownloadSegments(appId, emptyList())
         saveRecord(
@@ -573,6 +596,22 @@ class DefaultDownloadManager(
     /** 保存下载任务记录。 */
     private suspend fun saveRecord(record: DownloadTaskRecord) {
         repository.saveDownloadTask(record)
+    }
+
+    /**
+     * 判断 RUNNING 事件是否需要落盘。
+     *
+     * 进度百分比变化时立即落盘；百分比未变化时按 [RUNNING_PERSIST_INTERVAL_MS] 节流，
+     * 避免高频进度事件触发全量 JSON 读写与 fsync。
+     */
+    private fun shouldPersistRunningProgress(appId: String, progress: Int): Boolean {
+        val now = System.currentTimeMillis()
+        val mark = runningPersistMarks[appId]
+        val shouldPersist = mark == null || mark.progress != progress || now - mark.atMs >= RUNNING_PERSIST_INTERVAL_MS
+        if (shouldPersist) {
+            runningPersistMarks[appId] = RunningPersistMark(progress, now)
+        }
+        return shouldPersist
     }
 
     /** 注册新的活动下载任务，若已存在则拒绝重复启动。 */
@@ -761,5 +800,8 @@ class DefaultDownloadManager(
         private const val PLATFORM_UNSUPPORTED_ERROR_CODE = "PLATFORM_UNSUPPORTED"
         /** 默认同时下载的 APK 数量上限（用户要求「最多同时下载 3 个 apk」）。 */
         const val DEFAULT_MAX_CONCURRENT_DOWNLOADS = 3
+
+        /** RUNNING 态重复进度落盘的最小间隔，与底层分片刷盘节流保持同量级。 */
+        private const val RUNNING_PERSIST_INTERVAL_MS = 500L
     }
 }

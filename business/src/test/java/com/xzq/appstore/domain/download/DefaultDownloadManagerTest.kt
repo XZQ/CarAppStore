@@ -40,9 +40,9 @@ import java.util.concurrent.atomic.AtomicInteger
 class DefaultDownloadManagerTest {
     @Test
     fun `startDownload blocks catalog entries for other platforms`() = runBlocking {
-        val harness = TestHarness {
+        val harness = TestHarness(configureRepository = {
             supportedPlatforms = setOf(AppPlatform.IOS)
-        }
+        })
 
         harness.manager.startDownload(TEST_APP_ID)
         waitUntil { harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.FAILED }
@@ -67,6 +67,20 @@ class DefaultDownloadManagerTest {
         }
 
         assertEquals(1, harness.downloader.startCount.get())
+    }
+
+    @Test
+    fun `连续相同进度的 Running 事件在节流窗口内只落盘一次`() = runBlocking {
+        val harness = TestHarness(runningEventCount = 5)
+
+        harness.manager.startDownload(TEST_APP_ID)
+        assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        waitUntil { harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.RUNNING }
+        harness.manager.cancelDownload(TEST_APP_ID)
+        waitUntil { harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED }
+
+        // 5 个相同进度的 Running 事件在节流窗口内只触发一次 RUNNING 态落盘。
+        assertEquals(1, harness.repository.runningPersistCount.get())
     }
 
     @Test
@@ -332,6 +346,8 @@ class DefaultDownloadManagerTest {
     private class TestHarness(
         /** 初始化下载管理器前预置仓库状态。 */
         configureRepository: suspend FakeRepository.() -> Unit = {},
+        /** 下载器替身每次启动发射的 Running 事件数量。 */
+        runningEventCount: Int = 1,
     ) {
         /** 每个测试对应的临时工作目录。 */
         val workDir: File = Files.createTempDirectory("download-manager-test").toFile()
@@ -343,7 +359,7 @@ class DefaultDownloadManagerTest {
         val stateCenter = DefaultStateCenter()
 
         /** 可控的下载器替身，用于模拟运行中、暂停和取消。 */
-        val downloader = ControllableFileDownloader()
+        val downloader = ControllableFileDownloader(runningEventCount)
 
         /** 让后台下载协程在测试线程上确定性执行的调度器。 */
         val dispatcher = Dispatchers.Unconfined
@@ -400,7 +416,10 @@ class DefaultDownloadManagerTest {
     }
 
     /** 可控下载器，用来模拟长时间运行并响应暂停/取消指令。 */
-    private class ControllableFileDownloader : FileDownloader {
+    private class ControllableFileDownloader(
+        /** 每次启动后连续发射的 Running 事件数量，用于验证进度落盘节流。 */
+        private val runningEventCount: Int = 1,
+    ) : FileDownloader {
         /** 实际启动下载流程的次数。 */
         val startCount = AtomicInteger(0)
 
@@ -417,7 +436,9 @@ class DefaultDownloadManagerTest {
             }
             onEvent(DownloadEvent.Waiting)
             onEvent(DownloadEvent.MetaReady(DownloadRemoteMeta(contentLength = TEST_TOTAL_BYTES, supportsRange = true)))
-            onEvent(DownloadEvent.Running(downloadedBytes = resumedBytes, totalBytes = TEST_TOTAL_BYTES, speedBytesPerSec = TEST_SPEED_BYTES_PER_SECOND))
+            repeat(runningEventCount.coerceAtLeast(1)) {
+                onEvent(DownloadEvent.Running(downloadedBytes = resumedBytes, totalBytes = TEST_TOTAL_BYTES, speedBytesPerSec = TEST_SPEED_BYTES_PER_SECOND))
+            }
 
             if (resumedBytes == TEST_TOTAL_BYTES) {
                 onEvent(DownloadEvent.Completed(file = request.targetFile, totalBytes = TEST_TOTAL_BYTES))
@@ -455,6 +476,9 @@ class DefaultDownloadManagerTest {
 
         /** 下载任务记录表。 */
         private val downloadTasks = linkedMapOf<String, DownloadTaskRecord>()
+
+        /** RUNNING 态落盘次数，用于验证进度节流。 */
+        val runningPersistCount = AtomicInteger(0)
 
         /** 下载分片记录表。 */
         private val downloadSegments = linkedMapOf<String, List<DownloadSegmentRecord>>()
@@ -502,6 +526,9 @@ class DefaultDownloadManagerTest {
         override suspend fun peekStagedUpgradeVersion(appId: String): String? = stagedUpgradeVersions[appId]
 
         override suspend fun saveDownloadTask(record: DownloadTaskRecord) {
+            if (record.status == DownloadStatus.RUNNING) {
+                runningPersistCount.incrementAndGet()
+            }
             downloadTasks[record.appId] = record
         }
 
