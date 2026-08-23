@@ -67,7 +67,7 @@ class DefaultDownloadManager(
     private val activeExecutions = mutableMapOf<String, ActiveDownloadExecution>()
 
     /** RUNNING 态落盘节流标记：记录每个应用最近一次落盘的进度与时间。 */
-    private data class RunningPersistMark(val progress: Int, val atMs: Long)
+    private data class RunningPersistMark(val progress: Int, val atNanos: Long)
 
     /** 每个应用最近一次 RUNNING 态落盘标记，用于跳过无实质变化的全量 JSON 读写。 */
     private val runningPersistMarks = ConcurrentHashMap<String, RunningPersistMark>()
@@ -605,9 +605,10 @@ class DefaultDownloadManager(
      * 避免高频进度事件触发全量 JSON 读写与 fsync。
      */
     private fun shouldPersistRunningProgress(appId: String, progress: Int): Boolean {
-        val now = System.currentTimeMillis()
+        // 用单调钟测间隔：墙钟被 NTP/GPS 回拨时按墙钟算出的间隔为负，会长时间误判"未到落盘间隔"。
+        val now = System.nanoTime()
         val mark = runningPersistMarks[appId]
-        val shouldPersist = mark == null || mark.progress != progress || now - mark.atMs >= RUNNING_PERSIST_INTERVAL_MS
+        val shouldPersist = mark == null || mark.progress != progress || now - mark.atNanos >= RUNNING_PERSIST_INTERVAL_MS * NANOS_PER_MS
         if (shouldPersist) {
             runningPersistMarks[appId] = RunningPersistMark(progress, now)
         }
@@ -803,5 +804,8 @@ class DefaultDownloadManager(
 
         /** RUNNING 态重复进度落盘的最小间隔，与底层分片刷盘节流保持同量级。 */
         private const val RUNNING_PERSIST_INTERVAL_MS = 500L
+
+        /** 把毫秒间隔换算成纳秒，与单调钟时间戳比较。 */
+        private const val NANOS_PER_MS = 1_000_000L
     }
 }

@@ -54,13 +54,13 @@ class RealFileDownloader(
     /** 分片内存缓存：taskId -> (segmentId -> record)，避免每 32KB 触发全量 JSON 读写。 */
     private val segmentCache: MutableMap<String, MutableMap<String, DownloadSegmentRecord>> = mutableMapOf()
 
-    /** 上次运行态刷盘时间，用于节流。 */
-    private val lastFlushMs: MutableMap<String, Long> = mutableMapOf()
+    /** 上次运行态刷盘时间（纳秒，单调钟），用于节流。 */
+    private val lastFlushNanos: MutableMap<String, Long> = mutableMapOf()
 
-    /** 上次 Running 事件发射时间（按任务），用于节流高频进度事件。 */
-    private val runningEventLastEmitMs: MutableMap<String, Long> = mutableMapOf()
+    /** 上次 Running 事件发射时间（纳秒，单调钟，按任务），用于节流高频进度事件。 */
+    private val runningEventLastEmitNanos: MutableMap<String, Long> = mutableMapOf()
 
-    /** 保护 segmentCache / lastFlushMs 的锁。 */
+    /** 保护 segmentCache / 节流时间戳的锁。 */
     private val segmentCacheLock = Any()
 
     /**
@@ -109,7 +109,7 @@ class RealFileDownloader(
         // 同步加载内存缓存，后续 saveSegmentRecord 走缓存层，避免热路径全量 JSON 读写。
         synchronized(segmentCacheLock) {
             segmentCache[request.taskId] = plannedSegments.associateBy { it.segmentId }.toMutableMap()
-            lastFlushMs[request.taskId] = System.currentTimeMillis()
+            lastFlushNanos[request.taskId] = System.nanoTime()
         }
         return plannedSegments
     }
@@ -584,19 +584,21 @@ class RealFileDownloader(
      * - 运行态按 [runningFlushIntervalMs] 节流，避免每 32KB 一次全量 JSON 重写。
      */
     private fun saveSegmentRecord(request: DownloadRequest, segment: DownloadSegmentRecord, downloadedBytes: Long, status: String, retryCount: Int) {
+        // updatedAt 是记录字段用墙钟；节流间隔必须用单调钟，墙钟被 NTP/GPS 回拨时会长时间误判"未到间隔"。
         val now = System.currentTimeMillis()
+        val nowNanos = System.nanoTime()
         val updated = segment.copy(downloadedBytes = downloadedBytes, status = status, retryCount = retryCount, updatedAt = now)
         val shouldFlush = synchronized(segmentCacheLock) {
             val taskCache = segmentCache.getOrPut(request.taskId) { mutableMapOf() }
             taskCache[segment.segmentId] = updated
             val isRunning = status == DownloaderText.STATUS_RUNNING
             if (!isRunning) {
-                lastFlushMs[request.taskId] = now
+                lastFlushNanos[request.taskId] = nowNanos
                 true
             } else {
-                val last = lastFlushMs[request.taskId] ?: 0L
-                if (now - last >= runningFlushIntervalMs) {
-                    lastFlushMs[request.taskId] = now
+                val last = lastFlushNanos[request.taskId] ?: 0L
+                if (nowNanos - last >= runningFlushIntervalMs * NANOS_PER_MS) {
+                    lastFlushNanos[request.taskId] = nowNanos
                     true
                 } else {
                     false
@@ -623,11 +625,11 @@ class RealFileDownloader(
         if (runningEventIntervalMs <= 0L) {
             return true
         }
-        val now = System.currentTimeMillis()
+        val now = System.nanoTime()
         return synchronized(segmentCacheLock) {
-            val last = runningEventLastEmitMs[taskId]
-            if (last == null || now - last >= runningEventIntervalMs) {
-                runningEventLastEmitMs[taskId] = now
+            val last = runningEventLastEmitNanos[taskId]
+            if (last == null || now - last >= runningEventIntervalMs * NANOS_PER_MS) {
+                runningEventLastEmitNanos[taskId] = now
                 true
             } else {
                 false
@@ -753,6 +755,9 @@ class RealFileDownloader(
 
         /** Running 事件默认发射节流间隔：200ms，避免每 32KB 触发的事件风暴。 */
         const val DEFAULT_RUNNING_EVENT_INTERVAL_MS = 200L
+
+        /** 把毫秒间隔换算成纳秒，与单调钟时间戳比较。 */
+        const val NANOS_PER_MS = 1_000_000L
 
         /** RFC 9110 token 字符集合，用于拒绝非法或可注入的 header 名称。 */
         val HTTP_HEADER_NAME_PATTERN = Regex("""^[!#$%&'*+.^_`|~0-9A-Za-z-]+$""")
