@@ -86,7 +86,14 @@ class HomeFragment : BaseFragment() {
         }
     }
 
+    /** 最近一次已渲染的应用列表；内容未变化时跳过全量重建，视图销毁后重置避免新容器漏渲染。 */
+    private var renderedApps: List<AppViewData>? = null
+
     private fun renderHomeSections(apps: List<AppViewData>) {
+        if (apps == renderedApps) {
+            return
+        }
+        renderedApps = apps
         renderVerticalApps(findView(HomeR.id.listTodayRecommend), pickApps(apps, start = INDEX_TODAY_START, count = COUNT_TODAY), showIndex = false)
         renderVerticalApps(findView(HomeR.id.listHotRank), pickApps(apps, start = INDEX_RANK_START, count = COUNT_RANK), showIndex = true)
         renderHorizontalApps(findView(HomeR.id.rowHotGames), pickApps(apps, start = INDEX_GAMES_START, count = COUNT_GAMES))
@@ -237,6 +244,7 @@ class HomeFragment : BaseFragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        renderedApps = null
         _binding = null
     }
 

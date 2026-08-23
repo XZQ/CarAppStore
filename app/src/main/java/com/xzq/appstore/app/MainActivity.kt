@@ -26,7 +26,11 @@ import com.xzq.appstore.feature.myapp.MyAppFragment
 import com.xzq.appstore.feature.search.CatalogPage
 import com.xzq.appstore.feature.search.SearchFragment
 import com.xzq.appstore.feature.upgrade.UpgradeFragment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.xzq.appstore.common.R as CommonR
 
 /**
@@ -80,7 +84,7 @@ class MainActivity : AppCompatActivity(), MainNavigator {
 
     /** 打开首页。 */
     override fun openHome() {
-        navigateTo(fragment = HomeFragment.newInstance(), titleRes = R.string.title_home, selectedButton = binding.btnNavHome, addToBackStack = false)
+        navigateTo(fragment = HomeFragment.newInstance(), titleRes = R.string.title_home, tag = TAG_HOME, selectedButton = binding.btnNavHome, addToBackStack = false)
     }
 
     /** 打开搜索页。 */
@@ -93,7 +97,7 @@ class MainActivity : AppCompatActivity(), MainNavigator {
     }
 
     private fun openCatalog(page: CatalogPage, selectedButton: Button?) {
-        navigateTo(fragment = SearchFragment.newInstance(page), title = page.title, selectedButton = selectedButton)
+        navigateTo(fragment = SearchFragment.newInstance(page), title = page.title, tag = "${TAG_CATALOG}:${page.name}", selectedButton = selectedButton)
     }
 
     /** 打开下载中心。 */
@@ -101,13 +105,14 @@ class MainActivity : AppCompatActivity(), MainNavigator {
         navigateTo(
             fragment = DownloadManagerFragment.newInstance(),
             titleRes = R.string.title_download_manager,
+            tag = TAG_DOWNLOAD,
             selectedButton = optionalButton(R.id.btnNavDesktopDownload),
         )
     }
 
     /** 打开升级中心。 */
     override fun openUpgradeManager() {
-        navigateTo(fragment = UpgradeFragment.newInstance(), titleRes = R.string.title_upgrade, selectedButton = optionalButton(R.id.btnNavUpgrade))
+        navigateTo(fragment = UpgradeFragment.newInstance(), titleRes = R.string.title_upgrade, tag = TAG_UPGRADE, selectedButton = optionalButton(R.id.btnNavUpgrade))
     }
 
     /** 打开安装中心。 */
@@ -115,6 +120,7 @@ class MainActivity : AppCompatActivity(), MainNavigator {
         navigateTo(
             fragment = InstallCenterFragment.newInstance(),
             titleRes = R.string.title_install_manager,
+            tag = TAG_INSTALL,
             selectedButton = optionalButton(R.id.btnNavInstall),
         )
     }
@@ -124,18 +130,19 @@ class MainActivity : AppCompatActivity(), MainNavigator {
         navigateTo(
             fragment = DeveloperSettingsFragment.newInstance(),
             titleRes = R.string.title_developer_settings,
+            tag = TAG_DEBUG,
             selectedButton = optionalButton(R.id.btnNavDebug),
         )
     }
 
     /** 打开应用详情页。 */
     override fun openDetail(appId: String) {
-        navigateTo(fragment = DetailFragment.newInstance(appId), titleRes = R.string.title_detail, selectedButton = null)
+        navigateTo(fragment = DetailFragment.newInstance(appId), titleRes = R.string.title_detail, tag = "$TAG_DETAIL:$appId", selectedButton = null)
     }
 
     /** 打开“我的应用”页面。 */
     override fun openMyApps() {
-        navigateTo(fragment = MyAppFragment.newInstance(), titleRes = R.string.title_my_apps, selectedButton = binding.btnNavMyApps)
+        navigateTo(fragment = MyAppFragment.newInstance(), titleRes = R.string.title_my_apps, tag = TAG_MY_APPS, selectedButton = binding.btnNavMyApps)
     }
 
     /**
@@ -181,10 +188,12 @@ class MainActivity : AppCompatActivity(), MainNavigator {
         }
     }
 
+    @OptIn(FlowPreview::class)
     private fun observeTaskSummaryStats() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                appServices.stateCenter.observeAll().collect {
+                // 下载进度会高频推进状态流，先防抖再重算任务摘要，避免每个进度 tick 都做三组重查询。
+                appServices.stateCenter.observeAll().debounce(TASK_SUMMARY_DEBOUNCE_MS).collect {
                     updateTaskSummary()
                 }
             }
@@ -194,11 +203,12 @@ class MainActivity : AppCompatActivity(), MainNavigator {
     private suspend fun updateTaskSummary() {
         val titleView = optionalTextView(R.id.tvDesktopSummaryTitle) ?: return
         val bodyView = optionalTextView(R.id.tvDesktopSummaryBody) ?: return
-        val downloadStats = appServices.appManager.getDownloadTaskStats()
-        val installStats = appServices.appManager.getInstallTaskStats()
-        val upgradeStats = appServices.appManager.getUpgradeTaskStats()
+        // 统计快照一次加载目录、已装应用和安装会话，统一下放 IO 线程，避免阻塞主线程。
+        val snapshot = withContext(Dispatchers.IO) {
+            appServices.appManager.getTaskCenterStatsSnapshot()
+        }
         titleView.text = getString(CommonR.string.ui_task_summary)
-        bodyView.text = buildTaskSummaryBody(downloadStats, installStats, upgradeStats)
+        bodyView.text = buildTaskSummaryBody(snapshot.downloadStats, snapshot.installStats, snapshot.upgradeStats)
     }
 
     private fun buildTaskSummaryBody(downloadStats: TaskCenterStats, installStats: TaskCenterStats, upgradeStats: TaskCenterStats): String = listOf(
@@ -221,15 +231,23 @@ class MainActivity : AppCompatActivity(), MainNavigator {
      *
      * @param fragment 目标页面
      * @param titleRes 页面标题资源
+     * @param tag 目标页面的稳定标识，用于同页去重
      * @param selectedButton 当前应高亮的导航按钮，可为空
      * @param addToBackStack 是否加入返回栈
      */
-    private fun navigateTo(fragment: Fragment, @StringRes titleRes: Int, selectedButton: Button?, addToBackStack: Boolean = true) {
-        navigateTo(fragment = fragment, title = getString(titleRes), selectedButton = selectedButton, addToBackStack = addToBackStack)
+    private fun navigateTo(fragment: Fragment, @StringRes titleRes: Int, tag: String, selectedButton: Button?, addToBackStack: Boolean = true) {
+        navigateTo(fragment = fragment, title = getString(titleRes), tag = tag, selectedButton = selectedButton, addToBackStack = addToBackStack)
     }
 
-    private fun navigateTo(fragment: Fragment, title: String, selectedButton: Button?, addToBackStack: Boolean = true) {
-        supportFragmentManager.beginTransaction().replace(R.id.fragmentContainer, fragment).apply {
+    private fun navigateTo(fragment: Fragment, title: String, tag: String, selectedButton: Button?, addToBackStack: Boolean = true) {
+        // 连续点击同一目标（同一页面或同一应用的详情页）时跳过，避免返回栈堆叠重复实例。
+        val current = supportFragmentManager.findFragmentById(R.id.fragmentContainer)
+        if (current?.tag == tag) {
+            updateTitle(title)
+            selectNav(selectedButton)
+            return
+        }
+        supportFragmentManager.beginTransaction().replace(R.id.fragmentContainer, fragment, tag).apply {
             if (addToBackStack) {
                 addToBackStack(null)
             }
@@ -269,9 +287,35 @@ class MainActivity : AppCompatActivity(), MainNavigator {
         }
     }
 
-    /** 按 id 查找可选 Button，桌面专属按钮在 phone/sw600dp 布局中不存在时返回 null。 */
-    private fun optionalButton(id: Int): Button? = binding.root.findViewById<View?>(id) as? Button
+    /** 按 id 查找可选 Button，结果按布局缓存，桌面专属按钮在 phone/sw600dp 布局中不存在时返回 null。 */
+    private fun optionalButton(id: Int): Button? = optionalView(id) as? Button
 
-    /** 按 id 查找可选 TextView，桌面侧栏标题在 phone/sw600dp 布局中不存在时返回 null。 */
-    private fun optionalTextView(id: Int): TextView? = binding.root.findViewById<View?>(id) as? TextView
+    /** 按 id 查找可选 TextView，结果按布局缓存，桌面侧栏标题在 phone/sw600dp 布局中不存在时返回 null。 */
+    private fun optionalTextView(id: Int): TextView? = optionalView(id) as? TextView
+
+    /** 可选视图缓存：布局固定后 findViewById 结果不变，null 结果也需要缓存以避免重复全树遍历。 */
+    private fun optionalView(id: Int): View? {
+        if (!optionalViewCache.containsKey(id)) {
+            optionalViewCache[id] = binding.root.findViewById<View?>(id)
+        }
+        return optionalViewCache[id]
+    }
+
+    /** 可选视图缓存表，仅主线程访问。 */
+    private val optionalViewCache = mutableMapOf<Int, View?>()
+
+    private companion object {
+        /** 任务摘要刷新防抖窗口（毫秒），与下载进度节流同量级。 */
+        const val TASK_SUMMARY_DEBOUNCE_MS = 500L
+
+        /** 一级页面与详情页的导航标识，用于同页去重。 */
+        const val TAG_HOME = "home"
+        const val TAG_CATALOG = "catalog"
+        const val TAG_DOWNLOAD = "download"
+        const val TAG_UPGRADE = "upgrade"
+        const val TAG_INSTALL = "install"
+        const val TAG_DEBUG = "debug"
+        const val TAG_DETAIL = "detail"
+        const val TAG_MY_APPS = "my_apps"
+    }
 }

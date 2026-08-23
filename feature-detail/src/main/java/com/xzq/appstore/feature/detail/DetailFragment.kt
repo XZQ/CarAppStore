@@ -13,6 +13,7 @@ import com.xzq.appstore.common.ui.AppImageLoader
 import com.xzq.appstore.common.ui.CarUiStyle
 import com.xzq.appstore.common.ui.applyActionStyle
 import com.xzq.appstore.common.ui.applyTagStyle
+import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.feature.detail.databinding.FragmentDetailBinding
 import kotlinx.coroutines.launch
 
@@ -61,6 +62,12 @@ class DetailFragment : BaseFragment() {
         }
     }
 
+    /** 最近一次已绑定的详情引用，静态内容只在详情或页面状态变化时刷新。 */
+    private var boundDetail: AppDetail? = null
+
+    /** 最近一次已绑定的页面状态。 */
+    private var boundScreenState: DetailScreenState? = null
+
     /** 订阅详情页 UI 状态，并刷新详情信息与主动作。 */
     private fun observeState() {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -68,22 +75,18 @@ class DetailFragment : BaseFragment() {
                 viewModel.uiState.collect { state ->
                     val appInfoBinding = binding.includeDetailAppInfo
                     val taskStatusBinding = binding.includeDetailTaskStatus
-                    appInfoBinding.tvDetailName.text = state.appDetail?.name ?: getString(R.string.screen_detail_empty_name)
-                    appInfoBinding.tvDetailHero.text = buildHeroText(state)
-                    AppImageLoader.load(appInfoBinding.ivDetailHero, state.appDetail?.bannerUrl.orEmpty(), appInfoBinding.tvDetailHero)
+                    // 静态内容(名称、图片、描述、元信息)只在详情数据或页面状态变化时刷新，
+                    // 避免高频进度 tick 每次都重新发起图片请求。
+                    if (state.appDetail !== boundDetail || state.screenState != boundScreenState) {
+                        boundDetail = state.appDetail
+                        boundScreenState = state.screenState
+                        bindStaticDetail(state)
+                    }
                     appInfoBinding.tvDetailHero.visibility = if (state.screenState == DetailScreenState.Content) {
                         View.VISIBLE
                     } else {
                         View.GONE
                     }
-                    appInfoBinding.tvDetailInitial.text = state.appDetail?.iconText?.ifBlank {
-                        state.appDetail?.name.firstDisplayChar()
-                    }.orEmpty()
-                    AppImageLoader.load(appInfoBinding.ivDetailIcon, state.appDetail?.iconUrl.orEmpty(), appInfoBinding.tvDetailInitial)
-                    appInfoBinding.tvDetailVersion.text = buildVersionText(state)
-                    appInfoBinding.tvDetailDesc.text = buildDescriptionText(state)
-                    bindScreenshots(state)
-                    appInfoBinding.tvDetailMeta.text = buildMetaText(state)
                     appInfoBinding.tvDetailMeta.visibility = if (state.screenState == DetailScreenState.Content) {
                         View.VISIBLE
                     } else {
@@ -106,6 +109,22 @@ class DetailFragment : BaseFragment() {
                 }
             }
         }
+    }
+
+    /** 绑定不随任务进度变化的静态详情内容。 */
+    private fun bindStaticDetail(state: DetailUiState) {
+        val appInfoBinding = binding.includeDetailAppInfo
+        appInfoBinding.tvDetailName.text = state.appDetail?.name ?: getString(R.string.screen_detail_empty_name)
+        appInfoBinding.tvDetailHero.text = buildHeroText(state)
+        AppImageLoader.load(appInfoBinding.ivDetailHero, state.appDetail?.bannerUrl.orEmpty(), appInfoBinding.tvDetailHero)
+        appInfoBinding.tvDetailInitial.text = state.appDetail?.iconText?.ifBlank {
+            state.appDetail?.name.firstDisplayChar()
+        }.orEmpty()
+        AppImageLoader.load(appInfoBinding.ivDetailIcon, state.appDetail?.iconUrl.orEmpty(), appInfoBinding.tvDetailInitial)
+        appInfoBinding.tvDetailVersion.text = buildVersionText(state)
+        appInfoBinding.tvDetailDesc.text = buildDescriptionText(state)
+        bindScreenshots(state)
+        appInfoBinding.tvDetailMeta.text = buildMetaText(state)
     }
 
     /** 组装版本、副标题与状态文案。 */

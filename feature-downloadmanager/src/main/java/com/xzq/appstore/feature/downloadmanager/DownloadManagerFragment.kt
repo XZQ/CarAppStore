@@ -81,6 +81,8 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
         attachExtensionContent(binding.extensionSlot, prefsBinding.root)
 
         bindEmptyHandlers(emptyPanelBinding = binding.emptyPanel, onPrimary = navigator::openHome, onSecondary = navigator::openMyApps)
+        // 失败面板按钮不随状态变化，视图创建时一次性绑定，避免每次状态排放重复设置 listener。
+        bindFailureHandlers(failureBinding = binding.failurePanel, onPrimary = viewModel::onRetryFailed, onSecondary = viewModel::onClearFailed)
 
         setupListBlock(binding.installTaskBlock, installAdapter, getString(R.string.screen_install_tasks))
         setupListBlock(binding.downloadTaskBlock, downloadAdapter, getString(R.string.screen_download_tasks))
@@ -177,7 +179,6 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
                     showPanel = showChrome && state.failedCount > 0,
                 ),
             )
-            bindFailureHandlers(failureBinding = binding.failurePanel, onPrimary = viewModel::onRetryFailed, onSecondary = viewModel::onClearFailed)
 
             // 弱网横幅跟随错误态展示；权限引导在安装就绪时提示开启未知来源权限。
             bindWeakNetPanel(

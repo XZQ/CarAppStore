@@ -96,7 +96,17 @@ class SearchFragment : BaseFragment() {
         }
     }
 
+    /** 最近一次已渲染的结果列表；内容未变化时跳过全量重建，视图销毁后重置避免新容器漏渲染。 */
+    private var renderedResults: List<AppViewData>? = null
+
+    /** 最近一次已渲染的联想候选（含关键词）；内容未变化时跳过重建。 */
+    private var renderedSuggestionKey: Pair<List<AppViewData>, String>? = null
+
     private fun renderResults(apps: List<AppViewData>) {
+        if (apps == renderedResults) {
+            return
+        }
+        renderedResults = apps
         binding.listCatalogResults.removeAllViews()
         val picked = pickApps(
             apps,
@@ -112,6 +122,11 @@ class SearchFragment : BaseFragment() {
 
     /** 渲染搜索联想候选下拉：仅在有关键词且候选非空时显示，点击即填充并搜索。 */
     private fun renderSuggestions(suggestions: List<AppViewData>, keyword: String) {
+        val suggestionKey = suggestions to keyword
+        if (suggestionKey == renderedSuggestionKey) {
+            return
+        }
+        renderedSuggestionKey = suggestionKey
         binding.suggestionPanel.removeAllViews()
         if (keyword.isBlank() || suggestions.isEmpty()) {
             binding.suggestionPanel.visibility = View.GONE
@@ -271,6 +286,8 @@ class SearchFragment : BaseFragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        renderedResults = null
+        renderedSuggestionKey = null
         _binding = null
     }
 
