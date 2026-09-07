@@ -9,6 +9,7 @@ import android.content.pm.PackageInstaller
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.xzq.appstore.core.logger.AppLogger
+import kotlinx.coroutines.CancellationException
 import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -105,12 +106,15 @@ class SystemPackageInstallerSessionAdapter(
         ContextCompat.registerReceiver(appContext, resultReceiver, IntentFilter(resultAction), ContextCompat.RECEIVER_NOT_EXPORTED)
         return try {
             submitSession(sessionId, resultAction)
-            waitForCommitResult(resultQueue, onPendingUserAction)
+            waitForCommitResult(sessionId, resultQueue, onPendingUserAction)
+        } catch (canceled: CancellationException) {
+            throw canceled
         } catch (t: Throwable) {
             val message = buildCommitThrowableMessage(t)
             logger.d(TAG, message)
             InstallCommitResult(success = false, message = message, installedPackageName = null)
         } finally {
+            installUserActionDispatcher.clear(sessionId)
             runCatching { appContext.unregisterReceiver(resultReceiver) }
         }
     }
@@ -151,6 +155,7 @@ class SystemPackageInstallerSessionAdapter(
 
     /** 串行消费平台回调，直到拿到最终提交结果。 */
     private suspend fun waitForCommitResult(
+        sessionId: Int,
         resultQueue: LinkedBlockingQueue<CommitCallbackPayload>,
         onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
     ): InstallCommitResult {
@@ -161,7 +166,7 @@ class SystemPackageInstallerSessionAdapter(
             val callback = resultQueue.poll(timeoutSeconds, TimeUnit.SECONDS) ?: return timeoutResult()
             when (callback.status) {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                    val result = handlePendingUserAction(callback, pendingUserActionObserved, onPendingUserAction)
+                    val result = handlePendingUserAction(sessionId, callback, pendingUserActionObserved, onPendingUserAction)
                     if (result != null) {
                         return result
                     }
@@ -180,6 +185,7 @@ class SystemPackageInstallerSessionAdapter(
      * 仅在首次进入确认阶段时通知壳层和业务层。
      */
     private suspend fun handlePendingUserAction(
+        sessionId: Int,
         callback: CommitCallbackPayload,
         pendingUserActionObserved: Boolean,
         onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
@@ -194,7 +200,7 @@ class SystemPackageInstallerSessionAdapter(
         }
         if (!pendingUserActionObserved) {
             // 首次进入系统确认阶段时，同时通知壳层拉起确认页和业务层更新状态。
-            installUserActionDispatcher.dispatch(confirmationIntent)
+            installUserActionDispatcher.dispatch(sessionId, confirmationIntent, FINAL_RESULT_TIMEOUT_SECONDS * 1_000L)
             onPendingUserAction(InstallerText.SESSION_PENDING_USER_ACTION, confirmationIntent)
         }
         return null

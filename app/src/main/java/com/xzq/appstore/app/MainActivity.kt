@@ -1,10 +1,13 @@
 package com.xzq.appstore.app
 
 import android.content.Intent
+import android.content.ActivityNotFoundException
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
+import com.xzq.appstore.core.logger.AppLogger
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
@@ -180,11 +183,25 @@ class MainActivity : AppCompatActivity(), MainNavigator {
     private fun observeInstallUserActions() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                appServices.installUserActionDispatcher.actions.collect { intent ->
-                    startActivity(intent)
+                val dispatcher = appServices.installUserActionDispatcher
+                dispatcher.actions.collect { pending ->
+                    pending.keys.forEach { sessionId ->
+                        try {
+                            dispatcher.launchPending(sessionId) { startActivity(it) }
+                        } catch (failure: ActivityNotFoundException) {
+                            reportInstallLaunchFailure(failure)
+                        } catch (failure: SecurityException) {
+                            reportInstallLaunchFailure(failure)
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private fun reportInstallLaunchFailure(failure: Exception) {
+        AppLogger().w("MainActivity", "Unable to open installation confirmation", failure)
+        Toast.makeText(this, R.string.install_confirmation_launch_failed, Toast.LENGTH_LONG).show()
     }
 
     private fun observeTaskSummaryStats() {
