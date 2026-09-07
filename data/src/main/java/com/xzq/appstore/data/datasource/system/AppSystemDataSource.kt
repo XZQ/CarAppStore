@@ -4,6 +4,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.PackageInfo
+import android.os.Build
 import com.xzq.appstore.data.model.InstalledApp
 
 class AppSystemDataSource(
@@ -46,7 +48,7 @@ class AppSystemDataSource(
         return try {
             val info = context.packageManager.getPackageArchiveInfo(apkPath, 0) ?: return null
             val packageName = info.packageName?.takeIf { it.isNotBlank() } ?: return null
-            ApkPackageInfo(packageName = packageName, versionName = info.versionName.orEmpty())
+            ApkPackageInfo(packageName = packageName, versionName = info.versionName.orEmpty(), versionCode = info.numericVersion())
         } catch (_: Exception) {
             null
         }
@@ -59,12 +61,15 @@ class AppSystemDataSource(
                 val info = context.packageManager.getPackageInfo(packageName, 0)
                 val appInfo = info.applicationInfo ?: return@mapNotNull null
                 val name = context.packageManager.getApplicationLabel(appInfo).toString()
-                InstalledApp(appId = packageName, packageName = packageName, name = name, versionName = info.versionName.orEmpty())
+                InstalledApp(appId = packageName, packageName = packageName, name = name, versionName = info.versionName.orEmpty(), versionCode = info.numericVersion())
             } catch (_: PackageManager.NameNotFoundException) {
                 null
             }
         }
     }
+
+    @Suppress("DEPRECATION")
+    private fun PackageInfo.numericVersion(): Long = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) longVersionCode else versionCode.toLong()
 }
 
 /** APK 文件解析结果。 */
@@ -73,4 +78,5 @@ data class ApkPackageInfo(
     val packageName: String,
     /** APK 中声明的版本号。 */
     val versionName: String,
+    val versionCode: Long = 0L,
 )

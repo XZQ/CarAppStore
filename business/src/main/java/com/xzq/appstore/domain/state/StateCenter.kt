@@ -13,7 +13,7 @@ interface StateCenter {
     fun observeAll(): StateFlow<Map<String, AppState>>
 
     /** 在系统确认已安装后同步安装状态。 */
-    fun syncInstalled(appId: String, versionName: String)
+    fun syncInstalled(appId: String, versionName: String, versionCode: Long = 0L)
 
     /** 更新下载子状态。 */
     fun updateDownload(
@@ -26,7 +26,7 @@ interface StateCenter {
     )
 
     /** 更新安装子状态。 */
-    fun updateInstall(appId: String, status: InstallStatus, versionName: String? = null, errorMessage: String? = null, errorCode: String? = null)
+    fun updateInstall(appId: String, status: InstallStatus, versionName: String? = null, errorMessage: String? = null, errorCode: String? = null, versionCode: Long? = null)
 
     /** 更新升级子状态。 */
     fun updateUpgrade(appId: String, status: UpgradeStatus, errorMessage: String? = null, errorCode: String? = null)

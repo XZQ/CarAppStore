@@ -12,4 +12,6 @@ data class InstalledApp(
     val name: String,
     /** 当前已安装版本号。 */
     val versionName: String,
+    /** Android 数字版本；旧快照未知时为 0。 */
+    val versionCode: Long = 0L,
 )

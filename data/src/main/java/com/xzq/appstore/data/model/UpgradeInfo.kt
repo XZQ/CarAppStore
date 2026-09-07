@@ -14,4 +14,5 @@ data class UpgradeInfo(
     val hasUpgrade: Boolean,
     /** 升级变更摘要。 */
     val changelog: String = "",
+    val latestVersionCode: Long = 0L,
 )

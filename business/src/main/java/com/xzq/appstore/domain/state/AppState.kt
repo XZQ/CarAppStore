@@ -20,6 +20,7 @@ data class AppState(
     val localApkPath: String? = null,
     /** 状态中心记录的已安装版本号。 */
     val installedVersion: String? = null,
+    val installedVersionCode: Long = 0L,
     /** 当前状态关联的用户可见错误文案。 */
     val errorMessage: String? = null,
     /** 当前状态关联的稳定错误码。 */

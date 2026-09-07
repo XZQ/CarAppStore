@@ -133,7 +133,7 @@ class DefaultInstallManager(
                     // 安装成功后要同时更新已安装记录、清理下载任务并同步页面主状态。
                     repository.markInstalled(appId)
                     repository.removeDownloadTask(appId)
-                    stateCenter.updateInstall(appId, InstallStatus.INSTALLED, versionName = event.installedVersion)
+                    stateCenter.updateInstall(appId, InstallStatus.INSTALLED, versionName = event.installedVersion, versionCode = event.installedVersionCode)
                     stateCenter.updateDownload(appId, DownloadStatus.COMPLETED, progress = 100, localApkPath = apkPath)
                     tracker.track("install_success_$appId")
                 }

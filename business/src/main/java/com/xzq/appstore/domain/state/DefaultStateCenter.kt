@@ -27,11 +27,12 @@ class DefaultStateCenter : StateCenter {
     override fun observeAll(): StateFlow<Map<String, AppState>> = allStates
 
     /** 在系统层确认安装成功后，同步状态中心中的安装结果。 */
-    override fun syncInstalled(appId: String, versionName: String) {
+    override fun syncInstalled(appId: String, versionName: String, versionCode: Long) {
         mutate(appId) {
             it.copy(
                 installStatus = InstallStatus.INSTALLED,
                 installedVersion = versionName,
+                installedVersionCode = versionCode,
                 downloadStatus = if (it.downloadStatus == DownloadStatus.RUNNING || it.downloadStatus == DownloadStatus.WAITING) {
                     DownloadStatus.IDLE
                 } else {
@@ -58,9 +59,12 @@ class DefaultStateCenter : StateCenter {
     }
 
     /** 更新安装维度状态，并在成功时同步已安装版本。 */
-    override fun updateInstall(appId: String, status: InstallStatus, versionName: String?, errorMessage: String?, errorCode: String?) {
+    override fun updateInstall(appId: String, status: InstallStatus, versionName: String?, errorMessage: String?, errorCode: String?, versionCode: Long?) {
         mutate(appId) {
-            it.copy(installStatus = status, installedVersion = versionName ?: it.installedVersion, errorMessage = errorMessage, errorCode = errorCode)
+            it.copy(installStatus = status,
+                installedVersion = if (status == InstallStatus.NOT_INSTALLED) null else versionName ?: it.installedVersion,
+                installedVersionCode = if (status == InstallStatus.NOT_INSTALLED) 0L else versionCode ?: it.installedVersionCode,
+                errorMessage = errorMessage, errorCode = errorCode)
         }
     }
 

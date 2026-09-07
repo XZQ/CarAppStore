@@ -1,6 +1,5 @@
 package com.xzq.appstore.domain.upgrade
 
-import com.xzq.appstore.common.result.VersionUtils
 import com.xzq.appstore.core.downloader.DownloadFileHelper
 import com.xzq.appstore.core.installer.ApkVerifier
 import com.xzq.appstore.core.installer.ApkVerificationPolicy
@@ -51,13 +50,13 @@ class DefaultUpgradeManager(
     /** 检查当前应用是否存在可升级版本，并同步升级状态。 */
     override suspend fun checkUpgrade(appId: String): Boolean {
         require(appId.isNotBlank()) { "appId 不能为空" }
-        val installedVersion = stateCenter.snapshot(appId).installedVersion ?: return false
+        val installedVersionCode = stateCenter.snapshot(appId).installedVersionCode
         if (!isCurrentPlatformSupported(appId)) {
             stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
             return false
         }
         val info = repository.getUpgradeInfo(appId)
-        val available = info.hasUpgrade && VersionUtils.isNewerVersion(installedVersion, info.latestVersion)
+        val available = info.hasUpgrade && installedVersionCode > 0L && info.latestVersionCode > installedVersionCode
         stateCenter.updateUpgrade(appId, if (available) UpgradeStatus.AVAILABLE else UpgradeStatus.NONE)
         return available
     }
@@ -126,8 +125,8 @@ class DefaultUpgradeManager(
 
         // 读取升级信息，并确认当前版本确实落后于目标版本。
         val upgradeInfo = repository.getUpgradeInfo(appId)
-        val currentVersion = stateCenter.snapshot(appId).installedVersion
-        if (!upgradeInfo.hasUpgrade || !VersionUtils.isNewerVersion(currentVersion, upgradeInfo.latestVersion)) {
+        val currentVersionCode = stateCenter.snapshot(appId).installedVersionCode
+        if (!upgradeInfo.hasUpgrade || currentVersionCode <= 0L || upgradeInfo.latestVersionCode <= currentVersionCode) {
             stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
             return
         }
@@ -215,7 +214,7 @@ class DefaultUpgradeManager(
         if (!file.isFile || !file.canRead() || file.length() <= 0L) return null
         val detail = repository.getAppDetail(appId)
         val upgrade = repository.getUpgradeInfo(appId)
-        if (detail.versionName != upgrade.latestVersion) return null
+        if (detail.versionCode <= 0L || detail.versionCode != upgrade.latestVersionCode) return null
         return try {
             val identity = verifier.verify(file, ExpectedApkIdentity(detail.packageName, detail.versionCode,
                 upgrade.latestVersion, detail.signerCertificateSha256.toSet()), apkVerificationPolicy)

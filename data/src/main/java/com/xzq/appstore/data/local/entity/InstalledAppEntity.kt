@@ -12,4 +12,5 @@ data class InstalledAppEntity(
     val name: String,
     /** 当前已安装版本号。 */
     val versionName: String,
+    val versionCode: Long = 0L,
 )

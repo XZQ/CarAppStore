@@ -101,7 +101,7 @@ sealed class InstallEvent {
     object Installing : InstallEvent()
 
     /** 安装成功并返回最终版本号。 */
-    data class Success(val installedVersion: String) : InstallEvent()
+    data class Success(val installedVersion: String, val installedVersionCode: Long = 0L) : InstallEvent()
 
     /** 安装失败并返回归一化失败信息。 */
     data class Failed(val code: InstallFailureCode, val message: String) : InstallEvent()

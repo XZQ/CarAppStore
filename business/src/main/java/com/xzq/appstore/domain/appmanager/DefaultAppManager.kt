@@ -1,6 +1,5 @@
 package com.xzq.appstore.domain.appmanager
 
-import com.xzq.appstore.common.result.VersionUtils
 import com.xzq.appstore.common.ui.CarUiStyle
 import com.xzq.appstore.core.installer.InstallSessionStatus
 import com.xzq.appstore.core.installer.InstallSessionStore
@@ -56,7 +55,7 @@ class DefaultAppManager(
     private suspend fun buildAppCards(apps: List<AppInfo>): List<AppViewData> {
         val installed = repository.getInstalledApps().associateBy { it.appId }
         // 先把已安装版本同步进状态中心，后续构建卡片时才能得到正确主按钮。
-        installed.forEach { (appId, app) -> stateCenter.syncInstalled(appId, app.versionName) }
+        installed.forEach { (appId, app) -> stateCenter.syncInstalled(appId, app.versionName, app.versionCode) }
 
         return apps.mapNotNull { app ->
             // 卡片构建前先同步升级可用性，保证展示的主动作和状态文案一致。
@@ -104,10 +103,10 @@ class DefaultAppManager(
     /** 获取指定应用详情，并在已安装情况下补齐版本和升级状态。 */
     override suspend fun getAppDetail(appId: String): AppDetail {
         val detail = repository.getAppDetail(appId)
-        if (repository.isInstalled(appId)) {
-            val installedVersion = repository.getInstalledApps().firstOrNull { it.appId == appId }?.versionName ?: detail.versionName
-            stateCenter.syncInstalled(appId, installedVersion)
-            syncUpgradeAvailability(appId, installedVersion)
+        val installed = repository.getInstalledApps().firstOrNull { it.appId == appId }
+        if (installed != null) {
+            stateCenter.syncInstalled(appId, installed.versionName, installed.versionCode)
+            syncUpgradeAvailability(appId, installed.versionName)
         }
         return detail.copy(currentPlatform = platformCapabilities.currentPlatform)
     }
@@ -118,7 +117,7 @@ class DefaultAppManager(
         val installedApps = repository.getInstalledApps()
         // “我的应用”以已安装应用为主，同时补充有进行中任务的应用。
         installedApps.forEach { installed ->
-            stateCenter.syncInstalled(installed.appId, installed.versionName)
+            stateCenter.syncInstalled(installed.appId, installed.versionName, installed.versionCode)
             syncUpgradeAvailability(installed.appId, installed.versionName)
         }
         val stateMap = stateCenter.observeAll().value
@@ -147,9 +146,9 @@ class DefaultAppManager(
     /** 获取首页中单个应用的聚合视图数据。 */
     override suspend fun getHomeAppViewData(appId: String): AppViewData? {
         val app = repository.getHomeApps().firstOrNull { it.appId == appId } ?: return null
-        val installedVersion = repository.getInstalledApps().firstOrNull { it.appId == appId }?.versionName
-        if (installedVersion != null) stateCenter.syncInstalled(appId, installedVersion)
-        syncUpgradeAvailability(appId, installedVersion)
+        val installed = repository.getInstalledApps().firstOrNull { it.appId == appId }
+        if (installed != null) stateCenter.syncInstalled(appId, installed.versionName, installed.versionCode)
+        syncUpgradeAvailability(appId, installed?.versionName)
         return buildViewData(
             appId = app.appId,
             name = app.name,
@@ -189,7 +188,7 @@ class DefaultAppManager(
     override suspend fun getDownloadManageApps(): List<AppViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
         val installedApps = repository.getInstalledApps().associateBy { it.appId }
-        installedApps.forEach { (appId, app) -> stateCenter.syncInstalled(appId, app.versionName) }
+        installedApps.forEach { (appId, app) -> stateCenter.syncInstalled(appId, app.versionName, app.versionCode) }
         val stateMap = stateCenter.observeAll().value
         val appIds = stateMap.filterValues { state ->
             state.downloadStatus != DownloadStatus.IDLE ||
@@ -371,7 +370,7 @@ class DefaultAppManager(
     /** 把已装版本与升级可用性同步进状态中心，供任务列表与统计快照保持一致口径。 */
     private suspend fun syncInstalledAndUpgradeStates(installedApps: Collection<InstalledApp>) {
         installedApps.forEach { installed ->
-            stateCenter.syncInstalled(installed.appId, installed.versionName)
+            stateCenter.syncInstalled(installed.appId, installed.versionName, installed.versionCode)
             syncUpgradeAvailability(installed.appId, installed.versionName)
         }
     }
@@ -462,7 +461,8 @@ class DefaultAppManager(
             return
         }
         val upgradeInfo = repository.getUpgradeInfo(appId)
-        if (upgradeInfo.hasUpgrade && VersionUtils.isNewerVersion(installedVersion, upgradeInfo.latestVersion)) {
+        val installedCode = stateCenter.snapshot(appId).installedVersionCode
+        if (upgradeInfo.hasUpgrade && installedCode > 0L && upgradeInfo.latestVersionCode > installedCode) {
             stateCenter.updateUpgrade(appId, UpgradeStatus.AVAILABLE)
         } else if (stateCenter.snapshot(appId).upgradeStatus != UpgradeStatus.UPGRADING) {
             stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)

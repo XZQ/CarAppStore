@@ -11,6 +11,26 @@ import java.nio.file.Files
  */
 class InstallSessionReconcilerTest {
     @Test
+    fun `same versionName with older code or wrong signer is not recovered as success`() {
+        listOf(ApkIdentity(TEST_PACKAGE_NAME, 9L, TEST_TARGET_VERSION, setOf("signer")),
+            ApkIdentity(TEST_PACKAGE_NAME, 10L, TEST_TARGET_VERSION, setOf("wrong-signer"))).forEach { identity ->
+            val store = createStoreWithRecoverableSession()
+            val result = InstallSessionReconciler(store, RecordingOwnedSessionGateway(emptySet()), FixedInstalledPackageInspector(identity)).reconcile()
+            assertEquals(0, result.completedSessionCount)
+            assertEquals(InstallSessionStatus.RECOVERED_INTERRUPTED, store.get(TEST_SESSION_ID)?.status)
+        }
+    }
+
+    @Test
+    fun `legacy session without numeric identity requires retry`() {
+        val store = createStoreWithRecoverableSession()
+        store.save(requireNotNull(store.get(TEST_SESSION_ID)).copy(targetVersionCode = 0L))
+        val identity = ApkIdentity(TEST_PACKAGE_NAME, 10L, TEST_TARGET_VERSION, setOf("signer"))
+        val result = InstallSessionReconciler(store, RecordingOwnedSessionGateway(emptySet()), FixedInstalledPackageInspector(identity)).reconcile()
+        assertEquals(0, result.completedSessionCount)
+        assertEquals(1, result.interruptedSessionCount)
+    }
+    @Test
     fun `已安装目标版本会补记成功且不放弃平台会话`() {
         val store = createStoreWithRecoverableSession()
         val gateway = RecordingOwnedSessionGateway(setOf(TEST_SESSION_ID))
@@ -60,6 +80,8 @@ class InstallSessionReconcilerTest {
                 packageName = TEST_PACKAGE_NAME,
                 apkPath = File("test.apk").absolutePath,
                 targetVersion = TEST_TARGET_VERSION,
+                targetVersionCode = 10L,
+                signerCertificateSha256 = setOf("signer"),
                 status = InstallSessionStatus.PENDING_USER_ACTION,
                 progress = 90,
                 createdAt = 1L,

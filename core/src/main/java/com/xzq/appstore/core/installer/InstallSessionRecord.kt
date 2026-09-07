@@ -26,4 +26,6 @@ data class InstallSessionRecord(
     val createdAt: Long,
     /** 最后更新时间戳。 */
     val updatedAt: Long,
+    val targetVersionCode: Long = 0L,
+    val signerCertificateSha256: Set<String> = emptySet(),
 )

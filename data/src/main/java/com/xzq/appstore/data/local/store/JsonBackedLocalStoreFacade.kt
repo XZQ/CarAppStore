@@ -32,6 +32,7 @@ class JsonBackedLocalStoreFacade(
                 put("packageName", entity.packageName)
                 put("name", entity.name)
                 put("versionName", entity.versionName)
+                put("versionCode", entity.versionCode)
             })
         }
     }
@@ -44,6 +45,7 @@ class JsonBackedLocalStoreFacade(
                 packageName = value.optString("packageName"),
                 name = value.optString("name"),
                 versionName = value.optString("versionName"),
+                versionCode = value.optLong("versionCode", 0L),
             )
         }
     }
@@ -184,6 +186,8 @@ class JsonBackedLocalStoreFacade(
                 put("packageName", entity.packageName)
                 put("apkPath", entity.apkPath)
                 put("targetVersion", entity.targetVersion)
+                put("targetVersionCode", entity.targetVersionCode)
+                put("signerCertificateSha256", JSONArray(entity.signerCertificateSha256.toList()))
                 put("status", entity.status)
                 put("progress", entity.progress)
                 put("failureCode", entity.failureCode)
@@ -203,6 +207,10 @@ class JsonBackedLocalStoreFacade(
                 packageName = value.optString("packageName"),
                 apkPath = value.optString("apkPath"),
                 targetVersion = value.optString("targetVersion"),
+                targetVersionCode = value.optLong("targetVersionCode", 0L),
+                signerCertificateSha256 = value.optJSONArray("signerCertificateSha256")?.let { array ->
+                    (0 until array.length()).map { array.getString(it) }.toSet()
+                }.orEmpty(),
                 status = value.optString("status"),
                 progress = value.optInt("progress"),
                 failureCode = value.optString("failureCode").ifBlank { null },
@@ -352,6 +360,6 @@ class JsonBackedLocalStoreFacade(
 
     private companion object {
         /** 结构化本地 store 当前 schema 版本。 */
-        const val STRUCTURED_STORE_SCHEMA_VERSION = 1
+        const val STRUCTURED_STORE_SCHEMA_VERSION = 2
     }
 }

@@ -141,6 +141,7 @@ fun AppCatalogItemResponse.toRemoteCatalogItem(): RemoteCatalogItem {
         upgradeInfo = UpgradeInfo(
             appId = appId,
             latestVersion = effectiveLatestVersion,
+            latestVersionCode = if (effectiveLatestVersion == versionName) versionCode else 0L,
             apkUrl = apkUrl,
             hasUpgrade = effectiveHasUpgrade,
             changelog = changelog,

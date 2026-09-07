@@ -47,20 +47,15 @@ class RealAppRepository(
         }
     }
 
-    /** 将指定应用标记为已安装，远端详情不可达时用本地 staged 信息兜底，避免安装事实丢失。 */
+    /** 以系统查询的版本写入安装镜像；目录不可达时从已有镜像解析包名。 */
     override suspend fun markInstalled(appId: String) {
-        val stagedVersion = local.consumeStagedUpgradeVersion(appId)
         val detail = runCatching { remote.getAppDetail(appId) }
             .onFailure { logger.d(TAG, "markInstalled remote failed: ${it.message}, fallback to local") }
             .getOrNull()
-        if (detail == null) {
-            // 远端不可达时仅用 appId 与 staged 版本写入安装事实。
-            local.saveInstalledApp(InstalledApp(appId = appId, packageName = appId, name = appId, versionName = stagedVersion ?: ""))
-            return
-        }
-        local.saveInstalledApp(
-            InstalledApp(appId = detail.appId, packageName = detail.packageName, name = detail.name, versionName = stagedVersion ?: detail.versionName),
-        )
+        val packageName = detail?.packageName ?: local.getInstalledApps().firstOrNull { it.appId == appId }?.packageName ?: return
+        val installed = system.queryInstalledApps(setOf(packageName)).singleOrNull() ?: return
+        local.saveInstalledApp(installed.copy(appId = appId, name = detail?.name ?: installed.name))
+        local.consumeStagedUpgradeVersion(appId)
     }
 
     /** 判断指定应用是否已安装，优先使用系统包管理器而不是本地镜像。 */
@@ -151,6 +146,7 @@ class RealAppRepository(
         name = name,
         description = "",
         versionName = versionName,
+        versionCode = versionCode,
         apkUrl = "",
     )
 

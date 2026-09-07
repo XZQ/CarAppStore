@@ -69,6 +69,8 @@ class RealPackageInstaller(
                     packageName = request.packageName,
                     apkPath = request.apkFile.absolutePath,
                     targetVersion = request.targetVersion,
+                    targetVersionCode = verifiedApk.versionCode,
+                    signerCertificateSha256 = verifiedApk.signerCertificateSha256,
                     status = InstallSessionStatus.FAILED_CREATE,
                     progress = 0,
                     failureCode = InstallFailureCode.SESSION_CREATE_FAILED.name,
@@ -89,6 +91,8 @@ class RealPackageInstaller(
                 packageName = request.packageName,
                 apkPath = request.apkFile.absolutePath,
                 targetVersion = request.targetVersion,
+                targetVersionCode = verifiedApk.versionCode,
+                signerCertificateSha256 = verifiedApk.signerCertificateSha256,
                 status = InstallSessionStatus.CREATED,
                 progress = 0,
                 createdAt = createdAt,
@@ -156,7 +160,7 @@ class RealPackageInstaller(
         // 提交成功且系统事实校验完成后，把会话收口为成功态。
         sessionStore.updateStatus(sessionId = sessionId, status = InstallSessionStatus.CALLBACK_SUCCESS, progress = 100)
         onEvent(InstallEvent.Progress(sessionId, 100))
-        onEvent(InstallEvent.Success(installedIdentity.versionName))
+        onEvent(InstallEvent.Success(installedIdentity.versionName, installedIdentity.versionCode))
     }
 
     /** 在创建系统会话前校验 APK archive 的包名、版本和签名证书。 */

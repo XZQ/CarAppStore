@@ -85,10 +85,13 @@ class InstallSessionReconciler(
 
     /** 判断目标包与目标版本是否已经成为系统安装事实。 */
     private fun isInstalledTarget(record: InstallSessionRecord): Boolean {
-        if (record.packageName.isBlank() || record.targetVersion.isBlank()) {
+        if (record.packageName.isBlank() || record.targetVersionCode <= 0L) {
             return false
         }
         val installed = installedPackageInspector.getInstalledIdentity(record.packageName) ?: return false
-        return installed.packageName == record.packageName && installed.versionName == record.targetVersion
+        return ApkIdentityValidator.validate(installed,
+            ExpectedApkIdentity(record.packageName, record.targetVersionCode, record.targetVersion, record.signerCertificateSha256),
+            ApkVerificationPolicy(requireVersionCode = true, requireSignerCertificate = true),
+        ) is ApkVerificationResult.Verified
     }
 }

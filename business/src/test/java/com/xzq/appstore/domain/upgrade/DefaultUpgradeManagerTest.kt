@@ -47,8 +47,19 @@ import java.nio.file.Files
 
 class DefaultUpgradeManagerTest {
     @Test
+    fun `same display version with higher numeric code is an update`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "2.0.0", 1L)
+        assertEquals(true, createManager().checkUpgrade(TEST_APP_ID))
+    }
+
+    @Test
+    fun `newer looking display version cannot downgrade numeric code`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0-beta", 3L)
+        assertEquals(false, createManager().checkUpgrade(TEST_APP_ID))
+    }
+    @Test
     fun `verified cached target upgrades offline without starting downloader`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         val apk = File(workDir, "cached.apk").apply { writeBytes(byteArrayOf(1, 2, 3)) }
         repository.saveApk(TEST_APP_ID, apk.absolutePath)
         val manager = createManager(policyCenter = OfflinePolicyCenter(), apkVerifier = targetVerifier(2L),
@@ -64,7 +75,7 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `older cached version cannot bypass offline download policy`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         repository.saveApk(TEST_APP_ID, File(workDir, "old.apk").apply { writeBytes(byteArrayOf(1)) }.absolutePath)
         createManager(policyCenter = OfflinePolicyCenter(), apkVerifier = targetVerifier(1L)).startUpgrade(TEST_APP_ID)
         assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
@@ -74,7 +85,7 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `corrupt cached payload cannot bypass offline download policy`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         repository.checksumValue = "0".repeat(64)
         repository.saveApk(TEST_APP_ID, File(workDir, "corrupt.apk").apply { writeBytes(byteArrayOf(1)) }.absolutePath)
         createManager(policyCenter = OfflinePolicyCenter(), apkVerifier = targetVerifier(2L)).startUpgrade(TEST_APP_ID)
@@ -108,7 +119,7 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `checkUpgrade 有新版本时返回 true 并标记 AVAILABLE`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         val manager = createManager()
         val result = manager.checkUpgrade(TEST_APP_ID)
         assertEquals(true, result)
@@ -118,7 +129,7 @@ class DefaultUpgradeManagerTest {
     @Test
     fun `checkUpgrade ignores updates for other platforms`() = runBlocking {
         repository.supportedPlatforms = setOf(AppPlatform.IOS)
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
 
         val result = createManager().checkUpgrade(TEST_APP_ID)
 
@@ -128,7 +139,7 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `checkUpgrade 版本相同时返回 false`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "2.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "2.0.0", 2L)
         val manager = createManager()
         val result = manager.checkUpgrade(TEST_APP_ID)
         assertEquals(false, result)
@@ -145,7 +156,7 @@ class DefaultUpgradeManagerTest {
     @Test
     fun `startUpgrade blocks updates for other platforms`() = runBlocking {
         repository.supportedPlatforms = setOf(AppPlatform.WINDOWS)
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
 
         createManager().startUpgrade(TEST_APP_ID)
 
@@ -155,7 +166,7 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `startUpgrade 版本无升级时标记 NONE`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "2.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "2.0.0", 2L)
         val manager = createManager()
         manager.startUpgrade(TEST_APP_ID)
         assertEquals(UpgradeStatus.NONE, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
@@ -163,7 +174,7 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `startUpgrade 成功完成下载和安装后升级状态回到 NONE`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         val apkFile = File(workDir, "test.apk").apply { writeBytes(ByteArray(1024)) }
         repository.saveApk(TEST_APP_ID, apkFile.absolutePath)
 
@@ -177,7 +188,7 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `startUpgrade stageUpgrade 记录了目标版本`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         val apkFile = File(workDir, "test.apk").apply { writeBytes(ByteArray(1024)) }
         repository.saveApk(TEST_APP_ID, apkFile.absolutePath)
 
@@ -189,9 +200,9 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `checkAllUpgrades 返回所有有升级可用的应用`() = runBlocking {
-        stateCenter.syncInstalled("app.a", "1.0.0")
-        stateCenter.syncInstalled("app.b", "1.0.0")
-        stateCenter.syncInstalled("app.c", "2.0.0")
+        stateCenter.syncInstalled("app.a", "1.0.0", 1L)
+        stateCenter.syncInstalled("app.b", "1.0.0", 1L)
+        stateCenter.syncInstalled("app.c", "2.0.0", 2L)
         repository.addInstalledApp("app.a", "App A", "1.0.0")
         repository.addInstalledApp("app.b", "App B", "1.0.0")
         repository.addInstalledApp("app.c", "App C", "2.0.0")
@@ -207,8 +218,8 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `startBatchUpgrade 逐个串行执行升级`() = runBlocking {
-        stateCenter.syncInstalled("app.a", "1.0.0")
-        stateCenter.syncInstalled("app.b", "1.0.0")
+        stateCenter.syncInstalled("app.a", "1.0.0", 1L)
+        stateCenter.syncInstalled("app.b", "1.0.0", 1L)
         repository.addInstalledApp("app.a", "App A", "1.0.0")
         repository.addInstalledApp("app.b", "App B", "1.0.0")
 
@@ -226,7 +237,7 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `startUpgrade 下载被取消时不会无限等待并标记升级失败`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         val manager = createManager(fileDownloader = object : FileDownloader {
             override suspend fun download(request: DownloadRequest, control: DownloadExecutionControl, onEvent: suspend (DownloadEvent) -> Unit) {
                 onEvent(DownloadEvent.Stopped(reason = DownloadStopReason.CANCELED, downloadedBytes = 0L, totalBytes = 1024L))
@@ -243,7 +254,7 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `startUpgrade 下载长期未完成时标记下载超时`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         val manager = createManager(
             fileDownloader = object : FileDownloader {
                 override suspend fun download(request: DownloadRequest, control: DownloadExecutionControl, onEvent: suspend (DownloadEvent) -> Unit) = Unit
@@ -259,7 +270,7 @@ class DefaultUpgradeManagerTest {
 
     @Test
     fun `startUpgrade 安装长期未完成时标记安装超时`() = runBlocking {
-        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         val manager = createManager(
             packageInstaller = object : PackageInstaller {
                 override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) {
@@ -443,7 +454,7 @@ class DefaultUpgradeManagerTest {
             apkPaths.remove(appId)
         }
 
-        override suspend fun getUpgradeInfo(appId: String) = UpgradeInfo(appId = appId, latestVersion = "2.0.0", apkUrl = "", hasUpgrade = true)
+        override suspend fun getUpgradeInfo(appId: String) = UpgradeInfo(appId = appId, latestVersion = "2.0.0", apkUrl = "", hasUpgrade = true, latestVersionCode = 2L)
         override suspend fun stageUpgrade(appId: String, versionName: String) {
             stagedVersion = versionName
         }

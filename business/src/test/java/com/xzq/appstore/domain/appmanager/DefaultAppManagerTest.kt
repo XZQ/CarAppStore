@@ -65,7 +65,7 @@ class DefaultAppManagerTest {
 
     @Test
     fun `getMyApps 返回已安装应用和有任务的应用`() = runBlocking {
-        repository.installedApps += InstalledApp(appId = "music.app", packageName = "com.nio.music", name = "车载音乐", versionName = "1.0.0")
+        repository.installedApps += InstalledApp(appId = "music.app", packageName = "com.nio.music", name = "车载音乐", versionName = "1.0.0", versionCode = 1L)
         stateCenter.updateDownload(
             appId = "nav.app",
             status = DownloadStatus.RUNNING,
@@ -85,8 +85,8 @@ class DefaultAppManagerTest {
 
     @Test
     fun `getUpgradeTasks 只返回可升级应用并生成正确统计`() = runBlocking {
-        repository.installedApps += InstalledApp(appId = "music.app", packageName = "com.nio.music", name = "车载音乐", versionName = "1.0.0")
-        repository.installedApps += InstalledApp(appId = "podcast.app", packageName = "com.nio.podcast", name = "车载播客", versionName = "2.0.0")
+        repository.installedApps += InstalledApp(appId = "music.app", packageName = "com.nio.music", name = "车载音乐", versionName = "1.0.0", versionCode = 1L)
+        repository.installedApps += InstalledApp(appId = "podcast.app", packageName = "com.nio.podcast", name = "车载播客", versionName = "2.0.0", versionCode = 2L)
 
         val manager = createManager()
         val tasks = manager.getUpgradeTasks()
@@ -137,7 +137,7 @@ class DefaultAppManagerTest {
 
     @Test
     fun `getTaskCenterStatsSnapshot 一次共享加载产出与逐个查询一致的统计`() = runBlocking {
-        repository.installedApps += InstalledApp(appId = "music.app", packageName = "com.nio.music", name = "车载音乐", versionName = "1.0.0")
+        repository.installedApps += InstalledApp(appId = "music.app", packageName = "com.nio.music", name = "车载音乐", versionName = "1.0.0", versionCode = 1L)
 
         val manager = createManager()
         val snapshot = manager.getTaskCenterStatsSnapshot()
@@ -251,7 +251,7 @@ class DefaultAppManagerTest {
                     appId = appId,
                     latestVersion = "1.1.0",
                     apkUrl = "https://example.com/$appId.apk",
-                    hasUpgrade = true,
+                    hasUpgrade = true, latestVersionCode = 2L,
                 )
 
                 "podcast.app" -> UpgradeInfo(
@@ -265,7 +265,7 @@ class DefaultAppManagerTest {
                     appId = appId,
                     latestVersion = "2.0.0",
                     apkUrl = "https://example.com/$appId.apk",
-                    hasUpgrade = true,
+                    hasUpgrade = true, latestVersionCode = 2L,
                 )
             }
         }

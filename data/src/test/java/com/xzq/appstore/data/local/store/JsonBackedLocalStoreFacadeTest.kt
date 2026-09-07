@@ -8,6 +8,13 @@ import java.io.File
 import java.nio.file.Files
 
 class JsonBackedLocalStoreFacadeTest {
+    @Test
+    fun `installed versionCode survives reopening structured store`() {
+        val path = createTempFile("installed.json")
+        val installed = com.xzq.appstore.data.local.entity.InstalledAppEntity("app", "com.example.app", "App", "release", 4_294_967_297L)
+        JsonBackedLocalStoreFacade(path).saveInstalledApp(installed)
+        assertEquals(listOf(installed), JsonBackedLocalStoreFacade(path).getInstalledApps())
+    }
 
     @Test
     fun `读取旧结构化 store 时会补齐 schemaVersion 并保留分片映射`() {
@@ -61,7 +68,7 @@ class JsonBackedLocalStoreFacadeTest {
         assertEquals("task-1", task?.taskId)
         assertEquals(1, segments.size)
         assertEquals("seg-1", segments.first().segmentId)
-        assertEquals(1, persisted.optInt("schemaVersion"))
+        assertEquals(2, persisted.optInt("schemaVersion"))
     }
 
     private fun createTempFile(fileName: String): File {

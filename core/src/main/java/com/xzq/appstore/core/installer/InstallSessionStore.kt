@@ -148,6 +148,10 @@ class InstallSessionStore(
                         packageName = item.optString("packageName"),
                         apkPath = item.optString("apkPath"),
                         targetVersion = item.optString("targetVersion"),
+                        targetVersionCode = item.optLong("targetVersionCode", 0L),
+                        signerCertificateSha256 = item.optJSONArray("signerCertificateSha256")?.let { array ->
+                            (0 until array.length()).map { array.getString(it) }.toSet()
+                        }.orEmpty(),
                         status = item.optString("status"),
                         progress = item.optInt("progress", 0),
                         failureCode = item.optString("failureCode").ifBlank { null },
@@ -170,6 +174,8 @@ class InstallSessionStore(
                 put("packageName", rec.packageName)
                 put("apkPath", rec.apkPath)
                 put("targetVersion", rec.targetVersion)
+                put("targetVersionCode", rec.targetVersionCode)
+                put("signerCertificateSha256", JSONArray(rec.signerCertificateSha256.toList()))
                 put("status", rec.status)
                 put("progress", rec.progress)
                 put("failureCode", rec.failureCode)
@@ -183,7 +189,7 @@ class InstallSessionStore(
 
     private companion object {
         /** 安装会话 store 当前 schema 版本。 */
-        const val INSTALL_SESSION_SCHEMA_VERSION = 1
+        const val INSTALL_SESSION_SCHEMA_VERSION = 2
 
         /** 安装会话数组字段名。 */
         const val KEY_SESSIONS = "sessions"

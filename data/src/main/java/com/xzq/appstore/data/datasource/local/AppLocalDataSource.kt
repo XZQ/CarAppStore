@@ -92,7 +92,7 @@ class AppLocalDataSource(
     fun saveInstalledApp(app: InstalledApp) = legacyStoreLock.withLock {
         installedApps.removeAll { it.appId == app.appId }
         installedApps.add(app)
-        localStoreFacade.saveInstalledApp(InstalledAppEntity(appId = app.appId, packageName = app.packageName, name = app.name, versionName = app.versionName))
+        localStoreFacade.saveInstalledApp(InstalledAppEntity(appId = app.appId, packageName = app.packageName, name = app.name, versionName = app.versionName, versionCode = app.versionCode))
         persistLocked()
     }
 
@@ -282,6 +282,7 @@ class AppLocalDataSource(
                 packageName = item.optString("packageName"),
                 name = item.optString("name"),
                 versionName = item.optString("versionName"),
+                versionCode = item.optLong("versionCode", 0L),
             )
         }
     }
@@ -428,6 +429,7 @@ class AppLocalDataSource(
                     put("packageName", app.packageName)
                     put("name", app.name)
                     put("versionName", app.versionName)
+                    put("versionCode", app.versionCode)
                 },
             )
         }

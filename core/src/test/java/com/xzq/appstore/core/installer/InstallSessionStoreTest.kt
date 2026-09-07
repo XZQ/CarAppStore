@@ -9,6 +9,15 @@ import java.io.File
 import java.nio.file.Files
 
 class InstallSessionStoreTest {
+    @Test
+    fun `session identity survives reopen with long versionCode`() {
+        val path = createTempFile("identity.json")
+        val record = InstallSessionRecord(sessionId = 9, appId = "app", packageName = "com.example.app",
+            apkPath = "test.apk", targetVersion = "release", targetVersionCode = 4_294_967_297L,
+            signerCertificateSha256 = setOf("signer"), status = InstallSessionStatus.COMMITTED, createdAt = 1, updatedAt = 2)
+        InstallSessionStore(path).save(record)
+        assertEquals(record, InstallSessionStore(path).get(9))
+    }
 
     @Test
     fun `get 会迁移旧数组格式并完成回写`() {
@@ -37,7 +46,8 @@ class InstallSessionStoreTest {
 
         assertNotNull(record)
         assertEquals(InstallSessionStatus.WRITTEN, record?.status)
-        assertEquals(1, persisted.optInt("schemaVersion"))
+        assertEquals(2, persisted.optInt("schemaVersion"))
+        assertEquals(0L, record?.targetVersionCode)
         assertEquals(1, persisted.getJSONArray("sessions").length())
     }
 

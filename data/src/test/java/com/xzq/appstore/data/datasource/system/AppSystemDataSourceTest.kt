@@ -2,6 +2,7 @@ package com.xzq.appstore.data.datasource.system
 
 import android.content.Context
 import android.content.pm.PackageInfo
+import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -27,6 +28,18 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class AppSystemDataSourceTest {
+    @Test
+    fun `query preserves long versionCode independent of display version`() {
+        installFakePackage("com.fake.app", "release", 4_294_967_297L)
+        assertEquals(4_294_967_297L, dataSource.queryInstalledApps(setOf("com.fake.app")).single().versionCode)
+    }
+
+    @Test
+    @Config(sdk = [27])
+    fun `query reads legacy numeric version on API 27`() {
+        installFakePackage("com.fake.app", "release", 101L)
+        assertEquals(101L, dataSource.queryInstalledApps(setOf("com.fake.app")).single().versionCode)
+    }
     private lateinit var context: Context
     private lateinit var dataSource: AppSystemDataSource
 
@@ -96,10 +109,12 @@ class AppSystemDataSourceTest {
         assertEquals("1.0", installed.versionName)
     }
 
-    private fun installFakePackage(packageName: String, versionName: String) {
+    @Suppress("DEPRECATION")
+    private fun installFakePackage(packageName: String, versionName: String, versionCode: Long = 1L) {
         val packageInfo = PackageInfo().apply {
             this.packageName = packageName
             this.versionName = versionName
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) setLongVersionCode(versionCode) else this.versionCode = versionCode.toInt()
             applicationInfo = android.content.pm.ApplicationInfo().apply {
                 this.packageName = packageName
                 nonLocalizedLabel = packageName
