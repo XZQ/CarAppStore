@@ -1,6 +1,11 @@
 package com.xzq.appstore.domain.upgrade
 
 import com.xzq.appstore.common.result.VersionUtils
+import com.xzq.appstore.core.downloader.DownloadFileHelper
+import com.xzq.appstore.core.installer.ApkVerifier
+import com.xzq.appstore.core.installer.ApkVerificationPolicy
+import com.xzq.appstore.core.installer.ApkVerificationResult
+import com.xzq.appstore.core.installer.ExpectedApkIdentity
 import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.ClientPlatformCapabilities
@@ -16,6 +21,7 @@ import com.xzq.appstore.domain.text.BusinessText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.io.IOException
 
 class DefaultUpgradeManager(
     /** 统一数据入口，负责升级信息和 staged version 读写。 */
@@ -38,6 +44,9 @@ class DefaultUpgradeManager(
     private val waitTimeoutMs: Long = WAIT_TIMEOUT_MS,
     /** 当前客户端平台能力，用于阻止升级到其他平台安装包。 */
     private val platformCapabilities: ClientPlatformCapabilities = ClientPlatformCapabilities(),
+    /** 未装配校验器时不复用缓存；生产与安装器共用同一身份校验器。 */
+    private val apkVerifier: ApkVerifier? = null,
+    private val apkVerificationPolicy: ApkVerificationPolicy = ApkVerificationPolicy(true, true),
 ) : UpgradeManager {
     /** 检查当前应用是否存在可升级版本，并同步升级状态。 */
     override suspend fun checkUpgrade(appId: String): Boolean {
@@ -77,7 +86,7 @@ class DefaultUpgradeManager(
                 return@startBatchUpgrade UpgradeBatchResult(succeeded = succeeded, failed = failed, skipped = skipped)
             }
             // 与单任务升级一致：APK 已落盘时不再要求下载链路条件。
-            val policy = policyCenter.canUpgrade(appId, isApkCached(appId))
+            val policy = policyCenter.canUpgrade(appId, cachedTargetApk(appId) != null)
             if (!policy.allow) {
                 val reason = BusinessText.upgradeRestricted(policy.reason)
                 stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = reason)
@@ -108,8 +117,8 @@ class DefaultUpgradeManager(
             return
         }
         // 升级前先做策略判断，APK 已落盘时跳过下载相关条件，避免 Wi-Fi 漂移等误拦已就绪任务。
-        val apkAlreadyDownloaded = isApkCached(appId)
-        val policy = policyCenter.canUpgrade(appId, apkAlreadyDownloaded)
+        val cachedApkPath = cachedTargetApk(appId)
+        val policy = policyCenter.canUpgrade(appId, cachedApkPath != null)
         if (!policy.allow) {
             stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.upgradeRestricted(policy.reason))
             return
@@ -129,23 +138,27 @@ class DefaultUpgradeManager(
         stateCenter.resetError(appId)
         stateCenter.updateUpgrade(appId, UpgradeStatus.UPGRADING)
 
-        // 第一阶段先进入下载链路，成功后才有资格继续安装。
-        downloadManager.startDownload(appId)
-        when (awaitDownloadResult(appId)) {
-            DownloadAwaitResult.COMPLETED -> Unit
-            DownloadAwaitResult.FAILED -> {
-                stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_FAILED)
-                return
-            }
+        // 校验通过的目标缓存直接进入安装，离线时不再重新触发下载策略。
+        if (cachedApkPath != null) {
+            stateCenter.updateDownload(appId, DownloadStatus.COMPLETED, progress = 100, localApkPath = cachedApkPath)
+        } else {
+            downloadManager.startDownload(appId)
+            when (awaitDownloadResult(appId)) {
+                DownloadAwaitResult.COMPLETED -> Unit
+                DownloadAwaitResult.FAILED -> {
+                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_FAILED)
+                    return
+                }
 
-            DownloadAwaitResult.INTERRUPTED -> {
-                stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_INTERRUPTED)
-                return
-            }
+                DownloadAwaitResult.INTERRUPTED -> {
+                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_INTERRUPTED)
+                    return
+                }
 
-            null -> {
-                stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_TIMEOUT)
-                return
+                null -> {
+                    stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_TIMEOUT)
+                    return
+                }
             }
         }
 
@@ -194,8 +207,26 @@ class DefaultUpgradeManager(
         error("安装等待循环不应在未返回终态时结束")
     }
 
-    /** 判断指定应用的 APK 是否已落盘且可读，用于策略中心决定是否跳过下载链路校验。 */
-    private suspend fun isApkCached(appId: String): Boolean = repository.getDownloadedApk(appId)?.takeIf { it.isNotBlank() && File(it).exists() } != null
+    /** 缓存复用必须匹配本次升级的包、版本、签名及目录提供的文件摘要。 */
+    private suspend fun cachedTargetApk(appId: String): String? {
+        val verifier = apkVerifier ?: return null
+        val path = repository.getDownloadedApk(appId)?.takeIf { it.isNotBlank() } ?: return null
+        val file = File(path)
+        if (!file.isFile || !file.canRead() || file.length() <= 0L) return null
+        val detail = repository.getAppDetail(appId)
+        val upgrade = repository.getUpgradeInfo(appId)
+        if (detail.versionName != upgrade.latestVersion) return null
+        return try {
+            val identity = verifier.verify(file, ExpectedApkIdentity(detail.packageName, detail.versionCode,
+                upgrade.latestVersion, detail.signerCertificateSha256.toSet()), apkVerificationPolicy)
+            if (identity !is ApkVerificationResult.Verified) return null
+            if (!DownloadFileHelper.verifyFile(file, 0L, detail.checksumType, detail.checksumValue).ok) return null
+            path
+        } catch (failure: IOException) {
+            logger.w("UpgradeManager", "Unable to read cached upgrade: $appId", failure)
+            null
+        }
+    }
 
     private enum class DownloadAwaitResult { COMPLETED, FAILED, INTERRUPTED }
 

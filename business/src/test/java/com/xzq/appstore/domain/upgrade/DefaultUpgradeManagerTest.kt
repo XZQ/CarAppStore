@@ -9,6 +9,11 @@ import com.xzq.appstore.core.downloader.FileDownloader
 import com.xzq.appstore.core.installer.InstallEvent
 import com.xzq.appstore.core.installer.InstallRequest
 import com.xzq.appstore.core.installer.PackageInstaller
+import com.xzq.appstore.core.installer.ApkIdentity
+import com.xzq.appstore.core.installer.ApkIdentityValidator
+import com.xzq.appstore.core.installer.ApkVerifier
+import com.xzq.appstore.core.installer.ApkVerificationPolicy
+import com.xzq.appstore.core.installer.ExpectedApkIdentity
 import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.AppDetail
@@ -34,12 +39,53 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 
 class DefaultUpgradeManagerTest {
+    @Test
+    fun `verified cached target upgrades offline without starting downloader`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        val apk = File(workDir, "cached.apk").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        repository.saveApk(TEST_APP_ID, apk.absolutePath)
+        val manager = createManager(policyCenter = OfflinePolicyCenter(), apkVerifier = targetVerifier(2L),
+            fileDownloader = object : FileDownloader {
+                override suspend fun download(request: DownloadRequest, control: DownloadExecutionControl, onEvent: suspend (DownloadEvent) -> Unit) {
+                    fail("Verified cache must not start a download")
+                }
+            })
+        manager.startUpgrade(TEST_APP_ID)
+        assertEquals(UpgradeStatus.NONE, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+        assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+    }
+
+    @Test
+    fun `older cached version cannot bypass offline download policy`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        repository.saveApk(TEST_APP_ID, File(workDir, "old.apk").apply { writeBytes(byteArrayOf(1)) }.absolutePath)
+        createManager(policyCenter = OfflinePolicyCenter(), apkVerifier = targetVerifier(1L)).startUpgrade(TEST_APP_ID)
+        assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+        assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        assertEquals("1.0.0", stateCenter.snapshot(TEST_APP_ID).installedVersion)
+    }
+
+    @Test
+    fun `corrupt cached payload cannot bypass offline download policy`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0")
+        repository.checksumValue = "0".repeat(64)
+        repository.saveApk(TEST_APP_ID, File(workDir, "corrupt.apk").apply { writeBytes(byteArrayOf(1)) }.absolutePath)
+        createManager(policyCenter = OfflinePolicyCenter(), apkVerifier = targetVerifier(2L)).startUpgrade(TEST_APP_ID)
+        assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+        assertEquals(null, repository.stagedVersion)
+    }
+
+    private fun targetVerifier(versionCode: Long) = object : ApkVerifier {
+        override fun verify(apkFile: File, expected: ExpectedApkIdentity, policy: ApkVerificationPolicy) =
+            ApkIdentityValidator.validate(ApkIdentity(expected.packageName, versionCode, "2.0.0", setOf("test-signer")), expected, policy)
+    }
 
     private lateinit var workDir: File
     private lateinit var stateCenter: DefaultStateCenter
@@ -259,6 +305,7 @@ class DefaultUpgradeManagerTest {
         packageInstaller: PackageInstaller? = null,
         pollIntervalMs: Long = 200L,
         waitTimeoutMs: Long = 30L * 60L * 1000L,
+        apkVerifier: ApkVerifier? = null,
     ): DefaultUpgradeManager {
         File(workDir, "test.apk").apply { parentFile?.mkdirs() }
         val effectivePackageInstaller = packageInstaller ?: object : PackageInstaller {
@@ -307,6 +354,7 @@ class DefaultUpgradeManagerTest {
             tracker = QuietTracker(),
             pollIntervalMs = pollIntervalMs,
             waitTimeoutMs = waitTimeoutMs,
+            apkVerifier = apkVerifier,
         )
     }
 
@@ -314,7 +362,7 @@ class DefaultUpgradeManagerTest {
         const val TEST_APP_ID = "test.app"
     }
 
-    private class AllowAllPolicyCenter : PolicyCenter {
+    private open class AllowAllPolicyCenter : PolicyCenter {
         /** 测试策略流。 */
         private val settingsFlow = MutableStateFlow(PolicySettings())
         override fun canDownload(appId: String) = PolicyResult(true)
@@ -326,6 +374,11 @@ class DefaultUpgradeManagerTest {
         override fun updateSettings(settings: PolicySettings) {
             settingsFlow.value = settings
         }
+    }
+
+    private class OfflinePolicyCenter : AllowAllPolicyCenter() {
+        override fun canDownload(appId: String) = PolicyResult(false, "Wi-Fi unavailable")
+        override fun canUpgrade(appId: String) = canDownload(appId)
     }
 
     private class DenyAllPolicyCenter : PolicyCenter {
@@ -355,6 +408,7 @@ class DefaultUpgradeManagerTest {
         var stagedVersion: String? = null
         private val installedAppsList = mutableListOf<InstalledApp>()
         var supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID)
+        var checksumValue: String? = null
 
         fun saveApk(appId: String, path: String) {
             apkPaths[appId] = path
@@ -368,7 +422,8 @@ class DefaultUpgradeManagerTest {
         override suspend fun getAppDetail(appId: String) = AppDetail(
             appId = appId, packageName = "com.nio.$appId", name = "App $appId",
             supportedPlatforms = supportedPlatforms,
-            description = "", versionName = "1.0.0", apkUrl = "https://example.com/$appId.apk",
+            description = "", versionName = "2.0.0", versionCode = 2L, signerCertificateSha256 = listOf("test-signer"), apkUrl = "https://example.com/$appId.apk",
+            checksumType = "SHA-256", checksumValue = checksumValue,
         )
 
         override suspend fun getInstalledApps() = if (installedAppsList.isNotEmpty()) {

@@ -273,6 +273,8 @@ class AppContainer(context: Context) : AppServices {
             logger = logger,
             tracker = eventTracker,
             platformCapabilities = platformCapabilities,
+            apkVerifier = packageIdentityVerifier,
+            apkVerificationPolicy = apkVerificationPolicy,
         )
     }
 
