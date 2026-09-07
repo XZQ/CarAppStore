@@ -4,6 +4,7 @@ import com.xzq.appstore.core.storage.VersionedJsonStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 
 class DownloadStore(private val baseDir: File) {
     /** 返回指定任务的临时目录，不存在时自动创建。 */
@@ -25,6 +26,14 @@ class DownloadStore(private val baseDir: File) {
 
     /** 返回指定任务的 meta 文件路径。 */
     fun getTaskMetaFile(taskId: String): File = File(getTaskTempDir(taskId), "meta.json")
+
+    /** 重建下载方案前清除本任务分片，不按记录中的外部路径执行删除。 */
+    fun clearSegments(taskId: String) {
+        getTaskTempDir(taskId).listFiles()?.filter { it.name.matches(Regex("part-\\d+\\.tmp")) }?.forEach { file ->
+            if (!file.delete() && file.exists()) throw IOException("Unable to clear download segment: ${file.name}")
+        }
+        saveSegments(taskId, emptyList())
+    }
 
     /** 为指定任务创建版本化 JSON store。 */
     private fun metaStore(taskId: String): VersionedJsonStore = VersionedJsonStore(

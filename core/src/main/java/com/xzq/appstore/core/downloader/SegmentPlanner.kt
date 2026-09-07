@@ -16,6 +16,7 @@ class SegmentPlanner(
         totalBytes: Long,
         requestedSegmentCount: Int = 1,
         existingSegments: List<DownloadSegmentRecord> = emptyList(),
+        allowRanges: Boolean = true,
     ): List<DownloadSegmentRecord> {
         // 冷启动恢复时优先复用已有分片，避免重复切片。
         if (existingSegments.isNotEmpty()) {
@@ -42,6 +43,7 @@ class SegmentPlanner(
         }
 
         val suggestedCount = when {
+            !allowRanges -> 1
             requestedSegmentCount > 1 -> requestedSegmentCount
             totalBytes >= LARGE_FILE_THRESHOLD -> SEGMENT_COUNT_FOR_LARGE
             totalBytes >= MEDIUM_FILE_THRESHOLD -> SEGMENT_COUNT_FOR_MEDIUM

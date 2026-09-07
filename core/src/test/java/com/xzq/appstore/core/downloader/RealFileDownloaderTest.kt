@@ -5,6 +5,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -240,7 +241,7 @@ class RealFileDownloaderTest {
     }
 
     @Test
-    fun `download 在续传时收到非 206 响应会归类为 RANGE_NOT_SUPPORTED`() = runBlocking {
+    fun `download 在续传时服务器忽略 Range 会清理分片并完整重下`() = runBlocking {
         val fixture = TestFixture(
             headDelayMs = 0L,
             bodyChunkDelayMs = 0L,
@@ -256,8 +257,8 @@ class RealFileDownloaderTest {
             fixture.downloader.download(fixture.request, DownloadExecutionControl()) { event ->
                 events += event
             }
-            val failed = events.last() as DownloadEvent.Failed
-            assertEquals(DownloadFailureCode.RANGE_NOT_SUPPORTED, failed.code)
+            assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
+            assertArrayEquals(ByteArray(TEST_TOTAL_BYTES.toInt()) { 13 }, fixture.request.targetFile.readBytes())
         }
     }
 
@@ -331,6 +332,7 @@ class RealFileDownloaderTest {
             bodyChunkDelayMs = 0L,
             payload = ByteArray(INCOMPLETE_BODY_BYTES.toInt()) { 29 },
             headContentLength = TEST_TOTAL_BYTES,
+            supportRangeHeader = false,
         )
 
         fixture.use {
@@ -364,6 +366,54 @@ class RealFileDownloaderTest {
             }
             val failed = events.last() as DownloadEvent.Failed
             assertEquals(DownloadFailureCode.MERGE_FAILED, failed.code)
+        }
+    }
+
+    @Test
+    fun `eight MiB multipart download requests byte zero and preserves all bytes`() = runBlocking {
+        val payload = ByteArray(8 * 1024 * 1024) { (it % 251).toByte() }
+        TestFixture(0, 0, payload).use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
+            assertEquals(listOf("bytes=0-4194303", "bytes=4194304-8388607"), fixture.server.receivedHeaderValues("Range"))
+            assertArrayEquals(payload, fixture.request.targetFile.readBytes())
+        }
+    }
+
+    @Test
+    fun `large download without Range support uses one complete response`() = runBlocking {
+        val payload = ByteArray(8 * 1024 * 1024) { (it % 127).toByte() }
+        TestFixture(0, 0, payload, supportRangeHeader = false).use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
+            assertTrue(fixture.server.receivedHeaderValues("Range").isEmpty())
+            assertEquals(1, fixture.store.readSegments(TEST_TASK_ID).size)
+            assertArrayEquals(payload, fixture.request.targetFile.readBytes())
+        }
+    }
+
+    @Test
+    fun `completed segment recovery skips content request`() = runBlocking {
+        val payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 1 }
+        TestFixture(0, 0, payload).use { fixture ->
+            fixture.primePartialSegment(TEST_TOTAL_BYTES, TEST_TOTAL_BYTES)
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
+            assertTrue(fixture.server.receivedHeaderValues("Range").isEmpty())
+            assertArrayEquals(payload, fixture.request.targetFile.readBytes())
+        }
+    }
+
+    @Test
+    fun `incorrect Content-Range is rejected before writing`() = runBlocking {
+        TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt()), contentRangeOverride = "bytes 1-65535/65536").use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            assertEquals(DownloadFailureCode.REMOTE_FILE_CHANGED, (events.last() as DownloadEvent.Failed).code)
+            assertEquals(0, File(fixture.store.readSegments(TEST_TASK_ID).single().tmpFilePath).length())
         }
     }
 
@@ -409,6 +459,7 @@ class RealFileDownloaderTest {
         requestHeaders: Map<String, String> = emptyMap(),
         /** Running 事件发射节流间隔；默认 0 关闭节流，保持既有用例逐块断言的确定性。 */
         runningEventIntervalMs: Long = 0L,
+        contentRangeOverride: String? = null,
     ) : AutoCloseable {
         /** 测试工作目录。 */
         private val workDir = Files.createTempDirectory("real-file-downloader-test").toFile()
@@ -429,6 +480,7 @@ class RealFileDownloaderTest {
             headContentLength = headContentLength,
             headETag = headETag,
             headLastModified = headLastModified,
+            contentRangeOverride = contentRangeOverride,
         )
 
         /** 被测下载器实例。 */
@@ -520,6 +572,7 @@ class RealFileDownloaderTest {
         private val headETag: String?,
         /** HEAD 中返回的 Last-Modified。 */
         private val headLastModified: String?,
+        private val contentRangeOverride: String?,
     ) : AutoCloseable {
         /** 测试服务端监听 socket。 */
         private val serverSocket = ServerSocket(0)
@@ -616,7 +669,7 @@ class RealFileDownloaderTest {
                     put("Content-Type", "application/vnd.android.package-archive")
                     put("Content-Length", body.size.toString())
                     if (effectiveRangeHeader != null) {
-                        put("Content-Range", "bytes ${range.first}-${range.last}/${payload.size}")
+                        put("Content-Range", contentRangeOverride ?: "bytes ${range.first}-${range.last}/${payload.size}")
                     }
                 },
             )

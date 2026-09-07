@@ -82,12 +82,28 @@ class RealFileDownloader(
 
         val probeResult = probeAndResolveTotalBytes(request, control, onEvent) ?: return@withContext
         val (meta, totalBytes) = probeResult
+        downloadSegments(request, meta, totalBytes, control, onEvent)
+    }
 
-        val plannedSegments = preparePlannedSegments(request, totalBytes)
+    /** Range 被服务端忽略时，清理分片并最多降级一次完整下载。 */
+    private suspend fun downloadSegments(
+        request: DownloadRequest,
+        meta: DownloadRemoteMeta,
+        totalBytes: Long,
+        control: DownloadExecutionControl,
+        onEvent: suspend (DownloadEvent) -> Unit,
+    ) {
+        val plannedSegments = preparePlannedSegments(request, totalBytes, meta.supportsRange)
         try {
             val batchResult = executeBatches(request, meta, plannedSegments, totalBytes, control, onEvent)
+            if (meta.supportsRange && batchResult.failedResult?.code == DownloadFailureCode.RANGE_NOT_SUPPORTED &&
+                batchResult.stoppedReason == null && !control.isStopRequested()
+            ) {
+                downloadSegments(request, meta.copy(supportsRange = false), totalBytes, control, onEvent)
+                return
+            }
             if (dispatchBatchOutcome(request, batchResult, totalBytes, control, onEvent)) {
-                return@withContext
+                return
             }
 
             finalizeDownload(request, plannedSegments, batchResult.segmentResults, totalBytes, control, onEvent)
@@ -99,10 +115,11 @@ class RealFileDownloader(
     }
 
     /** 基于元数据与历史分片记录生成本次下载的分片方案，并落盘。 */
-    private fun preparePlannedSegments(request: DownloadRequest, totalBytes: Long): List<DownloadSegmentRecord> {
+    private fun preparePlannedSegments(request: DownloadRequest, totalBytes: Long, supportsRange: Boolean): List<DownloadSegmentRecord> {
         request.targetFile.parentFile?.mkdirs()
         val taskTempDir = store.getTaskTempDir(request.taskId)
         if (!request.targetFile.exists()) request.targetFile.createNewFile()
+        if (!supportsRange) store.clearSegments(request.taskId)
         val existingSegments = store.readSegments(request.taskId)
         val plannedSegments = segmentPlanner.plan(
             taskId = request.taskId,
@@ -110,6 +127,7 @@ class RealFileDownloader(
             totalBytes = totalBytes,
             requestedSegmentCount = REQUESTED_SEGMENT_COUNT,
             existingSegments = existingSegments,
+            allowRanges = supportsRange,
         ).sortedBy { it.index }
         store.saveSegments(request.taskId, plannedSegments)
         // 同步加载内存缓存，后续 saveSegmentRecord 走缓存层，避免热路径全量 JSON 读写。
@@ -184,10 +202,12 @@ class RealFileDownloader(
 
         // 如果远端文件已经变化，就终止当前续传，避免把不同版本文件拼到一起。
         if (request.eTag != null && meta.eTag != null && request.eTag != meta.eTag) {
+            store.clearSegments(request.taskId)
             onEvent(DownloadEvent.Failed(DownloadFailureCode.REMOTE_FILE_CHANGED, DownloaderText.REMOTE_FILE_CHANGED_REDOWNLOAD, false))
             return null
         }
         if (request.lastModified != null && meta.lastModified != null && request.lastModified != meta.lastModified) {
+            store.clearSegments(request.taskId)
             onEvent(DownloadEvent.Failed(DownloadFailureCode.REMOTE_FILE_CHANGED, DownloaderText.REMOTE_FILE_CHANGED_REDOWNLOAD, false))
             return null
         }
@@ -348,7 +368,11 @@ class RealFileDownloader(
         if (!partFile.exists()) partFile.createNewFile()
 
         // 通过已有文件大小和历史记录计算续传起点。
-        val existingBytes = maxOf(segment.downloadedBytes, partFile.length())
+        val expectedLength = if (segment.endByte >= segment.startByte) segment.endByte - segment.startByte + 1 else -1L
+        if (!meta.supportsRange || (expectedLength > 0 && partFile.length() > expectedLength)) {
+            RandomAccessFile(partFile, "rw").use { it.setLength(0) }
+        }
+        val existingBytes = partFile.length()
         val resumeOffset = if (existingBytes > 0L) segment.startByte + existingBytes else segment.startByte
 
         control.currentStopReason()?.let { reason ->
@@ -356,14 +380,9 @@ class RealFileDownloader(
             return SegmentResult(segment.segmentId, false, stopReason = reason, attempts = attempt)
         }
 
-        if (existingBytes > 0L && !meta.supportsRange) {
-            return SegmentResult(
-                segment.segmentId,
-                false,
-                code = DownloadFailureCode.RANGE_NOT_SUPPORTED,
-                message = DownloadFailureCode.RANGE_NOT_SUPPORTED.displayText,
-                attempts = attempt,
-            )
+        if (expectedLength > 0 && existingBytes == expectedLength) {
+            saveSegmentRecord(request, segment, existingBytes, DownloaderText.STATUS_COMPLETED, attempt)
+            return SegmentResult(segment.segmentId, true, attempts = attempt)
         }
 
         saveSegmentRecord(
@@ -377,13 +396,13 @@ class RealFileDownloader(
         // 根据分片起止字节发起 Range 请求。
         val connection = openConnection(
             request.url,
-            rangeStart = if (resumeOffset > 0L) resumeOffset else null,
+            rangeStart = if (meta.supportsRange) resumeOffset else null,
             rangeEnd = if (segment.endByte >= segment.startByte) segment.endByte else null,
         )
         val removeInterrupt = control.registerInterrupt { connection.disconnect() }
 
         return try {
-            transferSegmentBytes(connection, partFile, existingBytes, request, segment, attempt, control, onProgress)
+            transferSegmentBytes(connection, partFile, existingBytes, request, segment, attempt, control, meta.supportsRange, onProgress)
         } catch (e: SocketTimeoutException) {
             handleSegmentError(e, existingBytes, partFile, request, segment, attempt, control)
         } catch (e: IOException) {
@@ -403,15 +422,22 @@ class RealFileDownloader(
         segment: DownloadSegmentRecord,
         attempt: Int,
         control: DownloadExecutionControl,
+        requestedRange: Boolean,
         onProgress: suspend (speedBytesPerSec: Long) -> Unit,
     ): SegmentResult {
         control.currentStopReason()?.let { reason ->
             saveSegmentRecord(request, segment, existingBytes, stopStatus(reason), retryCount = attempt)
             return SegmentResult(segment.segmentId, false, stopReason = reason, attempts = attempt)
         }
-        val codeError = interpretResponseCode(connection.responseCode, existingBytes, segment, attempt)
+        val codeError = interpretResponseCode(connection.responseCode, segment, attempt)
         if (codeError != null) {
             return codeError
+        }
+        if (requestedRange) {
+            val rangeError = validateRangeResponse(connection, existingBytes, segment, attempt)
+            if (rangeError != null) return rangeError
+        } else if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+            return SegmentResult(segment.segmentId, false, code = DownloadFailureCode.RANGE_NOT_SUPPORTED, message = DownloaderText.RANGE_RESPONSE_INVALID, attempts = attempt)
         }
 
         // 从输入流写入分片文件，实时上报进度。
@@ -433,15 +459,7 @@ class RealFileDownloader(
     }
 
     /** 按响应码归一化失败原因，返回 null 表示响应正常可以继续下载。 */
-    private fun interpretResponseCode(code: Int, existingBytes: Long, segment: DownloadSegmentRecord, attempt: Int): SegmentResult? = when {
-        existingBytes > 0L && code != HttpURLConnection.HTTP_PARTIAL -> SegmentResult(
-            segment.segmentId,
-            false,
-            code = DownloadFailureCode.RANGE_NOT_SUPPORTED,
-            message = DownloaderText.RANGE_RESPONSE_INVALID,
-            attempts = attempt,
-        )
-
+    private fun interpretResponseCode(code: Int, segment: DownloadSegmentRecord, attempt: Int): SegmentResult? = when {
         code in HTTP_SUCCESS_RANGE -> null
 
         // 416 Requested Range Not Satisfiable：续传 offset 越界（远端文件已变 / 已完整下载），
@@ -473,7 +491,20 @@ class RealFileDownloader(
             attempts = attempt,
         )
 
-        else -> null
+        else -> SegmentResult(segment.segmentId, false, code = DownloadFailureCode.HTTP_4XX, message = "Unexpected HTTP $code", attempts = attempt)
+    }
+
+    /** 校验服务器实际返回的字节区间，避免把错位数据拼入 APK。 */
+    private fun validateRangeResponse(connection: HttpURLConnection, existingBytes: Long, segment: DownloadSegmentRecord, attempt: Int): SegmentResult? {
+        if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+            return SegmentResult(segment.segmentId, false, code = DownloadFailureCode.RANGE_NOT_SUPPORTED, message = DownloaderText.RANGE_RESPONSE_INVALID, attempts = attempt)
+        }
+        val range = CONTENT_RANGE_PATTERN.matchEntire(connection.getHeaderField("Content-Range").orEmpty())
+        val start = range?.groupValues?.get(1)?.toLongOrNull()
+        val end = range?.groupValues?.get(2)?.toLongOrNull()
+        val valid = connection.responseCode == HttpURLConnection.HTTP_PARTIAL && start == segment.startByte + existingBytes &&
+            end != null && end >= start && (segment.endByte < segment.startByte || end == segment.endByte)
+        return if (valid) null else SegmentResult(segment.segmentId, false, code = DownloadFailureCode.REMOTE_FILE_CHANGED, message = DownloaderText.RANGE_RESPONSE_INVALID, attempts = attempt)
     }
 
     /** 从输入流持续写入分片文件，遇到停止请求时提前返回失败结果。 */
@@ -495,6 +526,10 @@ class RealFileDownloader(
             control.currentStopReason()?.let { reason ->
                 saveSegmentRecord(request, segment, segmentDownloaded, stopStatus(reason), retryCount = attempt)
                 return SegmentResult(segment.segmentId, false, stopReason = reason, attempts = attempt)
+            }
+            val expectedLength = segment.endByte - segment.startByte + 1
+            if (segment.endByte >= segment.startByte && read.toLong() > expectedLength - segmentDownloaded) {
+                return SegmentResult(segment.segmentId, false, code = DownloadFailureCode.FILE_INCOMPLETE, message = "Segment response exceeds requested length", attempts = attempt)
             }
             out.write(buffer, 0, read)
             segmentDownloaded += read
@@ -753,6 +788,7 @@ class RealFileDownloader(
     }
 
     private companion object {
+        val CONTENT_RANGE_PATTERN = Regex("bytes (\\d+)-(\\d+)/(?:\\d+|\\*)", RegexOption.IGNORE_CASE)
         /** 默认连接超时时间。 */
         const val DEFAULT_CONNECT_TIMEOUT_MS = 10_000
 
