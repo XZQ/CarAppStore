@@ -19,12 +19,15 @@ import com.xzq.appstore.domain.state.InstallStatus
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.text.BusinessText
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -83,7 +86,13 @@ class DefaultDownloadManager(
     init {
         // 下载管理器初始化时立即恢复上次持久化任务，保证冷启动后状态连续。
         scope.launch {
-            restorePersistedTasks()
+            try {
+                restorePersistedTasks()
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                logger.w("DownloadManager", "Unable to restore download tasks", failure)
+            }
         }
     }
 
@@ -98,8 +107,12 @@ class DefaultDownloadManager(
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 executeDownload(appId, control)
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                reportExecutionFailure(appId, failure)
             } finally {
-                unregisterExecution(appId, control)
+                withContext(NonCancellable) { unregisterExecution(appId, control) }
             }
         }
         val execution = ActiveDownloadExecution(control = control, job = job)
@@ -109,16 +122,26 @@ class DefaultDownloadManager(
             logger.d("DownloadManager", "ignore duplicate start: $appId")
             return
         }
-        stateCenter.resetError(appId)
-        stateCenter.updateDownload(
-            appId = appId,
-            status = DownloadStatus.WAITING,
-            progress = repository.getDownloadTask(appId)?.progress ?: stateCenter.snapshot(appId).progress,
-            localApkPath = null,
-            errorMessage = null,
-            errorCode = null,
-        )
-        job.start()
+        try {
+            stateCenter.resetError(appId)
+            stateCenter.updateDownload(
+                appId = appId,
+                status = DownloadStatus.WAITING,
+                progress = repository.getDownloadTask(appId)?.progress ?: stateCenter.snapshot(appId).progress,
+                localApkPath = null,
+                errorMessage = null,
+                errorCode = null,
+            )
+            job.start()
+        } catch (canceled: CancellationException) {
+            job.cancel()
+            withContext(NonCancellable) { unregisterExecution(appId, control) }
+            throw canceled
+        } catch (failure: Exception) {
+            job.cancel()
+            unregisterExecution(appId, control)
+            reportExecutionFailure(appId, failure)
+        }
     }
 
     /** 将指定下载任务切换为暂停状态。 */
@@ -250,25 +273,26 @@ class DefaultDownloadManager(
             }
             val (detail, targetFile, prepared) = prepareDownloadRecord(appId) ?: return
             val request = buildDownloadRequest(prepared, detail, targetFile)
-            try {
-                fileDownloader.download(request, control) { event ->
-                    handleDownloadEvent(appId, prepared, control, event)
-                }
-            } catch (t: Throwable) {
-                if (control.isStopRequested()) {
-                    return
-                }
-                // 兜底处理下载器未归一化的异常，避免任务停留在中间状态。
-                logger.d("DownloadManager", "download failed: $appId, ${t.message}")
-                markFailed(
-                    appId = appId,
-                    record = repository.getDownloadTask(appId) ?: prepared,
-                    errorCode = DownloadFailureCode.UNKNOWN.name,
-                    errorMessage = t.message ?: DownloadFailureCode.UNKNOWN.displayText,
-                )
+            fileDownloader.download(request, control) { event ->
+                handleDownloadEvent(appId, prepared, control, event)
             }
         } finally {
             downloadConcurrencySemaphore.release()
+        }
+    }
+
+    /** 覆盖策略、目录、文件准备及执行异常；持久化故障仍须终止页面等待态。 */
+    private suspend fun reportExecutionFailure(appId: String, failure: Exception) {
+        logger.w("DownloadManager", "Download execution failed: $appId", failure)
+        val message = failure.message ?: DownloadFailureCode.UNKNOWN.displayText
+        try {
+            markFailed(appId, repository.getDownloadTask(appId), DownloadFailureCode.UNKNOWN.name, message)
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (persistenceFailure: Exception) {
+            logger.w("DownloadManager", "Unable to persist failed download: $appId", persistenceFailure)
+            stateCenter.updateDownload(appId, DownloadStatus.FAILED, progress = stateCenter.snapshot(appId).progress,
+                localApkPath = null, errorMessage = message, errorCode = DownloadFailureCode.UNKNOWN.name)
         }
     }
 

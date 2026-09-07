@@ -29,15 +29,44 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class DefaultDownloadManagerTest {
+    @Test
+    fun `preparation failures terminate waiting and preserve throwable diagnostics`() = runBlocking {
+        val failure = IOException("catalog item removed")
+        val harness = TestHarness(configureRepository = { detailFailure = failure })
+        harness.manager.startDownload(TEST_APP_ID)
+        waitUntil { harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.FAILED }
+        assertEquals("catalog item removed", harness.stateCenter.snapshot(TEST_APP_ID).errorMessage)
+        assertSame(failure, harness.logger.lastFailure)
+        assertEquals(0, harness.downloader.startCount.get())
+
+        harness.repository.detailFailure = null
+        harness.manager.startDownload(TEST_APP_ID)
+        assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        harness.manager.cancelDownload(TEST_APP_ID)
+        waitUntil { harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED }
+    }
+
+    @Test
+    fun `file preparation failure does not escape background job`() = runBlocking {
+        val failure = IOException("disk unavailable")
+        val harness = TestHarness(configureRepository = { fileFailure = failure })
+        harness.manager.startDownload(TEST_APP_ID)
+        waitUntil { harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.FAILED }
+        assertSame(failure, harness.logger.lastFailure)
+        assertEquals(0, harness.downloader.startCount.get())
+    }
+
     @Test
     fun `startDownload blocks catalog entries for other platforms`() = runBlocking {
         val harness = TestHarness(configureRepository = {
@@ -357,6 +386,7 @@ class DefaultDownloadManagerTest {
 
         /** 当前测试使用的状态中心实现。 */
         val stateCenter = DefaultStateCenter()
+        val logger = QuietLogger()
 
         /** 可控的下载器替身，用于模拟运行中、暂停和取消。 */
         val downloader = ControllableFileDownloader(runningEventCount)
@@ -376,7 +406,7 @@ class DefaultDownloadManagerTest {
                 stateCenter = stateCenter,
                 policyCenter = AllowAllPolicyCenter(),
                 fileDownloader = downloader,
-                logger = QuietLogger(),
+                logger = logger,
                 tracker = QuietTracker(),
                 dispatcher = dispatcher,
             )
@@ -407,7 +437,9 @@ class DefaultDownloadManagerTest {
 
     /** 静默日志器，避免 JVM 单测中触发 Android Log。 */
     private class QuietLogger : AppLogger() {
+        var lastFailure: Throwable? = null
         override fun d(tag: String, message: String) = Unit
+        override fun w(tag: String, message: String, throwable: Throwable?) { lastFailure = throwable }
     }
 
     /** 静默打点器，避免 JVM 单测中触发 Android Log。 */
@@ -473,6 +505,8 @@ class DefaultDownloadManagerTest {
 
         /** 当前测试目录声明的平台集合。 */
         var supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID)
+        var detailFailure: Exception? = null
+        var fileFailure: Exception? = null
 
         /** 下载任务记录表。 */
         private val downloadTasks = linkedMapOf<String, DownloadTaskRecord>()
@@ -494,7 +528,10 @@ class DefaultDownloadManagerTest {
 
         override suspend fun getHomeApps(): List<AppInfo> = emptyList()
 
-        override suspend fun getAppDetail(appId: String): AppDetail = detail.copy(supportedPlatforms = supportedPlatforms)
+        override suspend fun getAppDetail(appId: String): AppDetail {
+            detailFailure?.let { throw it }
+            return detail.copy(supportedPlatforms = supportedPlatforms)
+        }
 
         override suspend fun getInstalledApps(): List<InstalledApp> = emptyList()
 
@@ -553,6 +590,7 @@ class DefaultDownloadManagerTest {
         override suspend fun getDownloadSegments(appId: String): List<DownloadSegmentRecord> = downloadSegments[appId].orEmpty()
 
         override suspend fun getOrCreateDownloadFile(appId: String): File {
+            fileFailure?.let { throw it }
             val downloadsDir = File(workDir, "downloads").apply { mkdirs() }
             return File(downloadsDir, "$appId.apk")
         }
