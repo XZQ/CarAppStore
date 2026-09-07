@@ -3,6 +3,8 @@ package com.xzq.appstore.app
 import android.content.Intent
 import android.content.ActivityNotFoundException
 import android.os.Bundle
+import android.net.Uri
+import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
@@ -10,6 +12,7 @@ import android.widget.Toast
 import com.xzq.appstore.core.logger.AppLogger
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -20,7 +23,6 @@ import com.xzq.appstore.common.base.AppContainerProvider
 import com.xzq.appstore.common.navigation.MainNavigator
 import com.xzq.appstore.data.model.TaskCenterStats
 import com.xzq.appstore.databinding.ActivityMainBinding
-import com.xzq.appstore.feature.debug.DeveloperSettingsFragment
 import com.xzq.appstore.feature.detail.DetailFragment
 import com.xzq.appstore.feature.downloadmanager.DownloadManagerFragment
 import com.xzq.appstore.feature.home.HomeFragment
@@ -129,12 +131,35 @@ class MainActivity : AppCompatActivity(), MainNavigator {
 
     /** 打开开发设置页。 */
     override fun openDeveloperSettings() {
+        if (!BuildConfig.DEBUG) return
+        val destination = DeveloperSettingsDestination.create() ?: return
         navigateTo(
-            fragment = DeveloperSettingsFragment.newInstance(),
+            fragment = destination,
             titleRes = R.string.title_developer_settings,
             tag = TAG_DEBUG,
             selectedButton = optionalButton(R.id.btnNavDebug),
         )
+    }
+
+    override fun openAppSettings() {
+        val labels = arrayOf(getString(R.string.settings_network), getString(R.string.settings_storage), getString(R.string.settings_install_permission))
+        AlertDialog.Builder(this)
+            .setTitle(R.string.title_app_settings)
+            .setItems(labels) { _, which ->
+                val intent = when (which) {
+                    0 -> Intent(Settings.ACTION_WIFI_SETTINGS)
+                    1 -> Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)
+                    else -> Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+                }
+                try {
+                    startActivity(intent)
+                } catch (failure: ActivityNotFoundException) {
+                    AppLogger().w("MainActivity", "System settings unavailable", failure)
+                    Toast.makeText(this, R.string.settings_unavailable, Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** 打开应用详情页。 */

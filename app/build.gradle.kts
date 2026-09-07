@@ -87,10 +87,12 @@ android {
         buildConfig = true
         viewBinding = true
     }
+
+    testOptions.unitTests.isIncludeAndroidResources = true
 }
 
 dependencies {
-    implementation(project(":feature-debug"))
+    debugImplementation(project(":feature-debug"))
     implementation(project(":feature-installcenter"))
     implementation(project(":feature-upgrade"))
     implementation(project(":feature-downloadmanager"))
@@ -114,4 +116,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.livedata.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
 }

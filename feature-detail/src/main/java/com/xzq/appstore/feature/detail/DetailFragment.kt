@@ -58,7 +58,7 @@ class DetailFragment : BaseFragment() {
         binding.btnBackHome.setOnClickListener { navigator.openHome() }
         binding.includeDetailAppInfo.policyIntercept.btnInterceptAction.setOnClickListener {
             appServices.eventTracker.track("policy_intercept_open_settings")
-            navigator.openDeveloperSettings()
+            navigator.openAppSettings()
         }
     }
 

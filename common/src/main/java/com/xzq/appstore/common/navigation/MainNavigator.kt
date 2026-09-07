@@ -25,6 +25,9 @@ interface MainNavigator {
     /** 切换到开发设置页。 */
     fun openDeveloperSettings()
 
+    /** 打开网络、存储和安装权限等正式设置入口。 */
+    fun openAppSettings()
+
     /** 打开指定应用详情页。 */
     fun openDetail(appId: String)
 
