@@ -20,6 +20,7 @@ import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.text.BusinessText
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +69,9 @@ class DefaultDownloadManager(
 
     /** 当前仍在执行中的下载任务。 */
     private val activeExecutions = mutableMapOf<String, ActiveDownloadExecution>()
+    /** 同一应用的用户命令串行执行，防止准备与暂停/删除互相覆盖。 */
+    private val commandLocks = ConcurrentHashMap<String, Mutex>()
+    private val restorationComplete = CompletableDeferred<Unit>()
 
     /** RUNNING 态落盘节流标记：记录每个应用最近一次落盘的进度与时间。 */
     private data class RunningPersistMark(val progress: Int, val atNanos: Long)
@@ -81,6 +85,8 @@ class DefaultDownloadManager(
         val control: DownloadExecutionControl,
         /** 当前下载任务对应的后台协程。 */
         val job: Job,
+        /** 由 executionMutex 保护，只有取得下载名额后才置 true。 */
+        var enteredSlot: Boolean = false,
     )
 
     init {
@@ -92,6 +98,8 @@ class DefaultDownloadManager(
                 throw canceled
             } catch (failure: Exception) {
                 logger.w("DownloadManager", "Unable to restore download tasks", failure)
+            } finally {
+                restorationComplete.complete(Unit)
             }
         }
     }
@@ -101,18 +109,35 @@ class DefaultDownloadManager(
      *
      * 当前实现会先注册活动任务，再在后台协程中执行真正的下载流程。
      */
-    override suspend fun startDownload(appId: String) {
+    override suspend fun startDownload(appId: String) = withCommandLock(appId) { enqueueDownload(appId) }
+
+    private suspend fun withCommandLock(appId: String, command: suspend () -> Unit) {
+        require(appId.isNotBlank()) { "appId 不能为空" }
+        restorationComplete.await()
+        commandLocks.computeIfAbsent(appId) { Mutex() }.withLock { command() }
+    }
+
+    private suspend fun enqueueDownload(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
         val control = DownloadExecutionControl()
+        lateinit var prepared: Triple<AppDetail, File, DownloadTaskRecord>
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
-                executeDownload(appId, control)
+                executeDownload(appId, control, prepared)
             } catch (canceled: CancellationException) {
                 throw canceled
             } catch (failure: Exception) {
-                reportExecutionFailure(appId, failure)
+                if (!control.isStopRequested()) reportExecutionFailure(appId, failure)
             } finally {
-                withContext(NonCancellable) { unregisterExecution(appId, control) }
+                withContext(NonCancellable) {
+                    try {
+                        persistRequestedStop(appId, control)
+                    } catch (failure: Exception) {
+                        reportExecutionFailure(appId, failure)
+                    } finally {
+                        unregisterExecution(appId, control)
+                    }
+                }
             }
         }
         val execution = ActiveDownloadExecution(control = control, job = job)
@@ -123,15 +148,14 @@ class DefaultDownloadManager(
             return
         }
         try {
-            stateCenter.resetError(appId)
-            stateCenter.updateDownload(
-                appId = appId,
-                status = DownloadStatus.WAITING,
-                progress = repository.getDownloadTask(appId)?.progress ?: stateCenter.snapshot(appId).progress,
-                localApkPath = null,
-                errorMessage = null,
-                errorCode = null,
-            )
+            // 创建并持久化 WAITING 记录后才进入并发队列，进程退出也能恢复任务。
+            val preparation = prepareDownloadRecord(appId)
+            if (preparation == null) {
+                job.cancel()
+                unregisterExecution(appId, control)
+                return
+            }
+            prepared = preparation
             job.start()
         } catch (canceled: CancellationException) {
             job.cancel()
@@ -145,11 +169,18 @@ class DefaultDownloadManager(
     }
 
     /** 将指定下载任务切换为暂停状态。 */
-    override suspend fun pauseDownload(appId: String) {
+    override suspend fun pauseDownload(appId: String) = withCommandLock(appId) { pauseDownloadInternal(appId) }
+
+    private suspend fun pauseDownloadInternal(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
-        val execution = getActiveExecution(appId)
+        val execution = requestStop(appId, DownloadStopReason.PAUSED)
         if (execution != null) {
-            execution.control.requestPause()
+            if (!execution.enteredSlot) {
+                execution.job.join()
+                persistRequestedStop(appId, execution.control)
+                unregisterExecution(appId, execution.control)
+                return
+            }
             val currentRecord = repository.getDownloadTask(appId)
             val progress = currentRecord?.progress ?: stateCenter.snapshot(appId).progress
             stateCenter.updateDownload(appId, DownloadStatus.PAUSED, progress = progress)
@@ -161,7 +192,9 @@ class DefaultDownloadManager(
     }
 
     /** 恢复处于暂停、失败或取消状态的下载任务。 */
-    override suspend fun resumeDownload(appId: String) {
+    override suspend fun resumeDownload(appId: String) = withCommandLock(appId) { resumeDownloadInternal(appId) }
+
+    private suspend fun resumeDownloadInternal(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
         val execution = getActiveExecution(appId)
         if (execution != null) {
@@ -174,16 +207,23 @@ class DefaultDownloadManager(
         }
         val record = repository.getDownloadTask(appId)
         if (record == null || record.status == DownloadStatus.PAUSED || record.status == DownloadStatus.FAILED || record.status == DownloadStatus.CANCELED) {
-            startDownload(appId)
+            enqueueDownload(appId)
         }
     }
 
     /** 取消下载任务，并清理 APK 路径与分片信息。 */
-    override suspend fun cancelDownload(appId: String) {
+    override suspend fun cancelDownload(appId: String) = withCommandLock(appId) { cancelDownloadInternal(appId) }
+
+    private suspend fun cancelDownloadInternal(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
-        val execution = getActiveExecution(appId)
+        val execution = requestStop(appId, DownloadStopReason.CANCELED)
         if (execution != null) {
-            execution.control.requestCancel()
+            if (!execution.enteredSlot) {
+                execution.job.join()
+                persistRequestedStop(appId, execution.control)
+                unregisterExecution(appId, execution.control)
+                return
+            }
             stateCenter.updateDownload(
                 appId = appId,
                 status = DownloadStatus.CANCELED,
@@ -221,8 +261,15 @@ class DefaultDownloadManager(
     }
 
     /** 删除下载任务，并根据参数决定是否一起删除本地文件。 */
-    override suspend fun removeTask(appId: String, clearFile: Boolean) {
+    override suspend fun removeTask(appId: String, clearFile: Boolean) = withCommandLock(appId) {
+        removeTaskInternal(appId, clearFile)
+    }
+
+    private suspend fun removeTaskInternal(appId: String, clearFile: Boolean) {
         require(appId.isNotBlank()) { "appId 不能为空" }
+        val active = requestStop(appId, if (clearFile) DownloadStopReason.CANCELED else DownloadStopReason.PAUSED)
+        active?.job?.join()
+        if (active != null) unregisterExecution(appId, active.control)
         val snapshot = stateCenter.snapshot(appId)
         if (clearFile) {
             repository.clearDownloadedApk(appId)
@@ -264,20 +311,50 @@ class DefaultDownloadManager(
     }
 
     /** 在后台协程中真正执行一次下载流程，编排准备、请求构建和事件消费三个阶段。 */
-    private suspend fun executeDownload(appId: String, control: DownloadExecutionControl) {
+    private suspend fun executeDownload(appId: String, control: DownloadExecutionControl, preparation: Triple<AppDetail, File, DownloadTaskRecord>) {
         // 先争用并发槽位：未取得许可的任务保持在 WAITING 态排队，直到有下载槽位空出。
         downloadConcurrencySemaphore.acquire()
         try {
-            if (control.isStopRequested()) {
+            val entered = executionMutex.withLock {
+                if (control.isStopRequested()) false else {
+                    activeExecutions[appId]?.enteredSlot = true
+                    true
+                }
+            }
+            if (!entered) {
                 return
             }
-            val (detail, targetFile, prepared) = prepareDownloadRecord(appId) ?: return
+            val (detail, targetFile, prepared) = preparation
+            val policy = policyCenter.canDownload(appId)
+            if (!policy.allow) {
+                markFailed(appId, prepared, DownloadFailureCode.UNKNOWN.name, BusinessText.downloadRestricted(policy.reason))
+                return
+            }
             val request = buildDownloadRequest(prepared, detail, targetFile)
             fileDownloader.download(request, control) { event ->
                 handleDownloadEvent(appId, prepared, control, event)
             }
         } finally {
             downloadConcurrencySemaphore.release()
+        }
+    }
+
+    /** 排队停止直接取消可挂起的名额等待，运行中的任务由下载器检查点收尾。 */
+    private suspend fun requestStop(appId: String, reason: DownloadStopReason): ActiveDownloadExecution? = executionMutex.withLock {
+        activeExecutions[appId]?.also { execution ->
+            if (reason == DownloadStopReason.PAUSED) execution.control.requestPause() else execution.control.requestCancel()
+            if (!execution.enteredSlot) execution.job.cancel()
+        }
+    }
+
+    private suspend fun persistRequestedStop(appId: String, control: DownloadExecutionControl) {
+        val reason = control.currentStopReason() ?: return
+        val record = repository.getDownloadTask(appId) ?: return
+        when (reason) {
+            DownloadStopReason.PAUSED -> if (record.status != DownloadStatus.PAUSED && record.status != DownloadStatus.COMPLETED) {
+                markPaused(appId, record, record.downloadedBytes, record.totalBytes)
+            }
+            DownloadStopReason.CANCELED -> if (record.status != DownloadStatus.CANCELED) markCanceled(appId, record)
         }
     }
 
@@ -526,13 +603,13 @@ class DefaultDownloadManager(
                 shouldAutoResume(task, preferences) -> {
                     // 自动恢复用于处理上次中断但仍可续传的任务。
                     logger.d("DownloadManager", "auto resume download: ${task.appId}")
-                    startDownload(task.appId)
+                    enqueueDownload(task.appId)
                 }
 
                 shouldAutoRetry(task, preferences) -> {
                     // 自动重试用于处理可重试失败态，避免用户每次冷启动都手动操作。
                     logger.d("DownloadManager", "auto retry download: ${task.appId}")
-                    startDownload(task.appId)
+                    enqueueDownload(task.appId)
                 }
             }
         }

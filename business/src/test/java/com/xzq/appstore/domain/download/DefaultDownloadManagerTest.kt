@@ -26,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -40,6 +41,38 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class DefaultDownloadManagerTest {
+    @Test
+    fun `queued task persists and pause resume cancel return while slot remains busy`() = runBlocking {
+        val harness = TestHarness(maxConcurrentDownloads = 1)
+        harness.manager.startDownload(TEST_APP_ID)
+        harness.manager.startDownload("queued.app")
+        assertEquals(DownloadStatus.WAITING, harness.repository.getDownloadTask("queued.app")?.status)
+        assertEquals(1, harness.downloader.startCount.get())
+        withTimeout(1_000) {
+            harness.manager.pauseDownload("queued.app")
+            assertEquals(DownloadStatus.PAUSED, harness.repository.getDownloadTask("queued.app")?.status)
+            harness.manager.resumeDownload("queued.app")
+            assertEquals(DownloadStatus.WAITING, harness.repository.getDownloadTask("queued.app")?.status)
+            harness.manager.cancelDownload("queued.app")
+        }
+        assertEquals(DownloadStatus.CANCELED, harness.repository.getDownloadTask("queued.app")?.status)
+        assertEquals(1, harness.downloader.startCount.get())
+        harness.manager.cancelDownload(TEST_APP_ID)
+        waitUntil { harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED }
+    }
+
+    @Test
+    fun `removing queued task prevents it from starting or reappearing`() = runBlocking {
+        val harness = TestHarness(maxConcurrentDownloads = 1)
+        harness.manager.startDownload(TEST_APP_ID)
+        harness.manager.startDownload("queued.app")
+        withTimeout(1_000) { harness.manager.removeTask("queued.app", clearFile = true) }
+        assertNull(harness.repository.getDownloadTask("queued.app"))
+        harness.manager.cancelDownload(TEST_APP_ID)
+        waitUntil { harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED }
+        assertEquals(1, harness.downloader.startCount.get())
+        assertNull(harness.repository.getDownloadTask("queued.app"))
+    }
     @Test
     fun `preparation failures terminate waiting and preserve throwable diagnostics`() = runBlocking {
         val failure = IOException("catalog item removed")
@@ -377,6 +410,7 @@ class DefaultDownloadManagerTest {
         configureRepository: suspend FakeRepository.() -> Unit = {},
         /** 下载器替身每次启动发射的 Running 事件数量。 */
         runningEventCount: Int = 1,
+        maxConcurrentDownloads: Int = 3,
     ) {
         /** 每个测试对应的临时工作目录。 */
         val workDir: File = Files.createTempDirectory("download-manager-test").toFile()
@@ -409,6 +443,7 @@ class DefaultDownloadManagerTest {
                 logger = logger,
                 tracker = QuietTracker(),
                 dispatcher = dispatcher,
+                maxConcurrentDownloads = maxConcurrentDownloads,
             )
         }
     }
