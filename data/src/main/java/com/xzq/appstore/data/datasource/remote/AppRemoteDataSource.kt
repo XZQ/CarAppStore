@@ -28,6 +28,8 @@ class AppRemoteDataSource(
     private val monotonicClockNanos: () -> Long = System::nanoTime,
 ) {
     private val catalogChannel = catalogRequestHeaders["X-Client-Channel"].orEmpty()
+    private val installationIdStore = CatalogInstallationIdStore(context.applicationContext.noBackupFilesDir)
+    private val installationId by lazy { installationIdStore.getOrCreate() }
 
     /** 远端目录读取器。 */
     private val catalogLoader = AppRemoteCatalogLoader(context)
@@ -101,7 +103,11 @@ class AppRemoteDataSource(
         if (cached != null && elapsedNanos >= 0L && elapsedNanos < CATALOG_CACHE_TTL_NANOS) {
             return@withLock cached
         }
-        val fresh = loadCatalog().filter { item -> item.governance.isVisible(item.appId, catalogChannel) }
+        val fresh = loadCatalog().filter { item ->
+            val releaseId = item.appDetail.versionCode.takeIf { it > 0 }?.let { "code:$it" }
+                ?: "name:${item.appDetail.versionName}"
+            item.governance.isVisible(item.appId, catalogChannel, installationId, releaseId)
+        }
         cachedVisibleCatalog = fresh
         cachedVisibleCatalogAtNanos = nowNanos
         fresh
