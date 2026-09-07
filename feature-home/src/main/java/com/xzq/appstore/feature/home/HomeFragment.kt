@@ -13,10 +13,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.xzq.appstore.common.base.BaseFragment
+import com.xzq.appstore.common.navigation.CatalogSection
 import com.xzq.appstore.common.ui.AppImageLoader
 import com.xzq.appstore.common.ui.CarUiStyle
 import com.xzq.appstore.common.ui.applyActionStyle
 import com.xzq.appstore.data.model.AppViewData
+import com.xzq.appstore.data.model.CatalogQuery
+import com.xzq.appstore.domain.appmanager.AppCatalogFilter
 import com.xzq.appstore.feature.home.databinding.FragmentHomeBinding
 import kotlinx.coroutines.launch
 import com.xzq.appstore.common.R as CommonR
@@ -52,18 +55,20 @@ class HomeFragment : BaseFragment() {
     }
 
     private fun bindStaticClicks() {
-        binding.tvHomeSearch.setOnClickListener { navigator.openSearch() }
-        binding.entryCategory.setOnClickListener { navigator.openSearch() }
-        binding.entryRank.setOnClickListener { navigator.openSearch() }
-        binding.entryEssential.setOnClickListener { navigator.openSearch() }
-        binding.entryFactory.setOnClickListener { navigator.openMyApps() }
-        listOf(
-            findView<TextView>(HomeR.id.tvTodayMore),
-            findView<TextView>(HomeR.id.tvRankMore),
-            findView<TextView>(HomeR.id.tvGamesMore),
-            findView<TextView>(HomeR.id.tvReservationMore),
-            binding.tvActivityMore,
-        ).forEach { more -> more.setOnClickListener { navigator.openSearch() } }
+        binding.tvHomeSearch.setOnClickListener { navigator.openCatalog(CatalogSection.Category) }
+        binding.entryCategory.setOnClickListener { navigator.openCatalog(CatalogSection.Category) }
+        binding.entryRank.setOnClickListener { navigator.openCatalog(CatalogSection.Rank) }
+        binding.entryEssential.setOnClickListener { navigator.openCatalog(CatalogSection.Essential) }
+        binding.entryFactory.setText(CommonR.string.ui_activity)
+        binding.entryFactory.setOnClickListener { navigator.openCatalog(CatalogSection.Activity) }
+        findView<TextView>(HomeR.id.tvTodayMore).setOnClickListener { navigator.openCatalog(CatalogSection.Category) }
+        findView<TextView>(HomeR.id.tvRankMore).setOnClickListener { navigator.openCatalog(CatalogSection.Rank) }
+        findView<TextView>(HomeR.id.tvGamesMore).setOnClickListener { navigator.openCatalog(CatalogSection.Game) }
+        findView<TextView>(HomeR.id.tvReservationMore).setOnClickListener { navigator.openCatalog(CatalogSection.Software) }
+        binding.carouselPanel.setOnClickListener { navigator.openCatalog(CatalogSection.Category) }
+        // 目录尚无促销权益数据，不展示无法兑现的入口。
+        binding.limitedActivitySection.visibility = View.GONE
+        binding.tvHomeNotice.visibility = View.GONE
     }
 
     private fun observeState() {
@@ -94,23 +99,18 @@ class HomeFragment : BaseFragment() {
             return
         }
         renderedApps = apps
-        renderVerticalApps(findView(HomeR.id.listTodayRecommend), pickApps(apps, start = INDEX_TODAY_START, count = COUNT_TODAY), showIndex = false)
-        renderVerticalApps(findView(HomeR.id.listHotRank), pickApps(apps, start = INDEX_RANK_START, count = COUNT_RANK), showIndex = true)
-        renderHorizontalApps(findView(HomeR.id.rowHotGames), pickApps(apps, start = INDEX_GAMES_START, count = COUNT_GAMES))
-        renderHorizontalApps(findView(HomeR.id.rowNewGames), pickApps(apps, start = INDEX_NEW_GAMES_START, count = COUNT_GAMES))
+        renderVerticalApps(findView(HomeR.id.listTodayRecommend), apps.distinctBy { it.appId }.take(COUNT_TODAY), showIndex = false)
+        val ranked = AppCatalogFilter.select(apps, CatalogQuery(section = CatalogSection.Rank)).take(COUNT_RANK)
+        val games = AppCatalogFilter.select(apps, CatalogQuery(section = CatalogSection.Game)).take(COUNT_GAMES)
+        renderVerticalApps(findView(HomeR.id.listHotRank), ranked, showIndex = true)
+        renderHorizontalApps(findView(HomeR.id.rowHotGames), games)
+        renderHorizontalApps(findView(HomeR.id.rowNewGames), AppCatalogFilter.select(apps, CatalogQuery(section = CatalogSection.Software)).take(COUNT_GAMES))
     }
 
     // Fragment 同时支持 mobile(sw600) 和 desktop(sw900dp-land) 两套 layout；
     // mobile 用 include 复用 4 个 section，desktop 直接展开。统一通过 binding.root.findViewById
     // 访问 4 个 section 内的容器是处理双布局差异的最小侵入方式。
     private fun <T : View> findView(id: Int): T = binding.root.findViewById(id)
-
-    private fun pickApps(apps: List<AppViewData>, start: Int, count: Int): List<AppViewData> {
-        if (apps.isEmpty()) {
-            return emptyList()
-        }
-        return (0 until count).map { offset -> apps[(start + offset) % apps.size] }
-    }
 
     private fun renderVerticalApps(container: LinearLayout, apps: List<AppViewData>, showIndex: Boolean) {
         container.removeAllViews()
@@ -251,11 +251,7 @@ class HomeFragment : BaseFragment() {
     companion object {
         fun newInstance() = HomeFragment()
 
-        // 首页推荐位编排：4 个 section 各自的起始下标和数量。
-        private const val INDEX_TODAY_START = 0
-        private const val INDEX_RANK_START = 3
-        private const val INDEX_GAMES_START = 1
-        private const val INDEX_NEW_GAMES_START = 4
+        // 首页仅展示目录预览，完整结果由各栏目“查看更多”承接。
         private const val COUNT_TODAY = 3
         private const val COUNT_RANK = 4
         private const val COUNT_GAMES = 5

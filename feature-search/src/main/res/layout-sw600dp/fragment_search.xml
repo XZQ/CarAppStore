@@ -152,7 +152,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/spacing_18dp"
-                    android:text="@string/static_search_vehicle_hot_terms"
+                    android:text="@string/catalog_categories"
                     android:textColor="@color/car_text_primary"
                     android:textSize="@dimen/text_lg"
                     android:textStyle="bold" />

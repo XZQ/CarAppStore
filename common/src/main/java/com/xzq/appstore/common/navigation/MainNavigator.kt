@@ -12,6 +12,7 @@ interface MainNavigator {
 
     /** 切换到搜索页。 */
     fun openSearch()
+    fun openCatalog(section: CatalogSection)
 
     /** 切换到下载中心。 */
     fun openDownloadManager()

@@ -3,6 +3,8 @@ package com.xzq.appstore.feature.search
 import com.xzq.appstore.common.ui.StatusTone
 import com.xzq.appstore.data.model.AppDetail
 import com.xzq.appstore.data.model.AppViewData
+import com.xzq.appstore.data.model.CatalogQuery
+import com.xzq.appstore.common.navigation.CatalogSection
 import com.xzq.appstore.data.model.DownloadPreferences
 import com.xzq.appstore.data.model.DownloadTaskViewData
 import com.xzq.appstore.data.model.InstallTaskViewData
@@ -19,10 +21,15 @@ import com.xzq.appstore.domain.upgrade.UpgradeBatchResult
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -134,7 +141,96 @@ class SearchViewModelTest {
         assertTrue(viewModel.uiState.value.screenState != SearchScreenState.Loading)
     }
 
-    private class FakeAppManager : AppManager {
+    @Test
+    fun `慢旧查询不能覆盖最新关键词和结果`() = runTest {
+        val manager = FakeAppManager { query ->
+            if (query.keyword == "old") withContext(NonCancellable) { delay(2000) }
+            listOf(TEST_RESUME_APP.copy(appId = query.keyword.ifEmpty { "catalog" }))
+        }
+        val viewModel = createViewModel(manager)
+        viewModel.load()
+        advanceUntilIdle()
+        viewModel.search("old")
+        advanceTimeBy(301)
+        runCurrent()
+        viewModel.search("new")
+        advanceTimeBy(301)
+        runCurrent()
+        assertEquals("new", viewModel.uiState.value.apps.single().appId)
+        advanceUntilIdle()
+        assertEquals("new", viewModel.uiState.value.keyword)
+        assertEquals("new", viewModel.uiState.value.apps.single().appId)
+    }
+
+    @Test
+    fun `页面重建重复 load 保留查询且不额外加载`() = runTest {
+        var requests = 0
+        val manager = FakeAppManager { requests++; listOf(TEST_RESUME_APP) }
+        val viewModel = createViewModel(manager)
+        viewModel.load(CatalogPage.Game)
+        advanceUntilIdle()
+        viewModel.search("demo")
+        advanceUntilIdle()
+        val previousRequests = requests
+        viewModel.load(CatalogPage.Game)
+        advanceUntilIdle()
+        assertEquals(previousRequests, requests)
+        assertEquals("demo", viewModel.uiState.value.keyword)
+    }
+
+    @Test
+    fun `分类查询失败后可重试并恢复内容`() = runTest {
+        var fail = true
+        val queries = mutableListOf<CatalogQuery>()
+        val manager = FakeAppManager { query ->
+            queries += query
+            if (query.category != null && fail) error("offline")
+            listOf(TEST_RESUME_APP.copy(category = "办公"))
+        }
+        val viewModel = createViewModel(manager)
+        viewModel.load(CatalogPage.Category)
+        advanceUntilIdle()
+        assertEquals(listOf("办公"), viewModel.uiState.value.categories)
+        viewModel.selectCategory("办公")
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.screenState is SearchScreenState.Error)
+        fail = false
+        viewModel.retry()
+        advanceUntilIdle()
+        assertEquals(SearchScreenState.Content, viewModel.uiState.value.screenState)
+        assertEquals(CatalogQuery(section = CatalogSection.Category, category = "办公"), queries.last())
+    }
+
+    @Test
+    fun `查询期间的最后一次策略变化会补刷新`() = runTest {
+        val policy = FakePolicyCenter()
+        var resultId = "before"
+        var slow = false
+        val viewModel = createViewModel(FakeAppManager {
+            val captured = resultId
+            if (slow) delay(1000)
+            listOf(TEST_RESUME_APP.copy(appId = captured))
+        }, policy)
+        viewModel.load()
+        advanceUntilIdle()
+        slow = true
+        viewModel.retry()
+        runCurrent()
+        resultId = "after"
+        policy.updateSettings(PolicySettings(wifiConnected = false))
+        advanceUntilIdle()
+        assertEquals("after", viewModel.uiState.value.apps.single().appId)
+    }
+
+    private fun createViewModel(manager: AppManager, policy: PolicyCenter = FakePolicyCenter()) = SearchViewModel(
+        manager, DefaultStateCenter(), RecordingDownloadManager(), RecordingInstallManager(),
+        RecordingUpgradeManager(), policy, ioDispatcher = mainDispatcherRule.dispatcher,
+    )
+
+    private class FakeAppManager(
+        val catalog: suspend (CatalogQuery) -> List<AppViewData> = { emptyList() },
+    ) : AppManager {
+        override suspend fun getCatalogApps(query: CatalogQuery) = catalog(query)
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
 
         override suspend fun getAppDetail(appId: String): AppDetail = TEST_APP_DETAIL

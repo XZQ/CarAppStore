@@ -9,6 +9,9 @@ import com.xzq.appstore.data.model.TaskCenterStatsSnapshot
 import com.xzq.appstore.data.model.UpgradeTaskViewData
 
 interface AppManager {
+    /** 页面类型、分类筛选和排序参与查询，不由 UI 填充假结果。 */
+    suspend fun getCatalogApps(query: com.xzq.appstore.data.model.CatalogQuery): List<com.xzq.appstore.data.model.AppViewData> =
+        AppCatalogFilter.select(searchApps(query.keyword), query)
     /** 获取首页应用卡片列表。 */
     suspend fun getHomeApps(): List<AppViewData>
 

@@ -36,6 +36,9 @@ data class AppViewData(
     val progress: Int = 0,
     /** 应用当前是否已安装。 */
     val installed: Boolean = false,
+    val category: String = "",
+    val editorialTag: String = "",
+    val rating: Double? = null,
 ) {
     /** 当前客户端是否能直接下载并安装该应用。 */
     val currentPlatformSupported: Boolean

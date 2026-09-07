@@ -16,6 +16,8 @@ data class SearchUiState(
     val policyPrompt: String = "",
     /** 搜索页当前的显式状态机。 */
     val screenState: SearchScreenState = SearchScreenState.Idle,
+    val categories: List<String> = emptyList(),
+    val selectedCategory: String? = null,
 )
 
 /**

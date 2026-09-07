@@ -72,7 +72,7 @@ class DefaultAppManager(
                 iconUrl = app.iconUrl,
                 bannerUrl = app.bannerUrl,
                 screenshotUrls = app.screenshotUrls,
-            )
+            )?.copy(category = app.category, editorialTag = app.editorialTag, rating = app.rating)
         }
     }
 
@@ -172,6 +172,7 @@ class DefaultAppManager(
         }
         val matched = repository.getHomeApps().filter { app ->
             app.name.contains(normalized, ignoreCase = true) ||
+                app.packageName.contains(normalized, ignoreCase = true) ||
                 app.description.contains(normalized, ignoreCase = true) ||
                 app.category.contains(normalized, ignoreCase = true) ||
                 app.editorialTag.contains(normalized, ignoreCase = true) ||

@@ -95,6 +95,7 @@ fun AppCatalogItemResponse.toRemoteCatalogItem(): RemoteCatalogItem {
     return RemoteCatalogItem(
         appId = appId,
         appInfo = AppInfo(
+            rating = ratingText.toDoubleOrNull()?.takeIf { it.isFinite() && it in 0.0..5.0 },
             appId = appId,
             packageName = packageName,
             supportedPlatforms = supportedPlatforms,

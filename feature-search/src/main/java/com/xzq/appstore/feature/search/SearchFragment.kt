@@ -52,35 +52,12 @@ class SearchFragment : BaseFragment() {
         binding.tvHeroTitle.text = page.heroTitle
         binding.tvSearchSubtitle.text = page.heroSubtitle
         binding.tvResultTitle.text = page.firstSectionTitle
-        renderStaticChips()
+        binding.tvHistoryTitle.visibility = View.GONE
+        binding.historyChips.visibility = View.GONE
+        binding.etSearch.setText(viewModel.uiState.value.keyword)
         binding.etSearch.doAfterTextChanged { text -> viewModel.search(text?.toString().orEmpty()) }
         observeState()
-        viewModel.load()
-    }
-
-    private fun renderStaticChips() {
-        renderInlineChips(
-            binding.historyChips,
-            when (page) {
-                CatalogPage.Game -> listOf("MOBA", "射击", "二次元", "休闲")
-                CatalogPage.Software -> listOf("视频编辑", "效率工具", "图片编辑", "PDF工具")
-                CatalogPage.Category -> listOf("影音", "出行", "办公", "儿童")
-                CatalogPage.Rank -> listOf("下载榜", "评分榜", "新品榜", "更新榜")
-                CatalogPage.Essential -> listOf("导航", "音乐", "办公", "安全")
-                CatalogPage.Activity -> listOf("周末礼", "会员专享", "新游预约", "限时福利")
-            },
-        )
-        renderChipRows(
-            binding.hotSearchChips,
-            when (page) {
-                CatalogPage.Game -> listOf("王者荣耀", "和平精英", "原神", "崩坏", "蛋仔派对", "第五人格")
-                CatalogPage.Software -> listOf("剪映", "WPS Office", "微信", "抖音", "QQ音乐", "钉钉")
-                CatalogPage.Category -> listOf("导航出行", "音乐娱乐", "办公协作", "有声内容", "游戏娱乐", "工具服务")
-                CatalogPage.Rank -> listOf("高下载", "高评分", "更新快", "车机适配", "本周上升", "编辑推荐")
-                CatalogPage.Essential -> listOf("高德地图", "QQ音乐", "WPS Office", "微信", "安全中心", "系统工具")
-                CatalogPage.Activity -> listOf("登录领券", "下载抽奖", "预约礼包", "会员折扣", "新服活动", "限时返利")
-            },
-        )
+        viewModel.load(page)
     }
 
     private fun observeState() {
@@ -90,6 +67,19 @@ class SearchFragment : BaseFragment() {
                     binding.tvPolicyPrompt.text = state.policyPrompt
                     binding.tvPolicyPrompt.visibility = if (state.policyPrompt.isBlank()) View.GONE else View.VISIBLE
                     renderResults(state.apps)
+                    val message = when (val screen = state.screenState) {
+                        SearchScreenState.Loading -> getString(CommonR.string.loading)
+                        SearchScreenState.Empty, SearchScreenState.Idle -> getString(R.string.catalog_empty)
+                        is SearchScreenState.Error -> getString(R.string.catalog_error_retry, screen.message)
+                        SearchScreenState.Content -> getString(R.string.catalog_result_count, state.apps.size)
+                    }
+                    binding.tvResultTitle.text = message
+                    binding.tvResultTitle.setOnClickListener { if (state.screenState is SearchScreenState.Error) viewModel.retry() }
+                    binding.listCatalogResults.visibility = if (state.screenState == SearchScreenState.Content) View.VISIBLE else View.GONE
+                    if (renderedCategories != state.categories) {
+                        renderedCategories = state.categories
+                        renderChipRows(binding.hotSearchChips, listOf(getString(R.string.catalog_all)) + state.categories)
+                    }
                     renderSuggestions(state.suggestions, state.keyword)
                 }
             }
@@ -98,6 +88,7 @@ class SearchFragment : BaseFragment() {
 
     /** 最近一次已渲染的结果列表；内容未变化时跳过全量重建，视图销毁后重置避免新容器漏渲染。 */
     private var renderedResults: List<AppViewData>? = null
+    private var renderedCategories: List<String>? = null
 
     /** 最近一次已渲染的联想候选（含关键词）；内容未变化时跳过重建。 */
     private var renderedSuggestionKey: Pair<List<AppViewData>, String>? = null
@@ -108,15 +99,8 @@ class SearchFragment : BaseFragment() {
         }
         renderedResults = apps
         binding.listCatalogResults.removeAllViews()
-        val picked = pickApps(
-            apps,
-            count = when (page) {
-                CatalogPage.Game, CatalogPage.Rank -> 6
-                else -> 5
-            },
-        )
-        picked.forEachIndexed { index, app ->
-            binding.listCatalogResults.addView(createAppRow(app, showIndex = page == CatalogPage.Rank || page == CatalogPage.Game, index = index + 1))
+        apps.forEachIndexed { index, app ->
+            binding.listCatalogResults.addView(createAppRow(app, showIndex = page == CatalogPage.Rank, index = index + 1))
         }
     }
 
@@ -150,25 +134,6 @@ class SearchFragment : BaseFragment() {
         binding.suggestionPanel.visibility = View.VISIBLE
     }
 
-    private fun pickApps(apps: List<AppViewData>, count: Int): List<AppViewData> {
-        if (apps.isEmpty()) {
-            return emptyList()
-        }
-        val offset = page.ordinal
-        return (0 until count).map { apps[(offset + it) % apps.size] }
-    }
-
-    private fun renderInlineChips(container: LinearLayout, chips: List<String>) {
-        container.removeAllViews()
-        chips.forEach { label ->
-            container.addView(
-                createChip(label).apply {
-                    layoutParams = LinearLayout.LayoutParams(0, dp(40), 1f).apply { rightMargin = dp(8) }
-                },
-            )
-        }
-    }
-
     private fun renderChipRows(container: LinearLayout, chips: List<String>) {
         container.removeAllViews()
         chips.chunked(3).forEach { rowChips ->
@@ -182,7 +147,8 @@ class SearchFragment : BaseFragment() {
             rowChips.forEach { label ->
                 row.addView(
                     createChip(label).apply {
-                        layoutParams = LinearLayout.LayoutParams(0, dp(38), 1f).apply { rightMargin = dp(8) }
+                        layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(8) }
+                        setOnClickListener { viewModel.selectCategory(label.takeUnless { it == getString(R.string.catalog_all) }) }
                     },
                 )
             }
@@ -288,6 +254,7 @@ class SearchFragment : BaseFragment() {
         super.onDestroyView()
         renderedResults = null
         renderedSuggestionKey = null
+        renderedCategories = null
         _binding = null
     }
 

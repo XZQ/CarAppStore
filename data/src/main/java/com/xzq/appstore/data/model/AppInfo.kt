@@ -29,4 +29,5 @@ data class AppInfo(
     val recommendedReason: String = "",
     /** 搜索召回使用的关键词。 */
     val searchKeywords: List<String> = emptyList(),
+    val rating: Double? = null,
 )

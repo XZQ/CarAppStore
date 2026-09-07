@@ -21,6 +21,7 @@ import com.xzq.appstore.BuildConfig
 import com.xzq.appstore.R
 import com.xzq.appstore.common.base.AppContainerProvider
 import com.xzq.appstore.common.navigation.MainNavigator
+import com.xzq.appstore.common.navigation.CatalogSection
 import com.xzq.appstore.data.model.TaskCenterStats
 import com.xzq.appstore.databinding.ActivityMainBinding
 import com.xzq.appstore.feature.detail.DetailFragment
@@ -139,6 +140,18 @@ class MainActivity : AppCompatActivity(), MainNavigator {
             tag = TAG_DEBUG,
             selectedButton = optionalButton(R.id.btnNavDebug),
         )
+    }
+
+    override fun openCatalog(section: CatalogSection) {
+        val selected = when (section) {
+            CatalogSection.Software -> binding.btnNavDownload
+            CatalogSection.Game -> binding.btnNavSearch
+            CatalogSection.Category -> optionalButton(R.id.btnNavUpgrade)
+            CatalogSection.Rank -> optionalButton(R.id.btnNavInstall)
+            CatalogSection.Essential -> optionalButton(R.id.btnNavEssential)
+            CatalogSection.Activity -> null
+        }
+        openCatalog(CatalogPage.valueOf(section.name), selected)
     }
 
     override fun openAppSettings() {
