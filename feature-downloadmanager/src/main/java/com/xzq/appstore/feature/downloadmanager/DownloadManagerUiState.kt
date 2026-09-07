@@ -10,6 +10,8 @@ import com.xzq.appstore.data.model.TaskCenterStats
  * DownloadManagerUiState 描述下载中心页面的完整界面状态。
  */
 data class DownloadManagerUiState(
+    val downloadedCacheBytes: Long = 0L,
+    val clearedTaskCount: Int? = null,
     /** 当前筛选条件下展示的下载任务列表。 */
     val tasks: List<DownloadTaskViewData> = emptyList(),
     /** 同页展示的待安装任务列表。 */

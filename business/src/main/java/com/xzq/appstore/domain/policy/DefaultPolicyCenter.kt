@@ -3,6 +3,7 @@ package com.xzq.appstore.domain.policy
 import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.core.policy.PolicyRuntimeSignalProvider
 import com.xzq.appstore.core.policy.StorageInfoProvider
+import com.xzq.appstore.core.policy.StorageBudget
 import com.xzq.appstore.data.datasource.local.AppLocalDataSource
 import com.xzq.appstore.data.model.PolicySettings
 import com.xzq.appstore.domain.text.BusinessText
@@ -47,7 +48,7 @@ class DefaultPolicyCenter(
         return when {
             !settings.wifiConnected -> PolicyResult(false, BusinessText.POLICY_NOT_WIFI)
             settings.lowStorageMode -> PolicyResult(false, BusinessText.POLICY_LOW_STORAGE)
-            storageInfoProvider.usableSpaceBytes() < MIN_REQUIRED_SPACE_BYTES -> PolicyResult(false, BusinessText.POLICY_DEVICE_STORAGE_LOW)
+            !StorageBudget.fits(storageInfoProvider.usableSpaceBytes()) -> PolicyResult(false, BusinessText.POLICY_DEVICE_STORAGE_LOW)
             else -> PolicyResult(true)
         }
     }
@@ -60,6 +61,13 @@ class DefaultPolicyCenter(
             settings.lowStorageMode -> PolicyResult(false, BusinessText.POLICY_LOW_STORAGE)
             else -> PolicyResult(true)
         }
+    }
+
+    override fun canInstall(appId: String, apkBytes: Long): PolicyResult {
+        val policy = canInstall(appId)
+        return if (!policy.allow) policy else if (!StorageBudget.canInstall(storageInfoProvider.usableSpaceBytes(), apkBytes)) {
+            PolicyResult(false, BusinessText.POLICY_DEVICE_STORAGE_LOW)
+        } else PolicyResult(true)
     }
 
     /** 升级同时依赖下载和安装两个策略校验结果。 */
@@ -106,7 +114,6 @@ class DefaultPolicyCenter(
     }
 
     companion object {
-        private const val MIN_REQUIRED_SPACE_BYTES = 8L * 1024L * 1024L
         private const val TAG = "DefaultPolicyCenter"
     }
 }

@@ -3,6 +3,8 @@ package com.xzq.appstore.domain.download
 import com.xzq.appstore.data.model.DownloadPreferences
 
 interface DownloadManager {
+    /** 已下载的安装包占用；只读，不包含未完成任务的可恢复分片。 */
+    suspend fun getDownloadedCacheBytes(): Long = 0L
     /** 暂停所有活动下载并等待文件 IO 收尾。 */
     suspend fun pauseAllDownloads() = Unit
 

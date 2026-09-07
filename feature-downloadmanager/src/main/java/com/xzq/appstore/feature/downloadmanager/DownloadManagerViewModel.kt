@@ -16,6 +16,7 @@ import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -91,7 +92,7 @@ class DownloadManagerViewModel(
     /** 处理下载任务二级按钮点击。 */
     fun onSecondaryClick(item: DownloadTaskViewData) {
         viewModelScope.launch {
-            downloadManager.removeTask(item.appId, clearFile = true)
+            withContext(ioDispatcher) { downloadManager.removeTask(item.appId, clearFile = true) }
             refresh()
         }
     }
@@ -105,8 +106,15 @@ class DownloadManagerViewModel(
     /** 清理所有已完成任务。 */
     fun onClearCompleted() {
         viewModelScope.launch {
-            downloadManager.clearCompletedTasks()
-            refresh()
+            try {
+                val count = withContext(ioDispatcher) { downloadManager.clearCompletedTasks() }
+                refresh()
+                _uiState.update { it.copy(clearedTaskCount = count) }
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                _uiState.update { it.copy(screenState = DownloadManagerScreenState.Error(failure.message.orEmpty())) }
+            }
         }
     }
 
@@ -151,8 +159,10 @@ class DownloadManagerViewModel(
     /** 切换自动恢复开关。 */
     fun onToggleAutoResume() {
         viewModelScope.launch {
-            val current = downloadManager.getPreferences()
-            downloadManager.updatePreferences(current.copy(autoResumeOnLaunch = !current.autoResumeOnLaunch))
+            withContext(ioDispatcher) {
+                val current = downloadManager.getPreferences()
+                downloadManager.updatePreferences(current.copy(autoResumeOnLaunch = !current.autoResumeOnLaunch))
+            }
             refresh()
         }
     }
@@ -160,31 +170,34 @@ class DownloadManagerViewModel(
     /** 切换自动重试开关。 */
     fun onToggleAutoRetry() {
         viewModelScope.launch {
-            val current = downloadManager.getPreferences()
-            downloadManager.updatePreferences(current.copy(autoRetryEnabled = !current.autoRetryEnabled))
+            withContext(ioDispatcher) {
+                val current = downloadManager.getPreferences()
+                downloadManager.updatePreferences(current.copy(autoRetryEnabled = !current.autoRetryEnabled))
+            }
             refresh()
         }
     }
 
     /** 切换 Wi‑Fi 策略开关。 */
     fun onToggleWifi() {
-        val current = policyCenter.getStoredSettings()
-        policyCenter.updateSettings(current.copy(wifiConnected = !current.wifiConnected))
-        viewModelScope.launch { refresh() }
+        updatePolicy { it.copy(wifiConnected = !it.wifiConnected) }
     }
 
     /** 切换驻车策略开关。 */
     fun onToggleParking() {
-        val current = policyCenter.getStoredSettings()
-        policyCenter.updateSettings(current.copy(parkingMode = !current.parkingMode))
-        viewModelScope.launch { refresh() }
+        updatePolicy { it.copy(parkingMode = !it.parkingMode) }
     }
 
     /** 切换低存储策略开关。 */
     fun onToggleStorage() {
-        val current = policyCenter.getStoredSettings()
-        policyCenter.updateSettings(current.copy(lowStorageMode = !current.lowStorageMode))
-        viewModelScope.launch { refresh() }
+        updatePolicy { it.copy(lowStorageMode = !it.lowStorageMode) }
+    }
+
+    private fun updatePolicy(change: (com.xzq.appstore.data.model.PolicySettings) -> com.xzq.appstore.data.model.PolicySettings) {
+        viewModelScope.launch {
+            withContext(ioDispatcher) { policyCenter.updateSettings(change(policyCenter.getStoredSettings())) }
+            refresh()
+        }
     }
 
     /** 监听全局任务状态变化，并在变化时刷新页面。
@@ -227,6 +240,8 @@ class DownloadManagerViewModel(
                 val visibleTaskCount = visibleTasks.size + visibleInstallTasks.size
 
                 DownloadManagerUiState(
+                    downloadedCacheBytes = downloadManager.getDownloadedCacheBytes(),
+                    clearedTaskCount = _uiState.value.clearedTaskCount,
                     tasks = visibleTasks,
                     installTasks = visibleInstallTasks,
                     allTaskCount = allTasks.size + allInstallTasks.size,
@@ -261,6 +276,7 @@ class DownloadManagerViewModel(
             }
         }
         result.onSuccess { _uiState.value = it }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
             _uiState.value = DownloadManagerUiState(
                 selectedFilter = selectedFilter,
                 screenState = DownloadManagerScreenState.Error(throwable.message.orEmpty()),

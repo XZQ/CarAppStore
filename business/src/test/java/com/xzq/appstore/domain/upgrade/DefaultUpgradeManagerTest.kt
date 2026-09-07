@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -183,7 +184,8 @@ class DefaultUpgradeManagerTest {
 
         val state = stateCenter.snapshot(TEST_APP_ID)
         assertEquals(InstallStatus.INSTALLED, state.installStatus)
-        assertEquals(DownloadStatus.COMPLETED, state.downloadStatus)
+        assertEquals(DownloadStatus.IDLE, state.downloadStatus)
+        assertNull(state.localApkPath)
     }
 
     @Test

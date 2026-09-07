@@ -42,6 +42,24 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class DefaultDownloadManagerTest {
     @Test
+    fun `cache cleanup skips installer lease and clears engine files after release`() = runBlocking {
+        val access = com.xzq.appstore.domain.install.ApkArtifactAccess()
+        val harness = TestHarness(artifactAccess = access)
+        harness.manager.startDownload(TEST_APP_ID)
+        harness.manager.pauseDownload(TEST_APP_ID)
+        harness.manager.resumeDownload(TEST_APP_ID)
+        waitUntil { harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.COMPLETED }
+        access.tryUse(TEST_APP_ID) {
+            assertEquals(0, harness.manager.clearCompletedTasks())
+            assertNotNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        }
+        assertEquals(1, harness.manager.clearCompletedTasks())
+        assertTrue(harness.downloader.clearedTaskIds.contains("download-$TEST_APP_ID"))
+        assertNull(harness.repository.getDownloadTask(TEST_APP_ID))
+        harness.manager.close()
+    }
+
+    @Test
     fun `host rejection fails the persisted task before engine starts`() = runBlocking {
         val host = RecordingHost(fail = true)
         val harness = TestHarness(executionHost = host)
@@ -463,6 +481,7 @@ class DefaultDownloadManagerTest {
         runningEventCount: Int = 1,
         maxConcurrentDownloads: Int = 3,
         executionHost: DownloadExecutionHost = DownloadExecutionHost.InProcess,
+        artifactAccess: com.xzq.appstore.domain.install.ApkArtifactAccess = com.xzq.appstore.domain.install.ApkArtifactAccess(),
     ) {
         /** 每个测试对应的临时工作目录。 */
         val workDir: File = Files.createTempDirectory("download-manager-test").toFile()
@@ -498,6 +517,7 @@ class DefaultDownloadManagerTest {
                 dispatcher = dispatcher,
                 maxConcurrentDownloads = maxConcurrentDownloads,
                 executionHost = executionHost,
+                artifactAccess = artifactAccess,
             )
         }
     }
@@ -551,6 +571,8 @@ class DefaultDownloadManagerTest {
         /** 每次启动后连续发射的 Running 事件数量，用于验证进度落盘节流。 */
         private val runningEventCount: Int = 1,
     ) : FileDownloader {
+        val clearedTaskIds = mutableListOf<String>()
+        override suspend fun clearTaskCache(taskId: String) { clearedTaskIds += taskId }
         /** 实际启动下载流程的次数。 */
         val startCount = AtomicInteger(0)
 

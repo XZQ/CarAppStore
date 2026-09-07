@@ -7,12 +7,24 @@ import java.io.File
 import java.io.IOException
 
 class DownloadStore(private val baseDir: File) {
+    /** 不跟随符号链接或记录中的外部路径，只删除本任务生成的文件。 */
+    fun clearTask(taskId: String) {
+        val dir = getTaskTempDir(taskId)
+        dir.listFiles()?.filter { it.name.matches(Regex("part-\\d+\\.tmp|meta\\.json(?:\\.tmp)?")) }?.forEach { file ->
+            if (!file.delete() && file.exists()) throw IOException("Unable to clear task cache: ${file.name}")
+        }
+        if (dir.listFiles()?.isEmpty() == true && !dir.delete() && dir.exists()) {
+            throw IOException("Unable to clear task directory: $taskId")
+        }
+    }
+
     /** 返回指定任务的临时目录，不存在时自动创建。 */
     fun getTaskTempDir(taskId: String): File {
         require(TASK_ID_PATTERN.matches(taskId)) { "非法下载任务标识: $taskId" }
         val tempRoot = File(baseDir, "temp").canonicalFile
         val taskDir = File(tempRoot, taskId).canonicalFile
         require(taskDir.toPath().startsWith(tempRoot.toPath())) { "下载任务目录越界: $taskId" }
+        require(taskDir == File(tempRoot, taskId).absoluteFile) { "下载任务目录不得重定向: $taskId" }
         if (!taskDir.exists()) taskDir.mkdirs()
         return taskDir
     }

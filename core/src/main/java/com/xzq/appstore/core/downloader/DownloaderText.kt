@@ -12,6 +12,7 @@ object DownloaderText {
     const val FAILURE_RANGE_NOT_SUPPORTED = "服务端不支持断点续传"
     const val FAILURE_REMOTE_FILE_CHANGED = "远端文件已变化"
     const val FAILURE_STORAGE_IO = "存储写入失败"
+    const val FAILURE_STORAGE_INSUFFICIENT = "可用空间不足，请清理存储后重试"
     const val FAILURE_FILE_MISSING = "下载文件丢失"
     const val FAILURE_FILE_INCOMPLETE = "文件未完整下载"
     const val FAILURE_CHECKSUM_MISMATCH = "文件校验失败"

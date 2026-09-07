@@ -14,6 +14,7 @@ import com.xzq.appstore.domain.state.InstallStatus
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.text.BusinessText
 import java.io.File
+import kotlinx.coroutines.CancellationException
 
 class DefaultInstallManager(
     /** 统一数据入口，负责 APK 路径与安装结果回写。 */
@@ -30,6 +31,7 @@ class DefaultInstallManager(
     private val tracker: EventTracker,
     /** 当前客户端平台能力，用于阻止安装其他平台产物。 */
     private val platformCapabilities: ClientPlatformCapabilities = ClientPlatformCapabilities(),
+    private val artifactAccess: ApkArtifactAccess = ApkArtifactAccess(),
 ) : InstallManager {
 
     /**
@@ -38,7 +40,12 @@ class DefaultInstallManager(
      * 该方法负责策略校验、APK 校验以及消费底层安装事件。
      */
     override suspend fun install(appId: String) {
+        artifactAccess.tryUse(appId) { installInternal(appId) }
+    }
+
+    private suspend fun installInternal(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
+        if (stateCenter.snapshot(appId).downloadStatus in setOf(DownloadStatus.RUNNING, DownloadStatus.WAITING)) return
         val detail = repository.getAppDetail(appId)
         if (!platformCapabilities.supports(detail.supportedPlatforms)) {
             stateCenter.updateInstall(
@@ -84,6 +91,12 @@ class DefaultInstallManager(
         // 准备安装请求时，同时考虑 staged upgrade 的目标版本覆盖。
         val targetVersion = repository.peekStagedUpgradeVersion(appId) ?: detail.versionName
         val apkFile = File(apkPath)
+        val spacePolicy = policyCenter.canInstall(appId, apkFile.length())
+        if (!spacePolicy.allow) {
+            stateCenter.updateInstall(appId, InstallStatus.FAILED, errorMessage = BusinessText.installRestricted(spacePolicy.reason),
+                errorCode = InstallFailureCode.POLICY_BLOCKED.name)
+            return
+        }
 
         logger.d("InstallManager", "install: $appId, apkPath=$apkPath, size=${apkFile.length()}")
         tracker.track("install_start_$appId")
@@ -134,7 +147,14 @@ class DefaultInstallManager(
                     repository.markInstalled(appId)
                     repository.removeDownloadTask(appId)
                     stateCenter.updateInstall(appId, InstallStatus.INSTALLED, versionName = event.installedVersion, versionCode = event.installedVersionCode)
-                    stateCenter.updateDownload(appId, DownloadStatus.COMPLETED, progress = 100, localApkPath = apkPath)
+                    try {
+                        repository.clearDownloadedApk(appId)
+                    } catch (canceled: CancellationException) {
+                        throw canceled
+                    } catch (failure: Exception) {
+                        logger.w("InstallManager", "Unable to clear installed APK: $appId", failure)
+                    }
+                    stateCenter.updateDownload(appId, DownloadStatus.IDLE, progress = 0, localApkPath = null)
                     tracker.track("install_success_$appId")
                 }
 

@@ -10,6 +10,9 @@ interface PolicyCenter {
     /** 判断当前应用是否允许发起安装。 */
     fun canInstall(appId: String): PolicyResult
 
+    /** 已知 APK 大小时，计入系统暂存和安装副本的预算。 */
+    fun canInstall(appId: String, apkBytes: Long): PolicyResult = canInstall(appId)
+
     /** 判断当前应用是否允许发起升级（要求同时满足下载与安装条件）。 */
     fun canUpgrade(appId: String): PolicyResult
 

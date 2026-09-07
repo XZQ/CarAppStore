@@ -16,6 +16,27 @@
         app:layout_constraintTop_toTopOf="parent">
 
     <TextView
+        android:id="@+id/tvCacheSummary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/car_text_secondary" />
+
+    <Button
+        android:id="@+id/btnClearCache"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:text="@string/download_cache_clear"
+        android:textAllCaps="false" />
+
+    <TextView
+        android:id="@+id/tvCacheResult"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:accessibilityLiveRegion="polite"
+        android:textColor="@color/car_text_secondary" />
+
+    <TextView
         android:id="@+id/tvPreferenceSummary"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

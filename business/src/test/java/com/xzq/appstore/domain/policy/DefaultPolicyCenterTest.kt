@@ -136,6 +136,18 @@ class DefaultPolicyCenterTest {
         assertEquals(updated, center.getStoredSettings())
     }
 
+    @Test
+    fun `install budget includes package staging and installation copy`() {
+        val center = DefaultPolicyCenter(
+            storageInfoProvider = FixedStorageInfoProvider(com.xzq.appstore.core.policy.StorageBudget.RESERVE_BYTES + 199),
+            localDataSource = AppLocalDataSource(context), runtimeSignalProvider = FakeSignalProvider(allClearSignals()),
+        )
+        try {
+            assertTrue(center.canInstall("app", 99).allow)
+            assertFalse(center.canInstall("app", 100).allow)
+        } finally { center.close() }
+    }
+
     private fun allClearSignals(
         wifi: Boolean = true,
         parking: Boolean = true,

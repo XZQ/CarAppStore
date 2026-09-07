@@ -249,6 +249,7 @@ class AppContainer(context: Context) : AppServices {
 
     /** 下载业务编排入口。 */
     val downloadExecutionHost by lazy { AndroidDownloadExecutionHost(appContext) }
+    private val artifactAccess = com.xzq.appstore.domain.install.ApkArtifactAccess()
     private val downloadManagerDelegate = lazy {
         DefaultDownloadManager(
             repository = repository,
@@ -259,6 +260,7 @@ class AppContainer(context: Context) : AppServices {
             tracker = eventTracker,
             platformCapabilities = platformCapabilities,
             executionHost = downloadExecutionHost,
+            artifactAccess = artifactAccess,
         )
     }
     override val downloadManager: DownloadManager by downloadManagerDelegate
@@ -270,6 +272,7 @@ class AppContainer(context: Context) : AppServices {
             stateCenter = stateCenter,
             policyCenter = policyCenter,
             packageInstaller = packageInstaller,
+            artifactAccess = artifactAccess,
             logger = logger,
             tracker = eventTracker,
             platformCapabilities = platformCapabilities,

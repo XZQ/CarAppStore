@@ -22,6 +22,33 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class RealFileDownloaderTest {
     @Test
+    fun `insufficient space rejects known package before any body transfer`() = runBlocking {
+        TestFixture(0, 0, ByteArray(64 * 1024), availableSpace = { com.xzq.appstore.core.policy.StorageBudget.RESERVE_BYTES + 128 * 1024 - 1 }).use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            assertEquals(DownloadFailureCode.STORAGE_INSUFFICIENT, (events.last() as DownloadEvent.Failed).code)
+            assertTrue(events.none { it is DownloadEvent.Running })
+            assertEquals(0L, fixture.request.targetFile.length())
+        }
+    }
+
+    @Test
+    fun `unknown length stream rechecks space and preserves recoverable parts`() = runBlocking {
+        var available = Long.MAX_VALUE
+        TestFixture(0, 0, ByteArray(3 * 1024 * 1024), supportRangeHeader = false, headContentLength = -1,
+            availableSpace = { available }).use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) {
+                events += it
+                if (it is DownloadEvent.Running) available = 0
+            }
+            assertEquals(DownloadFailureCode.STORAGE_INSUFFICIENT, (events.last() as DownloadEvent.Failed).code)
+            val size = File(fixture.store.readSegments(TEST_TASK_ID).single().tmpFilePath).length()
+            assertTrue(size in 1..(1024L * 1024))
+        }
+    }
+
+    @Test
     fun `download sends configured request header on probe and content requests`() = runBlocking {
         val fixture = TestFixture(
             headDelayMs = 0L,
@@ -389,7 +416,8 @@ class RealFileDownloaderTest {
             fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
             assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
             assertTrue(fixture.server.receivedHeaderValues("Range").isEmpty())
-            assertEquals(1, fixture.store.readSegments(TEST_TASK_ID).size)
+            assertTrue(fixture.store.readSegments(TEST_TASK_ID).isEmpty())
+            assertTrue(fixture.store.getTaskTempDir(TEST_TASK_ID).listFiles().orEmpty().none { it.name.endsWith(".tmp") })
             assertArrayEquals(payload, fixture.request.targetFile.readBytes())
         }
     }
@@ -460,6 +488,7 @@ class RealFileDownloaderTest {
         /** Running 事件发射节流间隔；默认 0 关闭节流，保持既有用例逐块断言的确定性。 */
         runningEventIntervalMs: Long = 0L,
         contentRangeOverride: String? = null,
+        availableSpace: (File) -> Long = { Long.MAX_VALUE },
     ) : AutoCloseable {
         /** 测试工作目录。 */
         private val workDir = Files.createTempDirectory("real-file-downloader-test").toFile()
@@ -497,6 +526,7 @@ class RealFileDownloaderTest {
             beforeMergeHook = beforeMergeHook,
             requestHeaders = requestHeaders,
             runningEventIntervalMs = runningEventIntervalMs,
+            availableSpace = availableSpace,
         )
 
         /** 当前测试下载请求。 */

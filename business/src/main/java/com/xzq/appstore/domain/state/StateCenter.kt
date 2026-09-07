@@ -15,7 +15,7 @@ interface StateCenter {
     /** 在系统确认已安装后同步安装状态。 */
     fun syncInstalled(appId: String, versionName: String, versionCode: Long = 0L)
 
-    /** 更新下载子状态。 */
+    /** 更新下载子状态；非完成态的 null 路径会清除旧产物引用。 */
     fun updateDownload(
         appId: String,
         status: DownloadStatus,

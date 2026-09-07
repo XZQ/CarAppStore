@@ -241,9 +241,10 @@ class AppLocalDataSource(
 
     /** 删除本应用的新格式 APK 与路径引用。旧文件可能被多个 appId 共享，保留它以免误删。 */
     fun clearDownloadedApk(appId: String) = legacyStoreLock.withLock {
+        val file = getOrCreateDownloadFile(appId)
+        if (file.exists() && !file.delete()) throw java.io.IOException("Unable to delete APK for $appId")
         downloadedApkPaths.remove(appId)
         localStoreFacade.removeDownloadArtifactRef(appId)
-        getOrCreateDownloadFile(appId).takeIf { it.exists() }?.delete()
         persistLocked()
     }
 

@@ -51,7 +51,8 @@ class DefaultStateCenter : StateCenter {
             it.copy(
                 downloadStatus = status,
                 progress = progress ?: it.progress,
-                localApkPath = localApkPath ?: it.localApkPath,
+                // 只有完成态可以保留已验证产物；清理、取消或失败必须丢弃旧路径。
+                localApkPath = if (status == DownloadStatus.COMPLETED) localApkPath ?: it.localApkPath else localApkPath,
                 errorMessage = errorMessage,
                 errorCode = errorCode,
             )

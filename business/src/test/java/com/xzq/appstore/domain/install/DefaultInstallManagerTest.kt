@@ -104,7 +104,9 @@ class DefaultInstallManagerTest {
 
         val state = stateCenter.snapshot(TEST_APP_ID)
         assertEquals(InstallStatus.INSTALLED, state.installStatus)
-        assertEquals(DownloadStatus.COMPLETED, state.downloadStatus)
+        assertEquals(DownloadStatus.IDLE, state.downloadStatus)
+        assertNull(state.localApkPath)
+        assertNull(repository.getApk(TEST_APP_ID))
         assertEquals("1.0.0", state.installedVersion)
         assertTrue(repository.installedApps.contains(TEST_APP_ID))
         assertTrue(repository.taskRemoved.contains(TEST_APP_ID))

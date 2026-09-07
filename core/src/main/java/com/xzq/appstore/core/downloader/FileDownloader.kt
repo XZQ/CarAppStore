@@ -5,6 +5,9 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
 
 interface FileDownloader {
+    /** 仅在任务 IO 已停止后调用，删除该任务受控目录内的下载缓存。 */
+    suspend fun clearTaskCache(taskId: String) = Unit
+
     /** 执行一次下载请求，并通过事件回调持续上报下载进展。 */
     suspend fun download(request: DownloadRequest, control: DownloadExecutionControl = DownloadExecutionControl(), onEvent: suspend (DownloadEvent) -> Unit)
 }
@@ -110,6 +113,9 @@ enum class DownloadFailureCode(val displayText: String, val retryable: Boolean) 
 
     /** 本地磁盘读写失败。 */
     STORAGE_IO(DownloaderText.FAILURE_STORAGE_IO, true),
+
+    /** 包体、合并副本和安全余量所需空间不足，待用户清理后重试。 */
+    STORAGE_INSUFFICIENT(DownloaderText.FAILURE_STORAGE_INSUFFICIENT, false),
 
     /** 目标文件缺失。 */
     FILE_MISSING(DownloaderText.FAILURE_FILE_MISSING, true),

@@ -14,6 +14,7 @@ import com.xzq.appstore.data.model.DownloadPreferences
 import com.xzq.appstore.data.model.DownloadTaskRecord
 import com.xzq.appstore.data.repository.AppRepository
 import com.xzq.appstore.domain.policy.PolicyCenter
+import com.xzq.appstore.domain.install.ApkArtifactAccess
 import com.xzq.appstore.domain.state.DownloadStatus
 import com.xzq.appstore.domain.state.InstallStatus
 import com.xzq.appstore.domain.state.StateCenter
@@ -56,6 +57,7 @@ class DefaultDownloadManager(
     /** 当前客户端平台能力，用于阻止下载其他平台安装包。 */
     private val platformCapabilities: ClientPlatformCapabilities = ClientPlatformCapabilities(),
     private val executionHost: DownloadExecutionHost = DownloadExecutionHost.InProcess,
+    private val artifactAccess: ApkArtifactAccess = ApkArtifactAccess(),
 ) : DownloadManager {
     /** 用于冷启动恢复下载任务的后台协程作用域。 */
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -135,7 +137,7 @@ class DefaultDownloadManager(
         restorationComplete.await()
         commandLocks.computeIfAbsent(appId) { Mutex() }.withLock {
             check(!closed) { "Download manager is closed" }
-            command()
+            artifactAccess.tryUse(appId, command)
         }
     }
 
@@ -280,6 +282,7 @@ class DefaultDownloadManager(
     override suspend fun cancelDownload(appId: String) = withCommandLock(appId) { cancelDownloadInternal(appId) }
 
     private suspend fun cancelDownloadInternal(appId: String) {
+        if (stateCenter.snapshot(appId).installStatus in ACTIVE_INSTALL_STATUSES) return
         interruptedOnRestore.remove(appId)
         require(appId.isNotBlank()) { "appId 不能为空" }
         val execution = requestStop(appId, DownloadStopReason.CANCELED)
@@ -302,6 +305,7 @@ class DefaultDownloadManager(
         }
         val record = repository.getDownloadTask(appId) ?: return
         // 取消语义要求本地产物和分片缓存都失效，避免后续误用旧文件。
+        clearCoreCache(record.taskId)
         repository.clearDownloadedApk(appId)
         repository.saveDownloadSegments(appId, emptyList())
         saveRecord(
@@ -332,12 +336,14 @@ class DefaultDownloadManager(
     }
 
     private suspend fun removeTaskInternal(appId: String, clearFile: Boolean) {
+        if (stateCenter.snapshot(appId).installStatus in ACTIVE_INSTALL_STATUSES) return
         interruptedOnRestore.remove(appId)
         require(appId.isNotBlank()) { "appId 不能为空" }
         val active = requestStop(appId, if (clearFile) DownloadStopReason.CANCELED else DownloadStopReason.PAUSED)
         active?.job?.join()
         if (active != null) unregisterExecution(appId, active.control)
         val snapshot = stateCenter.snapshot(appId)
+        repository.getDownloadTask(appId)?.let { clearCoreCache(it.taskId) }
         if (clearFile) {
             repository.clearDownloadedApk(appId)
         }
@@ -356,8 +362,33 @@ class DefaultDownloadManager(
         val completedTasks = repository.getAllDownloadTasks().filter {
             it.status == DownloadStatus.COMPLETED || it.status == DownloadStatus.CANCELED
         }
-        completedTasks.forEach { removeTask(it.appId, clearFile = true) }
-        return completedTasks.size
+        var count = 0
+        completedTasks.forEach { task ->
+            withCommandLock(task.appId) {
+                val current = repository.getDownloadTask(task.appId)
+                if (current?.status in setOf(DownloadStatus.COMPLETED, DownloadStatus.CANCELED) &&
+                    stateCenter.snapshot(task.appId).installStatus !in ACTIVE_INSTALL_STATUSES) {
+                    removeTaskInternal(task.appId, clearFile = true)
+                    count++
+                }
+            }
+        }
+        return count
+    }
+
+    override suspend fun getDownloadedCacheBytes(): Long = repository.getAllDownloadTasks()
+        .filter { it.status == DownloadStatus.COMPLETED }
+        .mapNotNull { repository.getDownloadedApk(it.appId) }
+        .distinct().sumOf { File(it).length() }
+
+    private suspend fun clearCoreCache(taskId: String) {
+        try {
+            fileDownloader.clearTaskCache(taskId)
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (failure: Exception) {
+            logger.w("DownloadManager", "Unable to clear task cache: $taskId", failure)
+        }
     }
 
     /** 重试所有失败或已取消的下载任务。 */
@@ -738,6 +769,7 @@ class DefaultDownloadManager(
     /** 将取消态同时回写到持久化记录和状态中心。 */
     private suspend fun markCanceled(appId: String, record: DownloadTaskRecord) {
         runningPersistMarks.remove(appId)
+        clearCoreCache(record.taskId)
         repository.clearDownloadedApk(appId)
         repository.saveDownloadSegments(appId, emptyList())
         saveRecord(
@@ -966,6 +998,7 @@ class DefaultDownloadManager(
     )
 
     private companion object {
+        val ACTIVE_INSTALL_STATUSES = setOf(InstallStatus.WAITING, InstallStatus.INSTALLING, InstallStatus.PENDING_USER_ACTION)
         private const val PLATFORM_UNSUPPORTED_ERROR_CODE = "PLATFORM_UNSUPPORTED"
         /** 默认同时下载的 APK 数量上限（用户要求「最多同时下载 3 个 apk」）。 */
         const val DEFAULT_MAX_CONCURRENT_DOWNLOADS = 3

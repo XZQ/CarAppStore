@@ -1,5 +1,7 @@
 package com.xzq.appstore.core.downloader
 
+import com.xzq.appstore.core.logger.AppLogger
+import com.xzq.appstore.core.policy.StorageBudget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -41,7 +43,14 @@ class RealFileDownloader(
     private val runningEventIntervalMs: Long = DEFAULT_RUNNING_EVENT_INTERVAL_MS,
     /** 合并前测试钩子，供测试场景注入分片文件扰动。 */
     private val beforeMergeHook: ((segments: List<DownloadSegmentRecord>, finalFile: File) -> Unit)? = null,
+    private val availableSpace: (File) -> Long = { it.usableSpace },
+    private val logger: AppLogger = AppLogger(),
 ) : FileDownloader {
+    override suspend fun clearTaskCache(taskId: String) = withContext(Dispatchers.IO) {
+        store.clearTask(taskId)
+        releaseTaskCache(taskId)
+    }
+
     init {
         require(requestHeaders.keys.all(HTTP_HEADER_NAME_PATTERN::matches)) {
             "download request contains an invalid HTTP header name"
@@ -93,8 +102,17 @@ class RealFileDownloader(
         control: DownloadExecutionControl,
         onEvent: suspend (DownloadEvent) -> Unit,
     ) {
+        request.targetFile.parentFile?.mkdirs()
+        if (!StorageBudget.fits(availableSpace(requireNotNull(request.targetFile.parentFile)), totalBytes.coerceAtLeast(0))) {
+            onEvent(DownloadEvent.Failed(DownloadFailureCode.STORAGE_INSUFFICIENT, DownloaderText.FAILURE_STORAGE_INSUFFICIENT))
+            return
+        }
         val plannedSegments = preparePlannedSegments(request, totalBytes, meta.supportsRange)
         try {
+            if (!hasDownloadSpace(request, totalBytes)) {
+                onEvent(DownloadEvent.Failed(DownloadFailureCode.STORAGE_INSUFFICIENT, DownloaderText.FAILURE_STORAGE_INSUFFICIENT))
+                return
+            }
             val batchResult = executeBatches(request, meta, plannedSegments, totalBytes, control, onEvent)
             if (meta.supportsRange && batchResult.failedResult?.code == DownloadFailureCode.RANGE_NOT_SUPPORTED &&
                 batchResult.stoppedReason == null && !control.isStopRequested()
@@ -289,6 +307,10 @@ class RealFileDownloader(
     ) {
         val finalFile = request.targetFile
         if (finalFile.exists()) finalFile.delete()
+        if (!StorageBudget.fits(availableSpace(requireNotNull(finalFile.parentFile)), calculateAggregateDownloaded(request.taskId))) {
+            onEvent(DownloadEvent.Failed(DownloadFailureCode.STORAGE_INSUFFICIENT, DownloaderText.FAILURE_STORAGE_INSUFFICIENT))
+            return
+        }
         // 合并前预留测试钩子，便于验证分片文件被破坏时的收口行为。
         beforeMergeHook?.invoke(plannedSegments, finalFile)
         val mergeOk = DownloadFileHelper.mergeSegments(plannedSegments, finalFile)
@@ -317,6 +339,12 @@ class RealFileDownloader(
                 status = DownloaderText.STATUS_COMPLETED,
                 retryCount = segmentResults.firstOrNull { it.segmentId == seg.segmentId }?.attempts ?: request.attempt,
             )
+        }
+        // 成功产物不因缓存清理失败变成下载失败，保留堆栈供诊断。
+        try {
+            store.clearTask(request.taskId)
+        } catch (failure: Exception) {
+            logger.w("FileDownloader", "Unable to clear completed task cache", failure)
         }
         onEvent(DownloadEvent.Completed(finalFile, if (totalBytes > 0L) totalBytes else finalSize))
     }
@@ -520,6 +548,7 @@ class RealFileDownloader(
     ): SegmentResult? {
         val buffer = ByteArray(chunkBytes)
         var segmentDownloaded = existingBytes
+        var bytesUntilSpaceCheck = 0L
         val startedAt = System.currentTimeMillis()
         var read = input.read(buffer)
         while (read >= 0) {
@@ -531,7 +560,19 @@ class RealFileDownloader(
             if (segment.endByte >= segment.startByte && read.toLong() > expectedLength - segmentDownloaded) {
                 return SegmentResult(segment.segmentId, false, code = DownloadFailureCode.FILE_INCOMPLETE, message = "Segment response exceeds requested length", attempts = attempt)
             }
+            if (bytesUntilSpaceCheck <= 0L) {
+                val total = synchronized(segmentCacheLock) {
+                    segmentCache[request.taskId]?.values?.maxOfOrNull { it.endByte + 1 } ?: 0L
+                }
+                if (!hasDownloadSpace(request, total)) {
+                    saveSegmentRecord(request, segment, segmentDownloaded, DownloaderText.STATUS_FAILED_IO, retryCount = attempt)
+                    return SegmentResult(segment.segmentId, false, code = DownloadFailureCode.STORAGE_INSUFFICIENT,
+                        message = DownloaderText.FAILURE_STORAGE_INSUFFICIENT, attempts = attempt)
+                }
+                bytesUntilSpaceCheck = StorageBudget.CHECK_INTERVAL_BYTES
+            }
             out.write(buffer, 0, read)
+            bytesUntilSpaceCheck -= read
             segmentDownloaded += read
             saveSegmentRecord(request, segment, segmentDownloaded, DownloaderText.STATUS_RUNNING, retryCount = attempt)
             val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
@@ -540,6 +581,12 @@ class RealFileDownloader(
             read = input.read(buffer)
         }
         return null
+    }
+
+    private fun hasDownloadSpace(request: DownloadRequest, total: Long): Boolean {
+        val available = minOf(availableSpace(store.getTaskTempDir(request.taskId)), availableSpace(requireNotNull(request.targetFile.parentFile)))
+        val paths = synchronized(segmentCacheLock) { segmentCache[request.taskId]?.values?.map { it.tmpFilePath }.orEmpty() }
+        return StorageBudget.canDownload(available, total, paths.sumOf { File(it).length() })
     }
 
     /** 校验分片下载完整性，返回 null 表示通过。 */

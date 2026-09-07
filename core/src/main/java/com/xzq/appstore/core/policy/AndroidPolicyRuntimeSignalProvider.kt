@@ -160,6 +160,6 @@ class AndroidPolicyRuntimeSignalProvider(
 
     private companion object {
         private const val TAG = "AndroidPolicyRuntimeSignalProvider"
-        private const val MIN_REQUIRED_SPACE_BYTES = 8L * 1024L * 1024L
+        private const val MIN_REQUIRED_SPACE_BYTES = StorageBudget.RESERVE_BYTES
     }
 }

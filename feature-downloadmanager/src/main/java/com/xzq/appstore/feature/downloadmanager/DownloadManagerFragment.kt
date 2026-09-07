@@ -4,6 +4,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.text.format.Formatter
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.xzq.appstore.feature.downloadmanager.R as FeatureR
 import androidx.fragment.app.viewModels
 import com.xzq.appstore.common.R
 import com.xzq.appstore.common.base.BaseTaskCenterFragment
@@ -77,6 +80,7 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
         // 下载中心把偏好设置扩展区挂接到公共扩展插槽中。
         val prefsBinding = ViewDownloadCenterPreferencesBinding.inflate(layoutInflater, binding.extensionSlot.extensionContentContainer, false)
         preferencesBinding = prefsBinding
+        prefsBinding.btnClearCache.setOnClickListener { confirmCacheCleanup() }
         preferencesController = DownloadCenterPreferencesController(prefsBinding)
         attachExtensionContent(binding.extensionSlot, prefsBinding.root)
 
@@ -93,7 +97,7 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
             onPrimary = viewModel::onCycleFilter,
             onSecondary = viewModel::onRetryFailed,
             onTertiary = viewModel::onBatchInstallReady,
-            onQuaternary = viewModel::onClearCompleted,
+            onQuaternary = ::confirmCacheCleanup,
         )
         preferencesController?.bindHandlers(
             FiveActionHandlers(
@@ -220,6 +224,10 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
 
             // 扩展控制区和双列表会随同一份 UI 状态一起刷新。
             preferencesController?.bind(state.preferencesUiState)
+            preferencesBinding?.apply {
+                tvCacheSummary.text = getString(FeatureR.string.download_cache_summary, Formatter.formatFileSize(requireContext(), state.downloadedCacheBytes))
+                tvCacheResult.text = state.clearedTaskCount?.let { getString(FeatureR.string.download_cache_result, it) }.orEmpty()
+            }
 
             installAdapter.submitList(state.installTasks)
             downloadAdapter.submitList(state.tasks)
@@ -227,6 +235,15 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
     }
 
     /** 释放下载中心页面相关引用。 */
+    private fun confirmCacheCleanup() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(FeatureR.string.download_cache_clear)
+            .setMessage(FeatureR.string.download_cache_confirm)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(FeatureR.string.download_cache_clear) { _, _ -> viewModel.onClearCompleted() }
+            .show()
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         preferencesController = null
