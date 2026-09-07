@@ -4,19 +4,15 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
-import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.xzq.appstore.common.base.BaseFragment
 import com.xzq.appstore.common.navigation.CatalogSection
-import com.xzq.appstore.common.ui.AppImageLoader
-import com.xzq.appstore.common.ui.CarUiStyle
-import com.xzq.appstore.common.ui.applyActionStyle
 import com.xzq.appstore.data.model.AppViewData
 import com.xzq.appstore.data.model.CatalogQuery
 import com.xzq.appstore.domain.appmanager.AppCatalogFilter
@@ -50,6 +46,7 @@ class HomeFragment : BaseFragment() {
         super.onServicesReady(view, savedInstanceState)
         navigator.updateTitle(getString(CommonR.string.screen_home_title))
         bindStaticClicks()
+        setupLists()
         observeState()
         viewModel.load()
     }
@@ -94,200 +91,40 @@ class HomeFragment : BaseFragment() {
     /** 最近一次已渲染的应用列表；内容未变化时跳过全量重建，视图销毁后重置避免新容器漏渲染。 */
     private var renderedApps: List<AppViewData>? = null
 
-    private fun renderHomeSections(apps: List<AppViewData>) {
-        if (apps == renderedApps) {
-            return
+    private val adapters = mutableMapOf<Int, HomeAdapter>()
+
+    private fun setupLists() {
+        listOf(HomeR.id.listTodayRecommend, HomeR.id.listHotRank, HomeR.id.rowHotGames, HomeR.id.rowNewGames).forEach { id ->
+            val horizontal = id == HomeR.id.rowHotGames || id == HomeR.id.rowNewGames
+            val adapter = HomeAdapter(viewModel::onPrimaryClick, { navigator.openDetail(it.appId) }, showRank = id == HomeR.id.listHotRank, compact = horizontal)
+            adapters[id] = adapter
+            findView<RecyclerView>(id).apply {
+                layoutManager = LinearLayoutManager(context, if (horizontal) RecyclerView.HORIZONTAL else RecyclerView.VERTICAL, false)
+                this.adapter = adapter
+                isNestedScrollingEnabled = horizontal
+                itemAnimator = null
+            }
         }
-        renderedApps = apps
-        renderVerticalApps(findView(HomeR.id.listTodayRecommend), apps.distinctBy { it.appId }.take(COUNT_TODAY), showIndex = false)
-        val ranked = AppCatalogFilter.select(apps, CatalogQuery(section = CatalogSection.Rank)).take(COUNT_RANK)
-        val games = AppCatalogFilter.select(apps, CatalogQuery(section = CatalogSection.Game)).take(COUNT_GAMES)
-        renderVerticalApps(findView(HomeR.id.listHotRank), ranked, showIndex = true)
-        renderHorizontalApps(findView(HomeR.id.rowHotGames), games)
-        renderHorizontalApps(findView(HomeR.id.rowNewGames), AppCatalogFilter.select(apps, CatalogQuery(section = CatalogSection.Software)).take(COUNT_GAMES))
     }
 
-    // Fragment 同时支持 mobile(sw600) 和 desktop(sw900dp-land) 两套 layout；
-    // mobile 用 include 复用 4 个 section，desktop 直接展开。统一通过 binding.root.findViewById
-    // 访问 4 个 section 内的容器是处理双布局差异的最小侵入方式。
+    private fun renderHomeSections(apps: List<AppViewData>) {
+        if (apps == renderedApps) return
+        renderedApps = apps
+        adapters[HomeR.id.listTodayRecommend]?.submitList(apps.distinctBy { it.appId }.take(3))
+        adapters[HomeR.id.listHotRank]?.submitList(AppCatalogFilter.select(apps, CatalogQuery(section = CatalogSection.Rank)).take(4))
+        adapters[HomeR.id.rowHotGames]?.submitList(AppCatalogFilter.select(apps, CatalogQuery(section = CatalogSection.Game)).take(5))
+        adapters[HomeR.id.rowNewGames]?.submitList(AppCatalogFilter.select(apps, CatalogQuery(section = CatalogSection.Software)).take(5))
+    }
+
     private fun <T : View> findView(id: Int): T = binding.root.findViewById(id)
 
-    private fun renderVerticalApps(container: LinearLayout, apps: List<AppViewData>, showIndex: Boolean) {
-        container.removeAllViews()
-        apps.forEachIndexed { index, app ->
-            container.addView(createListRow(app, if (showIndex) index + 1 else null))
-        }
-    }
-
-    private fun createListRow(app: AppViewData, index: Int?): View {
-        val row = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            setBackgroundResource(CommonR.drawable.bg_home_app_card)
-            setPadding(dp(PADDING_LIST_HORIZONTAL), dp(PADDING_LIST_VERTICAL), dp(PADDING_LIST_HORIZONTAL), dp(PADDING_LIST_VERTICAL))
-            setOnClickListener { navigator.openDetail(app.appId) }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { bottomMargin = dp(MARGIN_LIST_BOTTOM) }
-        }
-        if (index != null) row.addView(createRankIndex(index))
-        row.addView(createIcon(app, sizeDp = ICON_LIST_SIZE))
-        row.addView(createListRowText(app))
-        row.addView(createActionButton(app, widthDp = ACTION_WIDTH, heightDp = ACTION_HEIGHT_LIST))
-        return row
-    }
-
-    private fun createRankIndex(index: Int): TextView = TextView(requireContext()).apply {
-        text = getString(CommonR.string.rank_index_format, index)
-        gravity = android.view.Gravity.CENTER
-        setTextColor(resources.getColor(CommonR.color.car_accent, null))
-        textSize = TEXT_SIZE_RANK_INDEX
-        typeface = android.graphics.Typeface.DEFAULT_BOLD
-        layoutParams = LinearLayout.LayoutParams(dp(RANK_INDEX_WIDTH), dp(RANK_INDEX_HEIGHT)).apply { rightMargin = dp(MARGIN_RIGHT_INDEX) }
-    }
-
-    private fun createListRowText(app: AppViewData): LinearLayout = LinearLayout(requireContext()).apply {
-        orientation = LinearLayout.VERTICAL
-        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, WEIGHT_TEXT).apply {
-            leftMargin = dp(MARGIN_LIST_LEFT)
-            rightMargin = dp(MARGIN_LIST_RIGHT)
-        }
-        addView(
-            TextView(requireContext()).apply {
-                text = app.name
-                setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
-                textSize = TEXT_SIZE_LIST_TITLE
-                typeface = android.graphics.Typeface.DEFAULT_BOLD
-                maxLines = 1
-            },
-        )
-        addView(
-            TextView(requireContext()).apply {
-                text = app.description
-                setTextColor(resources.getColor(CommonR.color.car_text_secondary, null))
-                textSize = TEXT_SIZE_LIST_DESC
-                maxLines = 1
-            },
-        )
-    }
-
-    private fun renderHorizontalApps(container: LinearLayout, apps: List<AppViewData>) {
-        container.removeAllViews()
-        apps.forEach { app -> container.addView(createMiniAppCard(app)) }
-    }
-
-    private fun createMiniAppCard(app: AppViewData): View = LinearLayout(requireContext()).apply {
-        orientation = LinearLayout.VERTICAL
-        gravity = android.view.Gravity.CENTER_HORIZONTAL
-        setBackgroundResource(CommonR.drawable.bg_home_app_card)
-        setPadding(dp(PADDING_MINI), dp(PADDING_MINI), dp(PADDING_MINI), dp(PADDING_MINI))
-        setOnClickListener { navigator.openDetail(app.appId) }
-        layoutParams = LinearLayout.LayoutParams(dp(MINI_CARD_WIDTH), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-            rightMargin = dp(PADDING_MINI)
-        }
-        addView(createIcon(app, sizeDp = ICON_MINI_SIZE))
-        addView(createMiniAppTitle(app))
-        addView(
-            createActionButton(app, widthDp = ACTION_WIDTH, heightDp = ACTION_HEIGHT_MINI).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(ACTION_WIDTH), dp(ACTION_HEIGHT_MINI)).apply { topMargin = dp(MARGIN_TOP_TEXT) }
-            },
-        )
-    }
-
-    private fun createMiniAppTitle(app: AppViewData): TextView = TextView(requireContext()).apply {
-        text = app.name
-        gravity = android.view.Gravity.CENTER
-        setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
-        textSize = TEXT_SIZE_MINI_TITLE
-        typeface = android.graphics.Typeface.DEFAULT_BOLD
-        maxLines = 1
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = dp(MARGIN_TOP_TEXT) }
-    }
-
-    private fun createIcon(app: AppViewData, sizeDp: Int): View = FrameLayout(requireContext()).apply {
-        setBackgroundResource(CommonR.drawable.bg_home_app_icon)
-        layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp))
-        val image = ImageView(requireContext()).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            visibility = View.GONE
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        }
-        val fallback = TextView(requireContext()).apply {
-            text = app.iconText.ifBlank {
-                app.name.firstOrNull()?.toString().orEmpty()
-            }
-            gravity = android.view.Gravity.CENTER
-            setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
-            textSize = if (sizeDp >= ICON_MINI_SIZE) TEXT_SIZE_LARGE_ICON else TEXT_SIZE_SMALL_ICON
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        }
-        addView(image)
-        addView(fallback)
-        AppImageLoader.load(image, app.iconUrl, fallback)
-    }
-
-    private fun createActionButton(app: AppViewData, widthDp: Int, heightDp: Int): TextView = TextView(requireContext()).apply {
-        gravity = android.view.Gravity.CENTER
-        textSize = TEXT_SIZE_ACTION
-        typeface = android.graphics.Typeface.DEFAULT_BOLD
-        applyActionStyle(CarUiStyle.actionStyle(app.primaryAction))
-        setOnClickListener { viewModel.onPrimaryClick(app) }
-        layoutParams = LinearLayout.LayoutParams(dp(widthDp), dp(heightDp))
-    }
-
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
-
     override fun onDestroyView() {
-        super.onDestroyView()
+        adapters.keys.forEach { findView<RecyclerView>(it).adapter = null }
+        adapters.clear()
         renderedApps = null
+        super.onDestroyView()
         _binding = null
     }
 
-    companion object {
-        fun newInstance() = HomeFragment()
-
-        // 首页仅展示目录预览，完整结果由各栏目“查看更多”承接。
-        private const val COUNT_TODAY = 3
-        private const val COUNT_RANK = 4
-        private const val COUNT_GAMES = 5
-
-        // 列表行尺寸（dp 单位，运行时按 density 换算）。
-        private const val PADDING_LIST_HORIZONTAL = 12
-        private const val PADDING_LIST_VERTICAL = 10
-        private const val MARGIN_LIST_BOTTOM = 10
-        private const val MARGIN_LIST_LEFT = 12
-        private const val MARGIN_LIST_RIGHT = 10
-        private const val RANK_INDEX_WIDTH = 28
-        private const val RANK_INDEX_HEIGHT = 48
-        private const val MARGIN_RIGHT_INDEX = 8
-        private const val ICON_LIST_SIZE = 48
-
-        // 迷你卡片尺寸。
-        private const val PADDING_MINI = 10
-        private const val MINI_CARD_WIDTH = 104
-        private const val ICON_MINI_SIZE = 54
-        private const val MARGIN_TOP_TEXT = 8
-
-        // 主动作按钮尺寸。车机场景下触控目标高度需 ≥ 48dp，避免颠簸中误触。
-        private const val ACTION_WIDTH = 72
-        private const val ACTION_HEIGHT_LIST = 48
-        private const val ACTION_HEIGHT_MINI = 48
-
-        // 文字字号（sp）。
-        private const val TEXT_SIZE_LIST_TITLE = 16f
-        private const val TEXT_SIZE_LIST_DESC = 12f
-        private const val TEXT_SIZE_MINI_TITLE = 12f
-        private const val TEXT_SIZE_RANK_INDEX = 16f
-        private const val TEXT_SIZE_LARGE_ICON = 18f
-        private const val TEXT_SIZE_SMALL_ICON = 16f
-        private const val TEXT_SIZE_ACTION = 12f
-
-        // LinearLayout 子 view 权重。
-        private const val WEIGHT_TEXT = 1f
-    }
+    companion object { fun newInstance() = HomeFragment() }
 }

@@ -135,13 +135,13 @@
                         android:textSize="@dimen/text_sm" />
                 </LinearLayout>
 
-                <LinearLayout
+                <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/listTodayRecommend"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_marginTop="@dimen/spacing_10dp"
                     android:layout_weight="1"
-                    android:orientation="vertical" />
+                    android:nestedScrollingEnabled="false" />
             </LinearLayout>
         </LinearLayout>
 
@@ -153,12 +153,38 @@
             android:gravity="center"
             android:orientation="horizontal">
 
-            <TextView android:id="@+id/entryCategory" style="@style/HomeQuickEntry" android:text="@string/ui_category" />
-            <TextView android:id="@+id/entryRank" style="@style/HomeQuickEntry" android:layout_marginStart="@dimen/spacing_10dp" android:text="@string/ui_rank" />
-            <TextView android:id="@+id/entryEssential" style="@style/HomeQuickEntry" android:layout_marginStart="@dimen/spacing_10dp" android:text="@string/ui_essential" />
-            <TextView android:id="@+id/entryFactory" style="@style/HomeQuickEntry" android:layout_marginStart="@dimen/spacing_10dp" android:text="@string/ui_activity" />
-            <TextView style="@style/HomeQuickEntry" android:layout_marginStart="@dimen/spacing_10dp" android:text="@string/static_home_nav_children" />
-            <TextView style="@style/HomeQuickEntry" android:layout_marginStart="@dimen/spacing_10dp" android:text="@string/static_home_nav_my" />
+            <TextView
+                android:id="@+id/entryCategory"
+                style="@style/HomeQuickEntry"
+                android:text="@string/ui_category" />
+
+            <TextView
+                android:id="@+id/entryRank"
+                style="@style/HomeQuickEntry"
+                android:layout_marginStart="@dimen/spacing_10dp"
+                android:text="@string/ui_rank" />
+
+            <TextView
+                android:id="@+id/entryEssential"
+                style="@style/HomeQuickEntry"
+                android:layout_marginStart="@dimen/spacing_10dp"
+                android:text="@string/ui_essential" />
+
+            <TextView
+                android:id="@+id/entryFactory"
+                style="@style/HomeQuickEntry"
+                android:layout_marginStart="@dimen/spacing_10dp"
+                android:text="@string/ui_activity" />
+
+            <TextView
+                style="@style/HomeQuickEntry"
+                android:layout_marginStart="@dimen/spacing_10dp"
+                android:text="@string/static_home_nav_children" />
+
+            <TextView
+                style="@style/HomeQuickEntry"
+                android:layout_marginStart="@dimen/spacing_10dp"
+                android:text="@string/static_home_nav_my" />
         </LinearLayout>
 
         <LinearLayout
@@ -201,18 +227,12 @@
                         android:textSize="@dimen/text_sm" />
                 </LinearLayout>
 
-                <HorizontalScrollView
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rowHotGames"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_10dp"
-                    android:scrollbars="none">
-
-                    <LinearLayout
-                        android:id="@+id/rowHotGames"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal" />
-                </HorizontalScrollView>
+                    android:nestedScrollingEnabled="false"
+                    android:layout_marginTop="@dimen/spacing_10dp" />
             </LinearLayout>
 
             <LinearLayout
@@ -249,18 +269,12 @@
                         android:textSize="@dimen/text_sm" />
                 </LinearLayout>
 
-                <HorizontalScrollView
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rowNewGames"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_10dp"
-                    android:scrollbars="none">
-
-                    <LinearLayout
-                        android:id="@+id/rowNewGames"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal" />
-                </HorizontalScrollView>
+                    android:nestedScrollingEnabled="false"
+                    android:layout_marginTop="@dimen/spacing_10dp" />
             </LinearLayout>
         </LinearLayout>
 
@@ -302,12 +316,12 @@
                         android:textSize="@dimen/text_sm" />
                 </LinearLayout>
 
-                <LinearLayout
+                <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/listHotRank"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/spacing_10dp"
-                    android:orientation="vertical" />
+                    android:nestedScrollingEnabled="false" />
             </LinearLayout>
 
             <LinearLayout

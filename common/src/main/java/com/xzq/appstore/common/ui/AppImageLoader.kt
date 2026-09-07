@@ -4,6 +4,7 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import coil.load
+import coil.dispose
 import coil.size.Scale
 
 /**
@@ -26,6 +27,7 @@ object AppImageLoader {
     fun load(imageView: ImageView, source: String, fallbackView: TextView? = null) {
         val normalized = source.trim()
         if (normalized.isBlank()) {
+            imageView.dispose()
             showFallback(imageView, fallbackView)
             return
         }
