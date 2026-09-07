@@ -46,8 +46,8 @@ class HomeFragment : BaseFragment() {
         return binding.root
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+    override fun onServicesReady(view: View, savedInstanceState: Bundle?) {
+        super.onServicesReady(view, savedInstanceState)
         navigator.updateTitle(getString(CommonR.string.screen_home_title))
         bindStaticClicks()
         observeState()

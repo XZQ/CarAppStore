@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_initializing">正在恢复应用和任务…</string>
+    <string name="app_initialization_failed">初始化失败，点此重试</string>
+</resources>

@@ -44,8 +44,8 @@ class SearchFragment : BaseFragment() {
         return binding.root
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+    override fun onServicesReady(view: View, savedInstanceState: Bundle?) {
+        super.onServicesReady(view, savedInstanceState)
         navigator.updateTitle(page.title)
         binding.tvCatalogTitle.text = page.title
         binding.etSearch.hint = page.searchHint

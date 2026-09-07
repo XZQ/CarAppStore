@@ -35,8 +35,8 @@ class MyAppFragment : BaseFragment() {
     }
 
     /** 初始化列表、标题和状态订阅。 */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+    override fun onServicesReady(view: View, savedInstanceState: Bundle?) {
+        super.onServicesReady(view, savedInstanceState)
         navigator.updateTitle(getString(R.string.screen_my_apps_title))
         binding.recyclerMyApps.layoutManager = GridLayoutManager(requireContext(), resolveSpanCount())
         binding.recyclerMyApps.adapter = adapter

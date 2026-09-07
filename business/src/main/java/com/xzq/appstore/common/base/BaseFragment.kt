@@ -2,9 +2,16 @@ package com.xzq.appstore.common.base
 
 import android.content.Intent
 import android.provider.Settings
+import android.os.Bundle
+import android.view.View
 import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.withStarted
 import com.xzq.appstore.common.navigation.MainNavigator
+import com.xzq.appstore.core.logger.AppLogger
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 /**
  * BaseFragment 为所有 feature 页面提供最小公共能力：
@@ -15,6 +22,24 @@ import com.xzq.appstore.common.navigation.MainNavigator
  * feature module 不再需要直接引用 app 中的具体容器类型。
  */
 abstract class BaseFragment : Fragment() {
+    final override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                appServices.awaitReady()
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                // 启动失败由壳层显示重试；页面保持未绑定，不能越过安装对账门控。
+                AppLogger().w("BaseFragment", "Unable to initialize page services", failure)
+                return@launch
+            }
+            viewLifecycleOwner.lifecycle.withStarted { onServicesReady(view, savedInstanceState) }
+        }
+    }
+
+    protected open fun onServicesReady(view: View, savedInstanceState: Bundle?) = Unit
+
     /** 当前页面访问业务服务的统一入口。 */
     protected val appServices: AppServices
         get() = (requireContext().applicationContext as AppContainerProvider).appServices

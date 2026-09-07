@@ -3,6 +3,8 @@ package com.xzq.appstore.app
 import android.app.Application
 import com.xzq.appstore.common.base.AppContainerProvider
 import com.xzq.appstore.common.base.AppServices
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * App 是应用级入口，同时实现 AppContainerProvider，
@@ -23,11 +25,13 @@ class App : Application(), AppContainerProvider {
         super.onCreate()
         // 应用启动后立刻装配容器，保证后续页面能直接获取业务服务。
         appContainer = AppContainer(this)
+        appContainer.startInitialization()
     }
 
     /** 关闭旧容器并按最新持久化配置重新装配全局依赖。 */
-    fun reloadAppContainer() {
-        appContainer.shutdown()
+    suspend fun reloadAppContainer() {
+        withContext(Dispatchers.IO) { appContainer.shutdown() }
         appContainer = AppContainer(this)
+        appContainer.startInitialization()
     }
 }

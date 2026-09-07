@@ -15,12 +15,14 @@ import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.text.BusinessText
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class DetailViewModel(
     /** 提供详情页应用详情和卡片状态数据。 */
@@ -47,6 +49,7 @@ class DetailViewModel(
 
     /** 详情页策略订阅任务。 */
     private var observePolicyJob: Job? = null
+    private var loadJob: Job? = null
 
     /** 详情页与卡片共用的主动作分发器。 */
     private val primaryActionExecutor = AppPrimaryActionExecutor(
@@ -63,6 +66,7 @@ class DetailViewModel(
         currentAppId = appId
         observeStateJob?.cancel()
         observePolicyJob?.cancel()
+        loadJob?.cancel()
         observeStateJob = stateCenter.observe(appId).onEach { appState ->
             // 页面只消费已经归一化的状态文本、主按钮和进度，不自己做业务判断。
             _uiState.update {
@@ -80,12 +84,15 @@ class DetailViewModel(
         }.launchIn(viewModelScope)
         observePolicyJob = policyCenter.observeSettings().onEach {
             if (::currentAppId.isInitialized) {
+                val (prompt, reason) = withContext(ioDispatcher) {
+                    appManager.getPolicyPrompt() to computeInterceptReason(appId)
+                }
                 _uiState.update {
-                    it.copy(policyPrompt = appManager.getPolicyPrompt(), interceptReason = computeInterceptReason(currentAppId))
+                    it.copy(policyPrompt = prompt, interceptReason = reason)
                 }
             }
         }.launchIn(viewModelScope)
-        viewModelScope.launch { loadDetail(appId) }
+        loadJob = viewModelScope.launch { loadDetail(appId) }
     }
 
     /** 处理详情页主按钮点击。 */
@@ -98,11 +105,13 @@ class DetailViewModel(
     /** 加载详情页数据并同步升级可用性。 */
     private suspend fun loadDetail(appId: String) {
         _uiState.update { it.copy(screenState = DetailScreenState.Loading) }
-        runCatching {
-            val detail = appManager.getAppDetail(appId)
-            upgradeManager.checkUpgrade(appId)
-            detail
-        }.onSuccess { detail ->
+        try {
+            val (detail, prompt, reason) = withContext(ioDispatcher) {
+                val detail = appManager.getAppDetail(appId)
+                upgradeManager.checkUpgrade(appId)
+                Triple(detail, appManager.getPolicyPrompt(), computeInterceptReason(appId, detail.currentPlatformSupported))
+            }
+            if (appId != currentAppId) return
             _uiState.update {
                 val primaryAction = resolvePlatformPrimaryAction(
                     action = stateCenter.snapshot(appId).primaryAction,
@@ -113,11 +122,14 @@ class DetailViewModel(
                     screenState = DetailScreenState.Content,
                     stateText = if (primaryAction == PrimaryAction.UNSUPPORTED) BusinessText.STATUS_PLATFORM_UNSUPPORTED else it.stateText,
                     primaryAction = primaryAction,
-                    policyPrompt = appManager.getPolicyPrompt(),
-                    interceptReason = computeInterceptReason(appId, detail.currentPlatformSupported),
+                    policyPrompt = prompt,
+                    interceptReason = reason,
                 )
             }
-        }.onFailure { throwable ->
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (throwable: Exception) {
+            if (appId != currentAppId) return
             _uiState.update {
                 it.copy(appDetail = null, screenState = DetailScreenState.Error(throwable.message.orEmpty()), policyPrompt = "", interceptReason = "")
             }

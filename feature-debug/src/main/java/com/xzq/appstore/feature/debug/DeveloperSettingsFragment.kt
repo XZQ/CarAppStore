@@ -31,8 +31,8 @@ class DeveloperSettingsFragment : BaseFragment() {
     }
 
     /** 初始化页面标题和所有面板。 */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+    override fun onServicesReady(view: View, savedInstanceState: Bundle?) {
+        super.onServicesReady(view, savedInstanceState)
         navigator.updateTitle(getString(R.string.ui_developer_settings))
         bindEnvironmentSection()
         bindPolicySignalsSection()

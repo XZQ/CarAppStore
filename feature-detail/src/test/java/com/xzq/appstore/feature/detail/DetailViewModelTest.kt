@@ -20,6 +20,8 @@ import com.xzq.appstore.domain.upgrade.UpgradeBatchResult
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.currentCoroutineContext
+import kotlin.coroutines.ContinuationInterceptor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
@@ -137,15 +139,32 @@ class DetailViewModelTest {
         assertTrue(downloadManager.startedAppIds.isEmpty())
     }
 
+    @Test
+    fun `detail repository access uses injected IO dispatcher`() = runTest {
+        val io = StandardTestDispatcher(testScheduler, "detail-io")
+        var usedDispatcher: ContinuationInterceptor? = null
+        val viewModel = DetailViewModel(
+            appManager = FakeAppManager(onRead = { usedDispatcher = currentCoroutineContext()[ContinuationInterceptor] }),
+            downloadManager = RecordingDownloadManager(), installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(), stateCenter = DefaultStateCenter(), policyCenter = FakePolicyCenter(),
+            ioDispatcher = io,
+        )
+        viewModel.load(TEST_APP_DETAIL.appId)
+        advanceUntilIdle()
+        assertEquals(io, usedDispatcher)
+        assertEquals(DetailScreenState.Content, viewModel.uiState.value.screenState)
+    }
+
     private class FakeAppManager(
         private val detail: AppDetail = TEST_APP_DETAIL,
+        private val onRead: suspend () -> Unit = {},
     ) : AppManager {
         /** 最近一次被请求打开的包名。 */
         var openedPackageName: String? = null
 
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
 
-        override suspend fun getAppDetail(appId: String): AppDetail = detail
+        override suspend fun getAppDetail(appId: String): AppDetail { onRead(); return detail }
 
         override suspend fun getMyApps(): List<AppViewData> = emptyList()
 

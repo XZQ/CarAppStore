@@ -8,6 +8,7 @@ import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
+import android.widget.FrameLayout
 import android.widget.Toast
 import com.xzq.appstore.core.logger.AppLogger
 import androidx.annotation.StringRes
@@ -17,6 +18,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.withStarted
 import com.xzq.appstore.BuildConfig
 import com.xzq.appstore.R
 import com.xzq.appstore.common.base.AppContainerProvider
@@ -33,6 +35,7 @@ import com.xzq.appstore.feature.search.CatalogPage
 import com.xzq.appstore.feature.search.SearchFragment
 import com.xzq.appstore.feature.upgrade.UpgradeFragment
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,13 +63,49 @@ class MainActivity : AppCompatActivity(), MainNavigator {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        binding.root.visibility = View.INVISIBLE
+        awaitInitialization()
+    }
 
+    private fun awaitInitialization() {
+        val startupView = TextView(this).apply {
+            gravity = android.view.Gravity.CENTER
+            setText(R.string.app_initializing)
+            setPadding(32, 32, 32, 32)
+        }
+        val root = FrameLayout(this).apply {
+            addView(binding.root)
+            addView(startupView, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        }
+        setContentView(root)
+        lifecycleScope.launch {
+            try {
+                (application as App).appContainer.awaitReady()
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                AppLogger().w("MainActivity", "App initialization failed", failure)
+                startupView.setText(R.string.app_initialization_failed)
+                startupView.setOnClickListener {
+                    startupView.isEnabled = false
+                    restartApplication()
+                }
+                return@launch
+            }
+            lifecycle.withStarted {
+                root.removeView(startupView)
+                binding.root.visibility = View.VISIBLE
+                showAppShell()
+            }
+        }
+    }
+
+    private fun showAppShell() {
         bindNavigationClicks()
         observeInstallUserActions()
         observeTaskSummaryStats()
 
-        if (savedInstanceState == null) {
+        if (supportFragmentManager.findFragmentById(R.id.fragmentContainer) == null) {
             openHome()
         }
     }
@@ -78,13 +117,15 @@ class MainActivity : AppCompatActivity(), MainNavigator {
 
     /** 以新的 AppContainer 重启根任务，确保页面 ViewModel 不再持有旧环境依赖。 */
     override fun restartApplication() {
-        (application as App).reloadAppContainer()
-        startActivity(
-            Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            },
-        )
-        finish()
+        lifecycleScope.launch {
+            (application as App).reloadAppContainer()
+            startActivity(
+                Intent(this@MainActivity, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                },
+            )
+            finish()
+        }
     }
 
     /** 打开首页。 */

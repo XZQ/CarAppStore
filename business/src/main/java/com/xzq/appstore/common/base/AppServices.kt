@@ -17,6 +17,9 @@ import com.xzq.appstore.domain.upgrade.UpgradeManager
  * 它保持在 common 包名下，避免 BaseFragment 直接依赖 app 模块里的具体 AppContainer 类型。
  */
 interface AppServices {
+    /** 等待容器完成恢复与初始化；失败时页面不得启动业务动作。 */
+    suspend fun awaitReady() = Unit
+
     /** 当前容器使用的下载环境配置入口。环境变更后由壳层重建容器使其生效。 */
     val downloadEnvironmentProvider: LocalDownloadEnvironmentProvider
 

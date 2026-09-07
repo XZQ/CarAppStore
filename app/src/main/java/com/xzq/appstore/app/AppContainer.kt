@@ -51,6 +51,13 @@ import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.DefaultUpgradeManager
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 
 /**
  * AppContainer 是当前 app 壳层的主装配入口。
@@ -155,7 +162,7 @@ class AppContainer(context: Context) : AppServices {
     }
 
     /** 全局策略中心。 */
-    private val runtimeSignalProvider by lazy {
+    private val runtimeSignalProviderDelegate = lazy {
         AndroidPolicyRuntimeSignalProvider(
             context = appContext,
             vehicleStateSignalProvider = vehicleStateSignalProvider,
@@ -163,6 +170,7 @@ class AppContainer(context: Context) : AppServices {
             logger = logger,
         )
     }
+    private val runtimeSignalProvider by runtimeSignalProviderDelegate
 
     /** 提供设备可用存储空间查询。 */
     private val storageInfoProvider by lazy {
@@ -170,9 +178,10 @@ class AppContainer(context: Context) : AppServices {
     }
 
     /** 全局策略中心。 */
-    override val policyCenter: PolicyCenter by lazy {
+    private val policyCenterDelegate = lazy {
         DefaultPolicyCenter(storageInfoProvider, localDataSource, runtimeSignalProvider, logger)
     }
+    override val policyCenter: PolicyCenter by policyCenterDelegate
 
     /** 下载执行器，当前优先走真实下载器，必要时回退模拟实现。 */
     /** 下载执行器实例，供下载业务编排层复用。 */
@@ -283,7 +292,16 @@ class AppContainer(context: Context) : AppServices {
         DefaultAppManager(repository, stateCenter, installSessionStore, policyCenter, platformCapabilities)
     }
 
-    init {
+    private val initializationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val initialization = initializationScope.async(start = CoroutineStart.LAZY) { initializeServices() }
+
+    /** 只调度初始化；构造容器和启动 Application 时不执行磁盘或系统包查询。 */
+    fun startInitialization() { initialization.start() }
+
+    /** 页面与系统服务共用的门控；对账失败会向调用方报告，不能绕过后继续安装。 */
+    override suspend fun awaitReady() = initialization.await()
+
+    private fun initializeServices() {
         // 冷启动时先对齐本地记录、平台 Session 与 PackageManager 安装事实，再启动下载链恢复。
         val reconciliation = installSessionReconciler.reconcile()
         logger.d(
@@ -292,6 +310,11 @@ class AppContainer(context: Context) : AppServices {
         )
         // 访问下载管理器时会触发其初始化逻辑，顺带执行下载任务恢复。
         downloadManager
+        // 在同一个 IO 初始化阶段展开页面工厂会读取的依赖。
+        installManager
+        upgradeManager
+        appManager
+        installUserActionDispatcher
     }
 
     /**
@@ -300,8 +323,10 @@ class AppContainer(context: Context) : AppServices {
      * 进程退出时系统会自然回收 BroadcastReceiver / NetworkCallback，但在测试与
      * AppContainer 重建场景下必须显式释放，否则会跨用例累积悬挂 receiver。
      */
-    fun shutdown() {
-        runCatching { policyCenter.close() }
-        runCatching { runtimeSignalProvider.close() }
+    suspend fun shutdown() {
+        initialization.cancelAndJoin()
+        initializationScope.cancel()
+        if (policyCenterDelegate.isInitialized()) policyCenter.close()
+        if (runtimeSignalProviderDelegate.isInitialized()) runtimeSignalProvider.close()
     }
 }

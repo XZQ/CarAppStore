@@ -62,8 +62,8 @@ class DownloadManagerFragment : BaseTaskCenterFragment() {
     }
 
     /** 初始化下载中心的扩展区、列表区和事件绑定。 */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+    override fun onServicesReady(view: View, savedInstanceState: Bundle?) {
+        super.onServicesReady(view, savedInstanceState)
         bindCenterTitle(binding.headerBlock, getString(R.string.screen_download_manager_title))
         bindExtensionSlot(
             extensionBinding = binding.extensionSlot,

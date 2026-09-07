@@ -47,8 +47,8 @@ class DetailFragment : BaseFragment() {
     }
 
     /** 初始化详情页标题、状态订阅和按钮事件。 */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+    override fun onServicesReady(view: View, savedInstanceState: Bundle?) {
+        super.onServicesReady(view, savedInstanceState)
         navigator.updateTitle(getString(R.string.screen_detail_title))
         observeState()
         viewModel.load(appId)
