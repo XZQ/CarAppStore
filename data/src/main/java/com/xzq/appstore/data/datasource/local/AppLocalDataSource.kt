@@ -17,6 +17,7 @@ import com.xzq.appstore.domain.state.DownloadStatus
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import com.xzq.appstore.data.local.entity.SettingsEntity
@@ -127,16 +128,15 @@ class AppLocalDataSource(
     /**
      * 获取指定应用默认的下载目标文件。
      *
-     * appId 来自远端目录 JSON，可能被恶意构造（含 "../" 等），因此先做白名单规范化，
-     * 仅保留 [A-Za-z0-9_-]，并断言最终路径仍在 [downloadDir] 之内，
-     * 防止路径穿越导致越权写入/删除私有目录外的文件。
+     * 使用原始 appId 的 SHA-256 磁盘键，避免点、下划线和大小写在文件系统中产生别名。
+     * 旧版 APK 只通过持久化的路径引用读取，不猜测或复用旧文件名，防止覆盖其他应用。
      */
     fun getOrCreateDownloadFile(appId: String): File {
-        val safeId = appId.replace(Regex("[^A-Za-z0-9_-]"), "_")
-        val target = File(downloadDir, "$safeId.apk")
-        val dirCanonical = downloadDir.canonicalPath
-        check(target.canonicalPath.startsWith(dirCanonical)) {
-            "Blocked download path traversal: $appId -> ${target.canonicalPath}"
+        val diskKey = MessageDigest.getInstance("SHA-256").digest(appId.toByteArray(Charsets.UTF_8))
+            .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+        val target = File(downloadDir, "apk-$diskKey.apk")
+        check(target.canonicalFile.parentFile == downloadDir.canonicalFile) {
+            "Blocked download path traversal"
         }
         return target
     }
@@ -239,7 +239,7 @@ class AppLocalDataSource(
         targets.size
     }
 
-    /** 删除指定应用的本地 APK 产物和路径引用。 */
+    /** 删除本应用的新格式 APK 与路径引用。旧文件可能被多个 appId 共享，保留它以免误删。 */
     fun clearDownloadedApk(appId: String) = legacyStoreLock.withLock {
         downloadedApkPaths.remove(appId)
         localStoreFacade.removeDownloadArtifactRef(appId)
