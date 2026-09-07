@@ -23,15 +23,17 @@ open class CatalogAppAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
         val binding = ItemCatalogAppBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        if (compact) {
+        if (compact || parent.resources.configuration.fontScale >= 1.5f) {
             val density = parent.resources.displayMetrics.density
-            binding.root.layoutParams.width = (144 * density).toInt()
-            (binding.root.layoutParams as ViewGroup.MarginLayoutParams).marginEnd = (10 * density).toInt()
+            if (compact) {
+                binding.root.layoutParams.width = (144 * density * parent.resources.configuration.fontScale.coerceAtLeast(1f)).toInt()
+                (binding.root.layoutParams as ViewGroup.MarginLayoutParams).marginEnd = (10 * density).toInt()
+            }
             binding.cardBody.orientation = LinearLayout.VERTICAL
             binding.cardBody.gravity = Gravity.CENTER_HORIZONTAL
             binding.cardText.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             binding.tvName.gravity = Gravity.CENTER
-            binding.tvDescription.visibility = View.GONE
+            if (compact) binding.tvDescription.visibility = View.GONE
         }
         return Holder(binding)
     }

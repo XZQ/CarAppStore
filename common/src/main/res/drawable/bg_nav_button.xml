@@ -1,4 +1,11 @@
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape>
+            <solid android:color="@color/car_surface_light" />
+            <stroke android:width="2dp" android:color="@color/car_accent" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
     <item android:state_selected="true">
         <shape>
             <solid android:color="@color/car_primary" />

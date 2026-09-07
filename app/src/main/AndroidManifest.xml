@@ -30,6 +30,7 @@
             android:stopWithTask="false" />
         <activity
             android:name=".app.MainActivity"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

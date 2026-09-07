@@ -51,6 +51,10 @@ class SearchFragment : BaseFragment() {
             itemAnimator = null
         }
         binding.etSearch.setText(viewModel.uiState.value.keyword)
+        binding.etSearch.setOnFocusChangeListener { _, focused ->
+            binding.tvCatalogTitle.visibility = if (focused) View.GONE else View.VISIBLE
+            binding.tvSearchSubtitle.visibility = if (focused) View.GONE else View.VISIBLE
+        }
         binding.etSearch.doAfterTextChanged {
             suggestionsEnabled = true
             viewModel.search(it?.toString().orEmpty())
@@ -91,11 +95,13 @@ class SearchFragment : BaseFragment() {
                     text = category ?: getString(R.string.catalog_all)
                     gravity = android.view.Gravity.CENTER
                     minWidth = dp(64)
-                    setPadding(dp(12), 0, dp(12), 0)
+                    minHeight = dp(48)
+                    isFocusable = true
+                    setPadding(dp(12), dp(8), dp(12), dp(8))
                     isSelected = category == state.selectedCategory
                     setBackgroundResource(if (isSelected) CommonR.drawable.bg_primary_button else CommonR.drawable.bg_home_chip)
                     setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
-                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)).apply { marginEnd = dp(8) }
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) }
                     setOnClickListener { viewModel.selectCategory(category) }
                 }
                 binding.hotSearchChips.addView(chip)
@@ -114,8 +120,10 @@ class SearchFragment : BaseFragment() {
                 text = app.name
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 setTextColor(resources.getColor(CommonR.color.car_text_primary, null))
-                setPadding(dp(12), 0, dp(12), 0)
-                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48))
+                minHeight = dp(48)
+                isFocusable = true
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setOnClickListener { binding.etSearch.setText(app.name); finishInput() }
             })
         }

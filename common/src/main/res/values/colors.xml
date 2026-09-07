@@ -14,11 +14,12 @@
     <color name="car_card_alt">#F7FCF9</color>
     <color name="car_primary">#DDF8EA</color>
     <color name="car_primary_dark">#1EBB73</color>
-    <color name="car_accent">#18A86B</color>
+    <color name="car_accent">#087447</color>
     <color name="car_text_primary">#17221B</color>
+    <color name="car_on_bright_action">#17221B</color>
     <color name="car_text_secondary">#5F6F66</color>
-    <color name="car_text_muted">#8B9A91</color>
-    <color name="car_text_hint">#9AA8A0</color>
+    <color name="car_text_muted">#627268</color>
+    <color name="car_text_hint">#627268</color>
     <color name="car_divider">#DDE9E2</color>
     <color name="car_warning">#FFE3A3</color>
     <color name="car_success">#19A86B</color>

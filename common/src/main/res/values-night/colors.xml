@@ -1,0 +1,22 @@
+<resources>
+    <color name="car_bg">#111914</color>
+    <color name="car_surface">#19241D</color>
+    <color name="car_surface_light">#24352B</color>
+    <color name="car_card">#1D2B22</color>
+    <color name="car_card_alt">#24352B</color>
+    <color name="car_primary">#24513A</color>
+    <color name="car_primary_dark">#28774F</color>
+    <color name="car_accent">#79DFAC</color>
+    <color name="car_text_primary">#EDF7F0</color>
+    <color name="car_text_secondary">#BDCEC2</color>
+    <color name="car_text_muted">#A9BBB0</color>
+    <color name="car_text_hint">#A9BBB0</color>
+    <color name="car_divider">#43564A</color>
+    <color name="car_warning">#F6D48D</color>
+    <color name="car_success">#79DFAC</color>
+    <color name="car_success_dark">#24513A</color>
+    <color name="car_error">#FFB4AB</color>
+    <color name="car_error_dark">#522F30</color>
+    <color name="car_warning_dark">#4D4028</color>
+    <color name="car_disabled">#3A493F</color>
+</resources>

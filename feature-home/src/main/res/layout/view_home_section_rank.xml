@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rankSection"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -27,7 +28,14 @@
             android:layout_height="wrap_content"
             android:text="@string/static_home_view_more"
             android:textColor="@color/car_accent"
-            android:textSize="@dimen/text_sm" />
+            android:textSize="@dimen/text_sm"
+            android:focusable="true"
+            android:clickable="true"
+            android:minHeight="48dp"
+            android:minWidth="48dp"
+            android:gravity="center"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView

@@ -142,9 +142,7 @@ object CarUiStyle {
 /**
  * 把状态标签样式应用到 TextView。
  *
- * 标签背景均为浅色系（info/success 浅绿、warning 浅黄、error 浅红、neutral 浅灰），
- * 因此统一使用深色文字 [R.color.car_text_primary] 以保证对比度 ≥ 10:1，
- * 修复此前「白字配浅底、状态几乎不可读」的问题。
+ * 标签文字与背景均采用主题色，跟随系统深浅模式。
  */
 fun TextView.applyTagStyle(style: TagStyle) {
     text = style.text
@@ -157,6 +155,7 @@ fun Button.applyActionStyle(style: ActionStyle) {
     text = style.text
     isEnabled = style.enabled
     setBackgroundResource(style.backgroundRes)
+    setTextColor(ContextCompat.getColor(context, style.textColorRes()))
     alpha = if (style.enabled) 1f else 0.7f
 }
 
@@ -166,7 +165,14 @@ fun TextView.applyActionStyle(style: ActionStyle) {
     isEnabled = style.enabled
     isClickable = style.enabled
     setBackgroundResource(style.backgroundRes)
+    setTextColor(ContextCompat.getColor(context, style.textColorRes()))
     alpha = if (style.enabled) 1f else 0.7f
+}
+
+/** 成功与警示按钮在两种主题中都采用亮底，需要固定深色字。 */
+private fun ActionStyle.textColorRes(): Int = when (backgroundRes) {
+    R.drawable.bg_primary_button_success, R.drawable.bg_primary_button_warning -> R.color.car_on_bright_action
+    else -> R.color.car_text_primary
 }
 
 

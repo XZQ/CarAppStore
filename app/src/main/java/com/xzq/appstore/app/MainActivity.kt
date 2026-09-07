@@ -16,10 +16,12 @@ import android.widget.Toast
 import com.xzq.appstore.core.logger.AppLogger
 import androidx.annotation.StringRes
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -61,6 +63,7 @@ import com.xzq.appstore.common.R as CommonR
 class MainActivity : AppCompatActivity(), MainNavigator {
     private lateinit var binding: ActivityMainBinding
     private var shellReady = false
+    private var pendingNavigation: (() -> Unit)? = null
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) Toast.makeText(this, R.string.download_notifications_denied, Toast.LENGTH_LONG).show()
     }
@@ -71,6 +74,7 @@ class MainActivity : AppCompatActivity(), MainNavigator {
     /** 初始化主页面、导航按钮和安装确认监听。 */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         binding = ActivityMainBinding.inflate(layoutInflater)
         binding.root.visibility = View.INVISIBLE
         awaitInitialization()
@@ -83,10 +87,23 @@ class MainActivity : AppCompatActivity(), MainNavigator {
             setPadding(32, 32, 32, 32)
         }
         val root = FrameLayout(this).apply {
+            setBackgroundColor(ContextCompat.getColor(this@MainActivity, CommonR.color.car_bg))
             addView(binding.root)
             addView(startupView, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         }
         setContentView(root)
+        binding.root.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+            view.findViewById<View>(R.id.desktopSidePanel)?.let { panel ->
+                val widthDp = view.width / resources.displayMetrics.density
+                val visible = widthDp >= 1200 && resources.configuration.fontScale <= 1.3f
+                val visibility = if (visible) View.VISIBLE else View.GONE
+                if (panel.visibility != visibility) panel.visibility = visibility
+            }
+        }
+        root.applyShellInsets { imeVisible ->
+            // 手机键盘展开时让出底部导航空间，保留搜索结果的可视区域。
+            binding.root.findViewById<View>(R.id.bottomNav)?.visibility = if (imeVisible) View.GONE else View.VISIBLE
+        }
         lifecycleScope.launch {
             try {
                 (application as App).appContainer.awaitReady()
@@ -112,6 +129,10 @@ class MainActivity : AppCompatActivity(), MainNavigator {
     private fun showAppShell() {
         shellReady = true
         bindNavigationClicks()
+        supportFragmentManager.addOnBackStackChangedListener(::syncNavigationFromFragment)
+        supportFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
+            override fun onFragmentResumed(fm: FragmentManager, fragment: Fragment) = syncNavigationFromFragment()
+        }, false)
         observeInstallUserActions()
         observeTaskSummaryStats()
         observeDownloadNotificationPermission()
@@ -122,6 +143,13 @@ class MainActivity : AppCompatActivity(), MainNavigator {
         } else if (supportFragmentManager.findFragmentById(R.id.fragmentContainer) == null) {
             openHome()
         }
+        syncNavigationFromFragment()
+    }
+
+    override fun onPostResume() {
+        super.onPostResume()
+        pendingNavigation?.let { pendingNavigation = null; it() }
+        if (shellReady) syncNavigationFromFragment()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -374,6 +402,12 @@ class MainActivity : AppCompatActivity(), MainNavigator {
     }
 
     private fun navigateTo(fragment: Fragment, title: String, tag: String, selectedButton: Button?, addToBackStack: Boolean = true) {
+        if (supportFragmentManager.isStateSaved) {
+            pendingNavigation = { navigateTo(fragment, title, tag, selectedButton, addToBackStack) }
+            return
+        }
+        supportFragmentManager.executePendingTransactions()
+        if (!addToBackStack) supportFragmentManager.popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
         // 连续点击同一目标（同一页面或同一应用的详情页）时跳过，避免返回栈堆叠重复实例。
         val current = supportFragmentManager.findFragmentById(R.id.fragmentContainer)
         if (current?.tag == tag) {
@@ -390,6 +424,32 @@ class MainActivity : AppCompatActivity(), MainNavigator {
         updateTitle(title)
         selectNav(selectedButton)
         trackPageView(title)
+    }
+
+    /** 从已恢复的 Fragment 标识还原标题与选中态，覆盖返回、旋转和进程恢复。 */
+    private fun syncNavigationFromFragment() {
+        val tag = supportFragmentManager.findFragmentById(R.id.fragmentContainer)?.tag ?: return
+        val page = if (tag.startsWith("$TAG_CATALOG:")) CatalogPage.entries.firstOrNull { it.name == tag.substringAfter(':') } else null
+        val (title, selected) = when {
+            page != null -> page.title to when (page) {
+                CatalogPage.Software -> R.id.btnNavDownload
+                CatalogPage.Game -> R.id.btnNavSearch
+                CatalogPage.Category -> R.id.btnNavUpgrade
+                CatalogPage.Rank -> R.id.btnNavInstall
+                CatalogPage.Essential -> R.id.btnNavEssential
+                CatalogPage.Activity -> View.NO_ID
+            }
+            tag == TAG_HOME -> getString(R.string.title_home) to R.id.btnNavHome
+            tag == TAG_MY_APPS -> getString(R.string.title_my_apps) to R.id.btnNavMyApps
+            tag == TAG_DOWNLOAD -> getString(R.string.title_download_manager) to R.id.btnNavDesktopDownload
+            tag == TAG_UPGRADE -> getString(R.string.title_upgrade) to R.id.btnNavUpgrade
+            tag == TAG_INSTALL -> getString(R.string.title_install_manager) to R.id.btnNavInstall
+            tag == TAG_DEBUG -> getString(R.string.title_developer_settings) to R.id.btnNavDebug
+            tag.startsWith("$TAG_DETAIL:") -> getString(R.string.title_detail) to View.NO_ID
+            else -> return
+        }
+        updateTitle(title)
+        selectNav(optionalButton(selected))
     }
 
     private fun trackPageView(title: String) {

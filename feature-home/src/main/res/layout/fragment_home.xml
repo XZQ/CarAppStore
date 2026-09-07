@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:clipToPadding="false"
@@ -50,7 +51,7 @@
             <TextView
                 android:id="@+id/tvHomeSearch"
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_12dp"
                 android:background="@drawable/bg_search_input"
                 android:gravity="center_vertical"
@@ -58,7 +59,13 @@
                 android:paddingEnd="@dimen/spacing_16dp"
                 android:text="@string/static_home_search_hint"
                 android:textColor="@color/car_text_hint"
-                android:textSize="@dimen/text_sm" />
+                android:textSize="@dimen/text_sm"
+                android:focusable="true"
+                android:clickable="true"
+                android:minHeight="48dp"
+                android:minWidth="48dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp" />
 
             <TextView
                 android:id="@+id/tvPolicyPrompt"
@@ -77,11 +84,14 @@
         <LinearLayout
             android:id="@+id/carouselPanel"
             android:layout_width="match_parent"
-            android:layout_height="168dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_14dp"
             android:background="@drawable/bg_home_banner"
             android:orientation="vertical"
-            android:padding="@dimen/spacing_18dp">
+            android:padding="@dimen/spacing_18dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:minHeight="168dp">
 
             <TextView
                 android:layout_width="match_parent"
@@ -122,31 +132,70 @@
             <TextView
                 android:id="@+id/entryCategory"
                 style="@style/HomeQuickEntry"
-                android:text="@string/ui_category" />
+                android:text="@string/ui_category"
+                android:focusable="true"
+                android:clickable="true"
+                android:minHeight="48dp"
+                android:minWidth="48dp"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp" />
 
             <TextView
                 android:id="@+id/entryRank"
                 style="@style/HomeQuickEntry"
                 android:layout_marginStart="@dimen/spacing_10dp"
-                android:text="@string/ui_rank" />
+                android:text="@string/ui_rank"
+                android:focusable="true"
+                android:clickable="true"
+                android:minHeight="48dp"
+                android:minWidth="48dp"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp" />
 
             <TextView
                 android:id="@+id/entryEssential"
                 style="@style/HomeQuickEntry"
                 android:layout_marginStart="@dimen/spacing_10dp"
-                android:text="@string/ui_essential" />
+                android:text="@string/ui_essential"
+                android:focusable="true"
+                android:clickable="true"
+                android:minHeight="48dp"
+                android:minWidth="48dp"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp" />
 
             <TextView
                 android:id="@+id/entryFactory"
                 style="@style/HomeQuickEntry"
                 android:layout_marginStart="@dimen/spacing_10dp"
-                android:text="@string/static_home_nav_factory" />
+                android:text="@string/static_home_nav_factory"
+                android:focusable="true"
+                android:clickable="true"
+                android:minHeight="48dp"
+                android:minWidth="48dp"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp" />
         </LinearLayout>
 
-        <include layout="@layout/view_home_section_today" />
-        <include layout="@layout/view_home_section_rank" />
-        <include layout="@layout/view_home_section_games" />
-        <include layout="@layout/view_home_section_reservation" />
+        <include
+            layout="@layout/view_home_section_today" />
+
+        <include
+            layout="@layout/view_home_section_rank" />
+
+        <include
+            layout="@layout/view_home_section_games" />
+
+        <include
+            layout="@layout/view_home_section_reservation" />
 
         <LinearLayout
             android:id="@+id/limitedActivitySection"
