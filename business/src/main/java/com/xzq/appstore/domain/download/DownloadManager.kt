@@ -3,6 +3,15 @@ package com.xzq.appstore.domain.download
 import com.xzq.appstore.data.model.DownloadPreferences
 
 interface DownloadManager {
+    /** 暂停所有活动下载并等待文件 IO 收尾。 */
+    suspend fun pauseAllDownloads() = Unit
+
+    /** 系统重建执行宿主时，只恢复上次被中断的活动任务。 */
+    suspend fun resumeInterruptedDownloads() = Unit
+
+    /** 容器退出时停止传输并释放内部作用域。 */
+    suspend fun close() = Unit
+
     /** 启动指定应用的下载流程。 */
     suspend fun startDownload(appId: String)
 

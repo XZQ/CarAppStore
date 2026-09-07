@@ -11,6 +11,8 @@ import kotlinx.coroutines.withContext
  * 供 common/base 与各 feature 页面获取全局服务入口。
  */
 class App : Application(), AppContainerProvider {
+    /** 通知权限在本次进程第一次下载时按需申请。 */
+    var notificationPermissionRequested = false
 
     /** 应用进程内共享的依赖装配容器。 */
     lateinit var appContainer: AppContainer

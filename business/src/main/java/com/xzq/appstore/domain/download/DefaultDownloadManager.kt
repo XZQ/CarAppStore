@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
@@ -54,6 +55,7 @@ class DefaultDownloadManager(
     private val maxConcurrentDownloads: Int = DEFAULT_MAX_CONCURRENT_DOWNLOADS,
     /** 当前客户端平台能力，用于阻止下载其他平台安装包。 */
     private val platformCapabilities: ClientPlatformCapabilities = ClientPlatformCapabilities(),
+    private val executionHost: DownloadExecutionHost = DownloadExecutionHost.InProcess,
 ) : DownloadManager {
     /** 用于冷启动恢复下载任务的后台协程作用域。 */
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -72,6 +74,8 @@ class DefaultDownloadManager(
     /** 同一应用的用户命令串行执行，防止准备与暂停/删除互相覆盖。 */
     private val commandLocks = ConcurrentHashMap<String, Mutex>()
     private val restorationComplete = CompletableDeferred<Unit>()
+    private val interruptedOnRestore = ConcurrentHashMap.newKeySet<String>()
+    @Volatile private var closed = false
 
     /** RUNNING 态落盘节流标记：记录每个应用最近一次落盘的进度与时间。 */
     private data class RunningPersistMark(val progress: Int, val atNanos: Long)
@@ -87,6 +91,7 @@ class DefaultDownloadManager(
         val job: Job,
         /** 由 executionMutex 保护，只有取得下载名额后才置 true。 */
         var enteredSlot: Boolean = false,
+        var hostAcquired: Boolean = false,
     )
 
     init {
@@ -102,6 +107,20 @@ class DefaultDownloadManager(
                 restorationComplete.complete(Unit)
             }
         }
+        scope.launch {
+            restorationComplete.await()
+            policyCenter.observeSettings().collect { settings ->
+                if (!settings.wifiConnected || settings.lowStorageMode) {
+                    try {
+                        pauseAllDownloads()
+                    } catch (canceled: CancellationException) {
+                        throw canceled
+                    } catch (failure: Exception) {
+                        logger.w("DownloadManager", "Unable to pause downloads after policy change", failure)
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -114,10 +133,15 @@ class DefaultDownloadManager(
     private suspend fun withCommandLock(appId: String, command: suspend () -> Unit) {
         require(appId.isNotBlank()) { "appId 不能为空" }
         restorationComplete.await()
-        commandLocks.computeIfAbsent(appId) { Mutex() }.withLock { command() }
+        commandLocks.computeIfAbsent(appId) { Mutex() }.withLock {
+            check(!closed) { "Download manager is closed" }
+            command()
+        }
     }
 
     private suspend fun enqueueDownload(appId: String) {
+        if (closed) return
+        getActiveExecution(appId) // 清理尚未执行 finally 就被取消的旧排队任务租约。
         require(appId.isNotBlank()) { "appId 不能为空" }
         val control = DownloadExecutionControl()
         lateinit var prepared: Triple<AppDetail, File, DownloadTaskRecord>
@@ -156,6 +180,8 @@ class DefaultDownloadManager(
                 return
             }
             prepared = preparation
+            executionHost.acquire(appId)
+            execution.hostAcquired = true
             job.start()
         } catch (canceled: CancellationException) {
             job.cancel()
@@ -172,6 +198,7 @@ class DefaultDownloadManager(
     override suspend fun pauseDownload(appId: String) = withCommandLock(appId) { pauseDownloadInternal(appId) }
 
     private suspend fun pauseDownloadInternal(appId: String) {
+        interruptedOnRestore.remove(appId)
         require(appId.isNotBlank()) { "appId 不能为空" }
         val execution = requestStop(appId, DownloadStopReason.PAUSED)
         if (execution != null) {
@@ -194,6 +221,44 @@ class DefaultDownloadManager(
     /** 恢复处于暂停、失败或取消状态的下载任务。 */
     override suspend fun resumeDownload(appId: String) = withCommandLock(appId) { resumeDownloadInternal(appId) }
 
+    override suspend fun pauseAllDownloads() {
+        restorationComplete.await()
+        val appIds = executionMutex.withLock { activeExecutions.keys.sorted() }
+        val locks = mutableListOf<Mutex>()
+        try {
+            appIds.forEach { appId ->
+                commandLocks.computeIfAbsent(appId) { Mutex() }.also { it.lock(); locks += it }
+            }
+            // 先停止所有控制器，再等待 IO，避免第一个任务释放名额时排队任务又开始传输。
+            val executions = appIds.mapNotNull { appId -> requestStop(appId, DownloadStopReason.PAUSED)?.let { appId to it } }
+            executions.forEach { (appId, execution) ->
+                execution.job.join()
+                persistRequestedStop(appId, execution.control)
+                unregisterExecution(appId, execution.control)
+            }
+            interruptedOnRestore.removeAll(appIds.toSet())
+        } finally {
+            locks.asReversed().forEach { it.unlock() }
+        }
+    }
+
+    override suspend fun resumeInterruptedDownloads() {
+        restorationComplete.await()
+        interruptedOnRestore.toList().forEach { appId ->
+            withCommandLock(appId) {
+                if (interruptedOnRestore.remove(appId) && repository.getDownloadTask(appId)?.status == DownloadStatus.PAUSED) {
+                    enqueueDownload(appId)
+                }
+            }
+        }
+    }
+
+    override suspend fun close() {
+        closed = true
+        pauseAllDownloads()
+        scope.cancel()
+    }
+
     private suspend fun resumeDownloadInternal(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
         val execution = getActiveExecution(appId)
@@ -215,6 +280,7 @@ class DefaultDownloadManager(
     override suspend fun cancelDownload(appId: String) = withCommandLock(appId) { cancelDownloadInternal(appId) }
 
     private suspend fun cancelDownloadInternal(appId: String) {
+        interruptedOnRestore.remove(appId)
         require(appId.isNotBlank()) { "appId 不能为空" }
         val execution = requestStop(appId, DownloadStopReason.CANCELED)
         if (execution != null) {
@@ -266,6 +332,7 @@ class DefaultDownloadManager(
     }
 
     private suspend fun removeTaskInternal(appId: String, clearFile: Boolean) {
+        interruptedOnRestore.remove(appId)
         require(appId.isNotBlank()) { "appId 不能为空" }
         val active = requestStop(appId, if (clearFile) DownloadStopReason.CANCELED else DownloadStopReason.PAUSED)
         active?.job?.join()
@@ -590,6 +657,7 @@ class DefaultDownloadManager(
     private suspend fun restorePersistedTasks() {
         val preferences = repository.getDownloadPreferences()
         val normalizedTasks = repository.getAllDownloadTasks().map { task ->
+            if (task.status == DownloadStatus.RUNNING || task.status == DownloadStatus.WAITING) interruptedOnRestore += task.appId
             // 先把上次异常中断的任务规范化，确保页面和持久化状态一致。
             val normalized = normalizeRecoveredTask(task)
             if (normalized != task) {
@@ -719,7 +787,7 @@ class DefaultDownloadManager(
     /** 注册新的活动下载任务，若已存在则拒绝重复启动。 */
     private suspend fun registerExecution(appId: String, execution: ActiveDownloadExecution): Boolean = executionMutex.withLock {
         val current = activeExecutions[appId]
-        if (current != null && !current.job.isCompleted) {
+        if (closed || (current != null && !current.job.isCompleted)) {
             false
         } else {
             activeExecutions[appId] = execution
@@ -728,24 +796,23 @@ class DefaultDownloadManager(
     }
 
     /** 读取当前仍然活跃的下载任务句柄。 */
-    private suspend fun getActiveExecution(appId: String): ActiveDownloadExecution? = executionMutex.withLock {
-        val execution = activeExecutions[appId]
-        if (execution != null && !execution.job.isCompleted) {
-            execution
-        } else {
-            activeExecutions.remove(appId)
-            null
-        }
+    private suspend fun getActiveExecution(appId: String): ActiveDownloadExecution? {
+        val execution = executionMutex.withLock { activeExecutions[appId] } ?: return null
+        if (!execution.job.isCompleted) return execution
+        unregisterExecution(appId, execution.control)
+        return null
     }
 
     /** 在任务结束时清理活动下载任务注册表。 */
     private suspend fun unregisterExecution(appId: String, control: DownloadExecutionControl) {
-        executionMutex.withLock {
+        val released = executionMutex.withLock {
             val execution = activeExecutions[appId]
             if (execution?.control === control) {
                 activeExecutions.remove(appId)
-            }
+                execution
+            } else null
         }
+        if (released?.hostAcquired == true) executionHost.release(appId)
     }
 
     /** 根据持久化任务记录恢复页面运行态。 */

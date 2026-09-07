@@ -42,6 +42,57 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class DefaultDownloadManagerTest {
     @Test
+    fun `host rejection fails the persisted task before engine starts`() = runBlocking {
+        val host = RecordingHost(fail = true)
+        val harness = TestHarness(executionHost = host)
+        harness.manager.startDownload(TEST_APP_ID)
+        assertEquals(DownloadStatus.FAILED, harness.repository.getDownloadTask(TEST_APP_ID)?.status)
+        assertEquals(0, harness.downloader.startCount.get())
+        harness.manager.close()
+    }
+
+    @Test
+    fun `pause all releases running and queued host leases once`() = runBlocking {
+        val host = RecordingHost()
+        val harness = TestHarness(maxConcurrentDownloads = 1, executionHost = host)
+        harness.manager.startDownload(TEST_APP_ID)
+        harness.manager.startDownload("queued.app")
+        assertEquals(setOf(TEST_APP_ID, "queued.app"), host.acquired.toSet())
+        withTimeout(1_000) { harness.manager.pauseAllDownloads() }
+        assertEquals(DownloadStatus.PAUSED, harness.repository.getDownloadTask(TEST_APP_ID)?.status)
+        assertEquals(DownloadStatus.PAUSED, harness.repository.getDownloadTask("queued.app")?.status)
+        assertEquals(2, host.released.size)
+        assertEquals(host.acquired.toSet(), host.released.toSet())
+        harness.manager.close()
+        assertEquals(2, host.released.size)
+    }
+
+    @Test
+    fun `network policy change stops active transfers`() = runBlocking {
+        val harness = TestHarness(maxConcurrentDownloads = 1)
+        harness.manager.startDownload(TEST_APP_ID)
+        harness.manager.startDownload("queued.app")
+        harness.policy.updateSettings(PolicySettings(wifiConnected = false))
+        waitUntil { harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.PAUSED }
+        assertEquals(DownloadStatus.PAUSED, harness.repository.getDownloadTask("queued.app")?.status)
+        assertEquals(1, harness.downloader.startCount.get())
+        harness.manager.close()
+    }
+
+    @Test
+    fun `system recovery resumes interrupted work without resuming manually paused tasks`() = runBlocking {
+        val harness = TestHarness(configureRepository = {
+            saveDownloadTask(buildDownloadTaskRecord(DownloadStatus.RUNNING, 0, "", 0, TEST_TOTAL_BYTES, 0))
+            saveDownloadTask(buildDownloadTaskRecord(DownloadStatus.PAUSED, 0, "", 0, TEST_TOTAL_BYTES, 0).copy(appId = "manual", taskId = "download-manual"))
+        })
+        assertEquals(0, harness.downloader.startCount.get())
+        harness.manager.resumeInterruptedDownloads()
+        assertEquals(1, harness.downloader.startCount.get())
+        assertEquals(DownloadStatus.PAUSED, harness.repository.getDownloadTask("manual")?.status)
+        harness.manager.close()
+    }
+
+    @Test
     fun `queued task persists and pause resume cancel return while slot remains busy`() = runBlocking {
         val harness = TestHarness(maxConcurrentDownloads = 1)
         harness.manager.startDownload(TEST_APP_ID)
@@ -411,6 +462,7 @@ class DefaultDownloadManagerTest {
         /** 下载器替身每次启动发射的 Running 事件数量。 */
         runningEventCount: Int = 1,
         maxConcurrentDownloads: Int = 3,
+        executionHost: DownloadExecutionHost = DownloadExecutionHost.InProcess,
     ) {
         /** 每个测试对应的临时工作目录。 */
         val workDir: File = Files.createTempDirectory("download-manager-test").toFile()
@@ -421,6 +473,7 @@ class DefaultDownloadManagerTest {
         /** 当前测试使用的状态中心实现。 */
         val stateCenter = DefaultStateCenter()
         val logger = QuietLogger()
+        val policy = AllowAllPolicyCenter()
 
         /** 可控的下载器替身，用于模拟运行中、暂停和取消。 */
         val downloader = ControllableFileDownloader(runningEventCount)
@@ -438,14 +491,25 @@ class DefaultDownloadManagerTest {
             manager = DefaultDownloadManager(
                 repository = repository,
                 stateCenter = stateCenter,
-                policyCenter = AllowAllPolicyCenter(),
+                policyCenter = policy,
                 fileDownloader = downloader,
                 logger = logger,
                 tracker = QuietTracker(),
                 dispatcher = dispatcher,
                 maxConcurrentDownloads = maxConcurrentDownloads,
+                executionHost = executionHost,
             )
         }
+    }
+
+    private class RecordingHost(private val fail: Boolean = false) : DownloadExecutionHost {
+        val acquired = mutableListOf<String>()
+        val released = mutableListOf<String>()
+        override suspend fun acquire(appId: String) {
+            if (fail) error("host unavailable")
+            acquired += appId
+        }
+        override suspend fun release(appId: String) { released += appId }
     }
 
     /** 允许所有下载动作通过的策略中心替身。 */

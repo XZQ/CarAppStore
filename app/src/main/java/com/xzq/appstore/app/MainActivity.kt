@@ -1,6 +1,9 @@
 package com.xzq.appstore.app
 
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.content.ActivityNotFoundException
 import android.os.Bundle
 import android.net.Uri
@@ -12,6 +15,8 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import com.xzq.appstore.core.logger.AppLogger
 import androidx.annotation.StringRes
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
@@ -55,6 +60,10 @@ import com.xzq.appstore.common.R as CommonR
  */
 class MainActivity : AppCompatActivity(), MainNavigator {
     private lateinit var binding: ActivityMainBinding
+    private var shellReady = false
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) Toast.makeText(this, R.string.download_notifications_denied, Toast.LENGTH_LONG).show()
+    }
 
     /** 从应用壳层获取的共享服务入口。 */
     private val appServices get() = (applicationContext as AppContainerProvider).appServices
@@ -101,12 +110,42 @@ class MainActivity : AppCompatActivity(), MainNavigator {
     }
 
     private fun showAppShell() {
+        shellReady = true
         bindNavigationClicks()
         observeInstallUserActions()
         observeTaskSummaryStats()
+        observeDownloadNotificationPermission()
 
-        if (supportFragmentManager.findFragmentById(R.id.fragmentContainer) == null) {
+        if (intent.getBooleanExtra(DownloadForegroundService.EXTRA_OPEN_DOWNLOADS, false)) {
+            intent.removeExtra(DownloadForegroundService.EXTRA_OPEN_DOWNLOADS)
+            openDownloadManager()
+        } else if (supportFragmentManager.findFragmentById(R.id.fragmentContainer) == null) {
             openHome()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (shellReady && intent.getBooleanExtra(DownloadForegroundService.EXTRA_OPEN_DOWNLOADS, false)) {
+            intent.removeExtra(DownloadForegroundService.EXTRA_OPEN_DOWNLOADS)
+            openDownloadManager()
+        }
+    }
+
+    private fun observeDownloadNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33) return
+        val app = application as App
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                app.appContainer.downloadExecutionHost.activeAppIds.collect { ids ->
+                    if (ids.isNotEmpty() && !app.notificationPermissionRequested &&
+                        ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        app.notificationPermissionRequested = true
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            }
         }
     }
 

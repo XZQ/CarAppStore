@@ -52,12 +52,14 @@ import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.DefaultUpgradeManager
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 
 /**
  * AppContainer 是当前 app 壳层的主装配入口。
@@ -246,7 +248,8 @@ class AppContainer(context: Context) : AppServices {
     }
 
     /** 下载业务编排入口。 */
-    override val downloadManager: DownloadManager by lazy {
+    val downloadExecutionHost by lazy { AndroidDownloadExecutionHost(appContext) }
+    private val downloadManagerDelegate = lazy {
         DefaultDownloadManager(
             repository = repository,
             stateCenter = stateCenter,
@@ -255,8 +258,10 @@ class AppContainer(context: Context) : AppServices {
             logger = logger,
             tracker = eventTracker,
             platformCapabilities = platformCapabilities,
+            executionHost = downloadExecutionHost,
         )
     }
+    override val downloadManager: DownloadManager by downloadManagerDelegate
 
     /** 安装业务编排入口。 */
     override val installManager: InstallManager by lazy {
@@ -325,8 +330,23 @@ class AppContainer(context: Context) : AppServices {
      */
     suspend fun shutdown() {
         initialization.cancelAndJoin()
+        if (downloadManagerDelegate.isInitialized()) downloadManager.close()
         initializationScope.cancel()
         if (policyCenterDelegate.isInitialized()) policyCenter.close()
         if (runtimeSignalProviderDelegate.isInitialized()) runtimeSignalProvider.close()
+    }
+
+    /** 系统销毁服务后由容器作用域完成暂停落盘，避免服务自己的作用域先取消清理。 */
+    fun pauseDownloadsAfterServiceStop() {
+        initializationScope.launch {
+            try {
+                awaitReady()
+                downloadManager.pauseAllDownloads()
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                logger.w("AppContainer", "Unable to pause downloads after service stop", failure)
+            }
+        }
     }
 }

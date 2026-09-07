@@ -1,0 +1,9 @@
+<resources>
+    <string name="download_channel_name">应用下载</string>
+    <string name="download_notification_title">正在下载应用</string>
+    <string name="download_notification_preparing">正在准备下载任务…</string>
+    <string name="download_notification_count">%1$d 个下载任务，点此查看</string>
+    <string name="download_notification_pause">全部暂停</string>
+    <string name="download_service_unavailable">后台下载暂不可用，请回到应用后重试</string>
+    <string name="download_notifications_denied">下载通知未开启，可在下载中心查看和暂停任务</string>
+</resources>
