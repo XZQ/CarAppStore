@@ -250,6 +250,42 @@ class DefaultInstallManagerTest {
     }
 
     @Test
+    fun `post install cleanup failure remains counted after restore and can be retried`() = runBlocking {
+        val apk = completedApk()
+        repository.cleanupFailure = java.io.IOException("APK deletion failed")
+        createManager().install(TEST_APP_ID)
+        assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        assertEquals("APK_CLEANUP_FAILED", stateCenter.snapshot(TEST_APP_ID).errorCode)
+        assertEquals(DownloadStatus.COMPLETED, repository.getDownloadTask(TEST_APP_ID)?.status)
+        // 重建下载管理器，模拟从持久化任务恢复缓存管理入口。
+        val downloads = createDownloadManager()
+        try {
+            assertEquals(1024L, downloads.getDownloadedCacheBytes())
+            assertTrue(apk.exists())
+            repository.cleanupFailure = null
+            assertEquals(1, downloads.clearCompletedTasks())
+            assertEquals(0L, downloads.getDownloadedCacheBytes())
+            assertNull(repository.getDownloadTask(TEST_APP_ID))
+            assertTrue(!apk.exists())
+            assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        } finally { downloads.close() }
+    }
+
+    @Test
+    fun `task removal failure cannot undo successful installation or resurrect deleted APK`() = runBlocking {
+        val apk = completedApk()
+        repository.removeTaskFailure = java.io.IOException("metadata unavailable")
+        createManager().install(TEST_APP_ID)
+        assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        assertTrue(!apk.exists())
+        assertNull(repository.getApk(TEST_APP_ID))
+        assertEquals(DownloadStatus.IDLE, stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+        repository.removeTaskFailure = null
+        repository.removeDownloadTask(TEST_APP_ID)
+        assertNull(repository.getDownloadTask(TEST_APP_ID))
+    }
+
+    @Test
     fun `cleared installation failure allows download cache removal`() = runBlocking {
         val apkFile = completedApk()
         val downloads = createDownloadManager()
@@ -411,6 +447,8 @@ class DefaultInstallManagerTest {
         var supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID)
         var detailFailure: Exception? = null
         var markFailure: Exception? = null
+        var cleanupFailure: Exception? = null
+        var removeTaskFailure: Exception? = null
 
         fun saveApk(appId: String, path: String) {
             apkPaths[appId] = path
@@ -450,6 +488,7 @@ class DefaultInstallManagerTest {
 
         override suspend fun getDownloadedApk(appId: String) = apkPaths[appId]
         override suspend fun clearDownloadedApk(appId: String) {
+            cleanupFailure?.let { throw it }
             apkPaths[appId]?.let { File(it).delete() }
             apkPaths.remove(appId)
         }
@@ -465,6 +504,7 @@ class DefaultInstallManagerTest {
         override suspend fun getDownloadTask(appId: String) = tasks[appId]
         override suspend fun getAllDownloadTasks() = tasks.values.toList()
         override suspend fun removeDownloadTask(appId: String) {
+            removeTaskFailure?.let { throw it }
             tasks.remove(appId)
             taskRemoved.add(appId)
         }

@@ -157,15 +157,23 @@ class DefaultInstallManager(
                     } catch (failure: Exception) {
                         logger.w("InstallManager", "Unable to persist installed mirror: $appId", failure)
                     }
+                    var apkCleared = false
                     try {
-                        repository.removeDownloadTask(appId)
                         repository.clearDownloadedApk(appId)
+                        apkCleared = true
+                        // 文件成功回收后才删除发现它的任务记录，失败时保留后续清理入口。
+                        repository.removeDownloadTask(appId)
                     } catch (canceled: CancellationException) {
                         throw canceled
                     } catch (failure: Exception) {
                         logger.w("InstallManager", "Unable to clear installed APK: $appId", failure)
                     }
-                    stateCenter.updateDownload(appId, DownloadStatus.IDLE, progress = 0, localApkPath = null)
+                    if (apkCleared) {
+                        stateCenter.updateDownload(appId, DownloadStatus.IDLE, progress = 0, localApkPath = null)
+                    } else {
+                        stateCenter.updateDownload(appId, DownloadStatus.COMPLETED, progress = 100, localApkPath = apkPath,
+                            errorMessage = BusinessText.INSTALLED_APK_CLEANUP_FAILED, errorCode = "APK_CLEANUP_FAILED")
+                    }
                     tracker.track("install_success_$appId")
                 }
 
