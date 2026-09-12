@@ -64,6 +64,7 @@ class SearchViewModel(
     /** 搜索结果和详情共用的主动作分发器。 */
     private val primaryActionExecutor = AppPrimaryActionExecutor(
         appManager = appManager,
+        stateCenter = stateCenter,
         downloadManager = downloadManager,
         installManager = installManager,
         upgradeManager = upgradeManager,

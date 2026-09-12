@@ -22,13 +22,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AppPrimaryActionExecutorTest {
+    private val stateCenter = com.xzq.appstore.domain.state.DefaultStateCenter()
+    private val logger = object : com.xzq.appstore.core.logger.AppLogger() {
+        override fun w(tag: String, message: String, throwable: Throwable?) = Unit
+    }
     @Test
     fun `DOWNLOAD 动作会启动下载`() = runBlocking {
         val appManager = FakeAppManager()
         val downloadManager = RecordingDownloadManager()
         val installManager = RecordingInstallManager()
         val upgradeManager = RecordingUpgradeManager()
-        val executor = AppPrimaryActionExecutor(appManager, downloadManager, installManager, upgradeManager)
+        val executor = AppPrimaryActionExecutor(appManager, stateCenter, downloadManager, installManager, upgradeManager, logger = logger)
 
         executor.execute(appId = TEST_DOWNLOAD_APP.appId, action = PrimaryAction.DOWNLOAD, packageName = TEST_DOWNLOAD_APP.packageName)
 
@@ -43,7 +47,7 @@ class AppPrimaryActionExecutorTest {
         val downloadManager = RecordingDownloadManager()
         val installManager = RecordingInstallManager()
         val upgradeManager = RecordingUpgradeManager()
-        val executor = AppPrimaryActionExecutor(appManager, downloadManager, installManager, upgradeManager)
+        val executor = AppPrimaryActionExecutor(appManager, stateCenter, downloadManager, installManager, upgradeManager, logger = logger)
 
         executor.execute(appId = TEST_INSTALL_APP.appId, action = PrimaryAction.INSTALL, packageName = TEST_INSTALL_APP.packageName)
 
@@ -55,7 +59,7 @@ class AppPrimaryActionExecutorTest {
     fun `OPEN 动作会使用包名打开应用`() = runBlocking {
         val appManager = FakeAppManager()
         val executor = AppPrimaryActionExecutor(
-            appManager = appManager,
+            appManager = appManager, stateCenter = stateCenter, logger = logger,
             downloadManager = RecordingDownloadManager(),
             installManager = RecordingInstallManager(),
             upgradeManager = RecordingUpgradeManager(),
@@ -69,7 +73,7 @@ class AppPrimaryActionExecutorTest {
     @Test
     fun `RESUME 动作会恢复下载`() = runBlocking {
         val downloadManager = RecordingDownloadManager()
-        val executor = AppPrimaryActionExecutor(appManager = FakeAppManager(), downloadManager = downloadManager)
+        val executor = AppPrimaryActionExecutor(appManager = FakeAppManager(), stateCenter = stateCenter, logger = logger, downloadManager = downloadManager)
 
         executor.execute(appId = TEST_RESUME_APP.appId, action = PrimaryAction.RESUME, packageName = TEST_RESUME_APP.packageName)
 
@@ -79,7 +83,7 @@ class AppPrimaryActionExecutorTest {
     @Test
     fun `UPGRADE 动作会启动升级`() = runBlocking {
         val upgradeManager = RecordingUpgradeManager()
-        val executor = AppPrimaryActionExecutor(appManager = FakeAppManager(), upgradeManager = upgradeManager)
+        val executor = AppPrimaryActionExecutor(appManager = FakeAppManager(), stateCenter = stateCenter, logger = logger, upgradeManager = upgradeManager)
 
         executor.execute(appId = TEST_UPGRADE_APP.appId, action = PrimaryAction.UPGRADE, packageName = TEST_UPGRADE_APP.packageName)
 
@@ -89,7 +93,7 @@ class AppPrimaryActionExecutorTest {
     @Test
     fun `execute records primary click event`() = runBlocking {
         val tracker = RecordingTracker()
-        val executor = AppPrimaryActionExecutor(appManager = FakeAppManager(), downloadManager = RecordingDownloadManager(), tracker = tracker)
+        val executor = AppPrimaryActionExecutor(appManager = FakeAppManager(), stateCenter = stateCenter, logger = logger, downloadManager = RecordingDownloadManager(), tracker = tracker)
 
         executor.execute(appId = TEST_DOWNLOAD_APP.appId, action = PrimaryAction.DOWNLOAD, packageName = TEST_DOWNLOAD_APP.packageName)
 
@@ -97,24 +101,27 @@ class AppPrimaryActionExecutorTest {
     }
 
     @Test
-    fun `DOWNLOAD 抛异常时会把错误向上抛出且不记录副作用`() = runBlocking {
+    fun `DOWNLOAD exception becomes visible failure without starting installation`() = runBlocking {
         val downloadManager = RecordingDownloadManager().apply {
             errorForStart = IllegalStateException("network down")
         }
         val installManager = RecordingInstallManager()
-        val executor = AppPrimaryActionExecutor(appManager = FakeAppManager(), downloadManager = downloadManager, installManager = installManager)
+        val executor = AppPrimaryActionExecutor(appManager = FakeAppManager(), stateCenter = stateCenter, logger = logger, downloadManager = downloadManager, installManager = installManager)
 
-        val error = try {
-            executor.execute(appId = TEST_DOWNLOAD_APP.appId, action = PrimaryAction.DOWNLOAD, packageName = TEST_DOWNLOAD_APP.packageName)
-            null
-        } catch (e: IllegalStateException) {
-            e
-        }
-
-        assertNotNull(error)
-        assertEquals("network down", error?.message)
+        executor.execute(appId = TEST_DOWNLOAD_APP.appId, action = PrimaryAction.DOWNLOAD, packageName = TEST_DOWNLOAD_APP.packageName)
+        assertEquals("ACTION_FAILED", stateCenter.snapshot(TEST_DOWNLOAD_APP.appId).errorCode)
+        assertEquals(PrimaryAction.RETRY_DOWNLOAD, stateCenter.snapshot(TEST_DOWNLOAD_APP.appId).primaryAction)
         assertTrue(downloadManager.startedAppIds.isEmpty())
         assertTrue(installManager.installedAppIds.isEmpty())
+    }
+
+    @Test(expected = kotlinx.coroutines.CancellationException::class)
+    fun `action cancellation propagates without failure state`() = runBlocking {
+        val downloadManager = RecordingDownloadManager().apply { errorForStart = kotlinx.coroutines.CancellationException("canceled") }
+        val executor = AppPrimaryActionExecutor(appManager = FakeAppManager(), stateCenter = stateCenter, logger = logger, downloadManager = downloadManager)
+        try { executor.execute(TEST_DOWNLOAD_APP.appId, PrimaryAction.DOWNLOAD) } finally {
+            assertEquals(null, stateCenter.snapshot(TEST_DOWNLOAD_APP.appId).errorCode)
+        }
     }
 
     private class FakeAppManager : AppManager {

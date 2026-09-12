@@ -38,7 +38,7 @@ class UpgradeViewModel(
     private var selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL
 
     /** 升级中心单项任务主动作分发器。 */
-    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, upgradeManager = upgradeManager, ioDispatcher = ioDispatcher)
+    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, stateCenter = stateCenter, upgradeManager = upgradeManager, ioDispatcher = ioDispatcher)
 
     /** 初始化升级中心并开始监听状态变化。 */
     fun load() {

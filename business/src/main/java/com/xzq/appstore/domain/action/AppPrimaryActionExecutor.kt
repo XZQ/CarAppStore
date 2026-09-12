@@ -1,12 +1,19 @@
 package com.xzq.appstore.domain.action
 
 import com.xzq.appstore.core.tracker.EventTracker
+import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
 import com.xzq.appstore.domain.install.InstallManager
 import com.xzq.appstore.domain.state.PrimaryAction
+import com.xzq.appstore.domain.state.StateCenter
+import com.xzq.appstore.domain.state.DownloadStatus
+import com.xzq.appstore.domain.state.InstallStatus
+import com.xzq.appstore.domain.state.UpgradeStatus
+import com.xzq.appstore.domain.text.BusinessText
 import com.xzq.appstore.domain.upgrade.UpgradeManager
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -16,6 +23,7 @@ import kotlinx.coroutines.withContext
 class AppPrimaryActionExecutor(
     /** 提供打开应用等应用级动作能力。 */
     private val appManager: AppManager,
+    private val stateCenter: StateCenter,
     /** 提供下载动作能力。 */
     private val downloadManager: DownloadManager? = null,
     /** 提供安装动作能力。 */
@@ -26,6 +34,7 @@ class AppPrimaryActionExecutor(
     private val tracker: EventTracker = EventTracker(),
     /** 主动作执行使用的调度器；下载/安装/升级入口在调用上下文读取持久化与目录，统一切到 IO 避免阻塞主线程。 */
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val logger: AppLogger = AppLogger(),
 ) {
 
     /**
@@ -37,19 +46,37 @@ class AppPrimaryActionExecutor(
      */
     suspend fun execute(appId: String, action: PrimaryAction, packageName: String? = null) {
         withContext(ioDispatcher) {
-            tracker.track("primary_click_${action.name.lowercase()}_$appId")
-            when (action) {
-                PrimaryAction.DOWNLOAD, PrimaryAction.RETRY_DOWNLOAD -> downloadManager?.startDownload(appId)
-                PrimaryAction.PAUSE -> downloadManager?.pauseDownload(appId)
-                PrimaryAction.RESUME -> downloadManager?.resumeDownload(appId)
-                PrimaryAction.INSTALL, PrimaryAction.RETRY_INSTALL -> {
-                    installManager?.install(appId)
-                    upgradeManager?.checkUpgrade(appId)
-                }
+            try {
+                tracker.track("primary_click_${action.name.lowercase()}_$appId")
+                when (action) {
+                    PrimaryAction.DOWNLOAD, PrimaryAction.RETRY_DOWNLOAD -> downloadManager?.startDownload(appId)
+                    PrimaryAction.PAUSE -> downloadManager?.pauseDownload(appId)
+                    PrimaryAction.RESUME -> downloadManager?.resumeDownload(appId)
+                    PrimaryAction.INSTALL, PrimaryAction.RETRY_INSTALL -> {
+                        installManager?.install(appId)
+                        if (stateCenter.snapshot(appId).installStatus != InstallStatus.FAILED) upgradeManager?.checkUpgrade(appId)
+                    }
 
-                PrimaryAction.OPEN -> packageName?.let { appManager.openApp(it) }
-                PrimaryAction.UPGRADE -> upgradeManager?.startUpgrade(appId)
-                PrimaryAction.UNSUPPORTED, PrimaryAction.DISABLED -> Unit
+                    PrimaryAction.OPEN -> packageName?.let { appManager.openApp(it) }
+                    PrimaryAction.UPGRADE -> upgradeManager?.startUpgrade(appId)
+                    PrimaryAction.UNSUPPORTED, PrimaryAction.DISABLED -> Unit
+                }
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                logger.w("PrimaryAction", "Unable to execute ${action.name} for $appId", failure)
+                val message = BusinessText.ACTION_FAILED
+                when (action) {
+                    PrimaryAction.DOWNLOAD, PrimaryAction.RETRY_DOWNLOAD, PrimaryAction.RESUME, PrimaryAction.PAUSE ->
+                        stateCenter.updateDownload(appId, DownloadStatus.FAILED, errorMessage = message, errorCode = "ACTION_FAILED")
+                    PrimaryAction.UPGRADE -> stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = message, errorCode = "ACTION_FAILED")
+                    PrimaryAction.INSTALL, PrimaryAction.RETRY_INSTALL -> {
+                        if (stateCenter.snapshot(appId).installStatus == InstallStatus.INSTALLED) {
+                            stateCenter.updateError(appId, message, "ACTION_FAILED")
+                        } else stateCenter.updateInstall(appId, InstallStatus.FAILED, errorMessage = message, errorCode = "ACTION_FAILED")
+                    }
+                    else -> stateCenter.updateError(appId, message, "ACTION_FAILED")
+                }
             }
         }
     }

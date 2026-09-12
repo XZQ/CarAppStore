@@ -58,6 +58,7 @@ class DownloadManagerViewModel(
     /** 下载中心单项任务主动作分发器。 */
     private val primaryActionExecutor = AppPrimaryActionExecutor(
         appManager = appManager,
+        stateCenter = stateCenter,
         downloadManager = downloadManager,
         installManager = installManager,
         upgradeManager = upgradeManager,

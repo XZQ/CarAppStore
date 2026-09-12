@@ -48,7 +48,7 @@ class InstallCenterViewModel(
     private var selectedSessionFilter: InstallSessionFilter = InstallSessionFilter.ALL
 
     /** 安装中心单项任务主动作分发器。 */
-    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, installManager = installManager, upgradeManager = upgradeManager, ioDispatcher = ioDispatcher)
+    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, stateCenter = stateCenter, installManager = installManager, upgradeManager = upgradeManager, ioDispatcher = ioDispatcher)
 
     /** 初始化页面并开始观察安装状态变化。 */
     fun load() {

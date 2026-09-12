@@ -11,6 +11,7 @@ import com.xzq.appstore.core.installer.InstallSessionStatus
  * 3. 为后续继续做文案策略收口和国际化迁移保留统一替换点。
  */
 object BusinessText {
+    const val ACTION_FAILED = "操作未完成，请重试；如持续失败，请刷新应用信息"
     /** 升级执行中状态文案。 */
     const val STATUS_UPGRADING = "升级中"
 

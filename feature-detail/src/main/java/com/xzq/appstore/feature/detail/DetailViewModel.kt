@@ -54,6 +54,7 @@ class DetailViewModel(
     /** 详情页与卡片共用的主动作分发器。 */
     private val primaryActionExecutor = AppPrimaryActionExecutor(
         appManager = appManager,
+        stateCenter = stateCenter,
         downloadManager = downloadManager,
         installManager = installManager,
         upgradeManager = upgradeManager,

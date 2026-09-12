@@ -75,6 +75,11 @@ class DefaultStateCenter : StateCenter {
         }
     }
 
+    /** 保留业务事实，仅更新动作反馈。 */
+    override fun updateError(appId: String, message: String, code: String) {
+        mutate(appId) { it.copy(errorMessage = message, errorCode = code) }
+    }
+
     /** 清理指定应用状态上的错误信息。 */
     override fun resetError(appId: String) {
         mutate(appId) { it.copy(errorMessage = null, errorCode = null) }

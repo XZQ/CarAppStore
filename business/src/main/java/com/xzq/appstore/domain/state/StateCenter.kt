@@ -18,6 +18,9 @@ interface StateCenter {
     /** 刷新目录升级可用性，不结束正在执行或等待重试的升级。 */
     fun syncUpgradeAvailability(appId: String, available: Boolean)
 
+    /** 更新动作反馈，不伪造下载、安装或版本事实。 */
+    fun updateError(appId: String, message: String, code: String)
+
     /** 更新下载子状态；非完成态的 null 路径会清除旧产物引用。 */
     fun updateDownload(
         appId: String,

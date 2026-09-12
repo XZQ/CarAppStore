@@ -47,7 +47,8 @@ class DefaultInstallManagerTest {
         installer = ControllablePackageInstaller()
     }
 
-    private fun createManager(policyCenter: PolicyCenter = AllowAllPolicyCenter(), packageInstaller: PackageInstaller = installer): DefaultInstallManager {
+    private fun createManager(policyCenter: PolicyCenter = AllowAllPolicyCenter(), packageInstaller: PackageInstaller = installer,
+        artifactAccess: ApkArtifactAccess = ApkArtifactAccess()): DefaultInstallManager {
         return DefaultInstallManager(
             repository = repository,
             stateCenter = stateCenter,
@@ -55,7 +56,57 @@ class DefaultInstallManagerTest {
             packageInstaller = packageInstaller,
             logger = QuietLogger(),
             tracker = QuietTracker(),
+            artifactAccess = artifactAccess,
         )
+    }
+
+    @Test
+    fun `removed catalog entry becomes recoverable failure without losing APK`() = runBlocking {
+        val apk = File(workDir, "cached.apk").apply { writeBytes(ByteArray(1024)) }
+        repository.saveApk(TEST_APP_ID, apk.absolutePath)
+        stateCenter.updateDownload(TEST_APP_ID, DownloadStatus.COMPLETED, localApkPath = apk.absolutePath)
+        repository.detailFailure = IllegalArgumentException("entry removed")
+        createManager().install(TEST_APP_ID)
+        assertEquals(InstallStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        assertEquals(PrimaryAction.RETRY_INSTALL, stateCenter.snapshot(TEST_APP_ID).primaryAction)
+        assertEquals(apk.absolutePath, repository.getApk(TEST_APP_ID))
+        assertNull(installer.capturedRequest)
+    }
+
+    @Test(expected = kotlinx.coroutines.CancellationException::class)
+    fun `installation cancellation propagates and does not become failure`() = runBlocking {
+        repository.detailFailure = kotlinx.coroutines.CancellationException("canceled")
+        try { createManager().install(TEST_APP_ID) } finally {
+            assertEquals(InstallStatus.NOT_INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        }
+    }
+
+    @Test
+    fun `installer exception becomes failed state and releases artifact lease`() = runBlocking {
+        val access = ApkArtifactAccess()
+        val apk = File(workDir, "cached.apk").apply { writeBytes(ByteArray(1024)) }
+        repository.saveApk(TEST_APP_ID, apk.absolutePath)
+        val failingInstaller = object : PackageInstaller {
+            override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) {
+                onEvent(InstallEvent.Waiting)
+                throw java.io.IOException("session storage unavailable")
+            }
+        }
+        createManager(packageInstaller = failingInstaller, artifactAccess = access).install(TEST_APP_ID)
+        assertEquals(InstallStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        createManager(artifactAccess = access).install(TEST_APP_ID)
+        assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+    }
+
+    @Test
+    fun `installed system fact survives failed mirror write`() = runBlocking {
+        val apk = File(workDir, "cached.apk").apply { writeBytes(ByteArray(1024)) }
+        repository.saveApk(TEST_APP_ID, apk.absolutePath)
+        repository.markFailure = java.io.IOException("mirror unavailable")
+        createManager().install(TEST_APP_ID)
+        assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        assertEquals("1.0.0", stateCenter.snapshot(TEST_APP_ID).installedVersion)
+        assertEquals(PrimaryAction.OPEN, stateCenter.snapshot(TEST_APP_ID).primaryAction)
     }
 
     @Test
@@ -258,6 +309,7 @@ class DefaultInstallManagerTest {
 
     private class QuietLogger : AppLogger() {
         override fun d(tag: String, message: String) = Unit
+        override fun w(tag: String, message: String, throwable: Throwable?) = Unit
     }
 
     private class QuietTracker : EventTracker() {
@@ -313,6 +365,8 @@ class DefaultInstallManagerTest {
         val installedApps = mutableSetOf<String>()
         val taskRemoved = mutableSetOf<String>()
         var supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID)
+        var detailFailure: Exception? = null
+        var markFailure: Exception? = null
 
         fun saveApk(appId: String, path: String) {
             apkPaths[appId] = path
@@ -324,7 +378,9 @@ class DefaultInstallManagerTest {
         }
 
         override suspend fun getHomeApps() = emptyList<AppInfo>()
-        override suspend fun getAppDetail(appId: String) = AppDetail(
+        override suspend fun getAppDetail(appId: String): AppDetail {
+            detailFailure?.let { throw it }
+            return AppDetail(
             appId = appId,
             packageName = "com.nio.test",
             supportedPlatforms = supportedPlatforms,
@@ -335,9 +391,11 @@ class DefaultInstallManagerTest {
             signerCertificateSha256 = listOf(TEST_SIGNER),
             apkUrl = "https://example.com/test.apk",
         )
+        }
 
         override suspend fun getInstalledApps() = emptyList<InstalledApp>()
         override suspend fun markInstalled(appId: String) {
+            markFailure?.let { throw it }
             installedApps.add(appId)
         }
 

@@ -44,6 +44,7 @@ class HomeViewModel(
     /** 首页卡片和详情页共用的主动作分发器。 */
     private val primaryActionExecutor = AppPrimaryActionExecutor(
         appManager = appManager,
+        stateCenter = stateCenter,
         downloadManager = downloadManager,
         installManager = installManager,
         upgradeManager = upgradeManager,

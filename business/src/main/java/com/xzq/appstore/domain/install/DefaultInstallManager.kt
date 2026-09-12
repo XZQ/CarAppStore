@@ -40,7 +40,19 @@ class DefaultInstallManager(
      * 该方法负责策略校验、APK 校验以及消费底层安装事件。
      */
     override suspend fun install(appId: String) {
-        artifactAccess.tryUse(appId) { installInternal(appId) }
+        require(appId.isNotBlank()) { "appId 不能为空" }
+        artifactAccess.tryUse(appId) {
+            try {
+                installInternal(appId)
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                logger.w("InstallManager", "Unable to prepare or execute installation: $appId", failure)
+                stateCenter.updateInstall(appId, InstallStatus.FAILED,
+                    errorMessage = BusinessText.installFailed(InstallFailureCode.UNKNOWN.displayText),
+                    errorCode = InstallFailureCode.UNKNOWN.name)
+            }
+        }
     }
 
     private suspend fun installInternal(appId: String) {
@@ -136,11 +148,17 @@ class DefaultInstallManager(
                 }
 
                 is InstallEvent.Success -> {
-                    // 安装成功后要同时更新已安装记录、清理下载任务并同步页面主状态。
-                    repository.markInstalled(appId)
-                    repository.removeDownloadTask(appId)
+                    // 系统成功事实先可见，镜像或清理失败不能将真实安装结果反写成失败。
                     stateCenter.updateInstall(appId, InstallStatus.INSTALLED, versionName = event.installedVersion, versionCode = event.installedVersionCode)
                     try {
+                        repository.markInstalled(appId)
+                    } catch (canceled: CancellationException) {
+                        throw canceled
+                    } catch (failure: Exception) {
+                        logger.w("InstallManager", "Unable to persist installed mirror: $appId", failure)
+                    }
+                    try {
+                        repository.removeDownloadTask(appId)
                         repository.clearDownloadedApk(appId)
                     } catch (canceled: CancellationException) {
                         throw canceled
