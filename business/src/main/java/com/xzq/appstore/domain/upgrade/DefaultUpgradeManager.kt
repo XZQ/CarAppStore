@@ -52,12 +52,12 @@ class DefaultUpgradeManager(
         require(appId.isNotBlank()) { "appId 不能为空" }
         val installedVersionCode = stateCenter.snapshot(appId).installedVersionCode
         if (!isCurrentPlatformSupported(appId)) {
-            stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
+            stateCenter.syncUpgradeAvailability(appId, available = false)
             return false
         }
         val info = repository.getUpgradeInfo(appId)
         val available = info.hasUpgrade && installedVersionCode > 0L && info.latestVersionCode > installedVersionCode
-        stateCenter.updateUpgrade(appId, if (available) UpgradeStatus.AVAILABLE else UpgradeStatus.NONE)
+        stateCenter.syncUpgradeAvailability(appId, available)
         return available
     }
 

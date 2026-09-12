@@ -15,6 +15,7 @@ import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.policy.PolicyResult
 import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.DownloadStatus
+import com.xzq.appstore.domain.state.InstallStatus
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.state.UpgradeStatus
 import com.xzq.appstore.domain.text.BusinessText
@@ -51,6 +52,26 @@ class DefaultAppManagerTest {
         repository = FakeAppManagerRepository(workDir)
         policyCenter = FakePolicyCenter()
         installSessionStore = InstallSessionStore(File(workDir, "install_sessions.json"))
+    }
+
+    @Test
+    fun `catalog refresh preserves running upgrade and installation phases`() = runBlocking {
+        repository.installedApps += InstalledApp("music.app", "com.nio.music", "Music", "1.0.0", versionCode = 1L)
+        val manager = createManager()
+        manager.getHomeApps()
+        stateCenter.updateDownload("music.app", DownloadStatus.RUNNING, progress = 40)
+        stateCenter.updateUpgrade("music.app", UpgradeStatus.UPGRADING)
+        manager.getHomeApps()
+        assertEquals(DownloadStatus.RUNNING, stateCenter.snapshot("music.app").downloadStatus)
+        assertEquals(40, stateCenter.snapshot("music.app").progress)
+        assertEquals(UpgradeStatus.UPGRADING, stateCenter.snapshot("music.app").upgradeStatus)
+        for (phase in listOf(InstallStatus.WAITING, InstallStatus.PENDING_USER_ACTION, InstallStatus.INSTALLING)) {
+            stateCenter.updateInstall("music.app", phase)
+            manager.getHomeApps()
+            manager.getMyApps()
+            assertEquals(phase, stateCenter.snapshot("music.app").installStatus)
+            assertEquals(PrimaryAction.DISABLED, stateCenter.snapshot("music.app").primaryAction)
+        }
     }
 
     @Test

@@ -12,8 +12,11 @@ interface StateCenter {
     /** 监听全部应用的状态快照。 */
     fun observeAll(): StateFlow<Map<String, AppState>>
 
-    /** 在系统确认已安装后同步安装状态。 */
+    /** 同步系统已安装版本事实，保留尚未结束的任务及其错误。 */
     fun syncInstalled(appId: String, versionName: String, versionCode: Long = 0L)
+
+    /** 刷新目录升级可用性，不结束正在执行或等待重试的升级。 */
+    fun syncUpgradeAvailability(appId: String, available: Boolean)
 
     /** 更新下载子状态；非完成态的 null 路径会清除旧产物引用。 */
     fun updateDownload(

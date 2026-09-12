@@ -26,22 +26,21 @@ class DefaultStateCenter : StateCenter {
     /** 返回全部应用状态的聚合视图。 */
     override fun observeAll(): StateFlow<Map<String, AppState>> = allStates
 
-    /** 在系统层确认安装成功后，同步状态中心中的安装结果。 */
+    /** 页面读取系统事实时只同步版本；任务终态由安装、下载和升级执行者更新。 */
     override fun syncInstalled(appId: String, versionName: String, versionCode: Long) {
         mutate(appId) {
             it.copy(
-                installStatus = InstallStatus.INSTALLED,
+                installStatus = if (it.installStatus == InstallStatus.NOT_INSTALLED) InstallStatus.INSTALLED else it.installStatus,
                 installedVersion = versionName,
                 installedVersionCode = versionCode,
-                downloadStatus = if (it.downloadStatus == DownloadStatus.RUNNING || it.downloadStatus == DownloadStatus.WAITING) {
-                    DownloadStatus.IDLE
-                } else {
-                    it.downloadStatus
-                },
-                progress = if (it.downloadStatus == DownloadStatus.COMPLETED) 100 else it.progress,
-                errorMessage = null,
-                errorCode = null,
             )
+        }
+    }
+
+    override fun syncUpgradeAvailability(appId: String, available: Boolean) {
+        mutate(appId) {
+            if (it.upgradeStatus == UpgradeStatus.UPGRADING || it.upgradeStatus == UpgradeStatus.FAILED) it
+            else it.copy(upgradeStatus = if (available) UpgradeStatus.AVAILABLE else UpgradeStatus.NONE)
         }
     }
 

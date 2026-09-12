@@ -453,21 +453,18 @@ class DefaultAppManager(
     /** 根据当前安装版本同步升级可用性。 */
     private suspend fun syncUpgradeAvailability(appId: String, installedVersion: String?) {
         if (installedVersion.isNullOrBlank()) {
-            stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
+            stateCenter.syncUpgradeAvailability(appId, available = false)
             return
         }
         val detail = repository.getAppDetail(appId)
         if (!platformCapabilities.supports(detail.supportedPlatforms)) {
-            stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
+            stateCenter.syncUpgradeAvailability(appId, available = false)
             return
         }
         val upgradeInfo = repository.getUpgradeInfo(appId)
         val installedCode = stateCenter.snapshot(appId).installedVersionCode
-        if (upgradeInfo.hasUpgrade && installedCode > 0L && upgradeInfo.latestVersionCode > installedCode) {
-            stateCenter.updateUpgrade(appId, UpgradeStatus.AVAILABLE)
-        } else if (stateCenter.snapshot(appId).upgradeStatus != UpgradeStatus.UPGRADING) {
-            stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
-        }
+        stateCenter.syncUpgradeAvailability(appId,
+            available = upgradeInfo.hasUpgrade && installedCode > 0L && upgradeInfo.latestVersionCode > installedCode)
     }
 
     /** 将应用基础数据和运行态合成为页面卡片模型。 */

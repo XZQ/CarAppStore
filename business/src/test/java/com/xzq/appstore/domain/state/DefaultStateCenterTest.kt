@@ -13,6 +13,22 @@ import org.junit.Test
 
 class DefaultStateCenterTest {
     @Test
+    fun `fact refresh preserves failed task and actionable error`() {
+        val center = DefaultStateCenter()
+        center.updateInstall("app.test", InstallStatus.FAILED, errorMessage = "try again", errorCode = "SESSION_COMMIT_FAILED")
+        center.updateUpgrade("app.test", UpgradeStatus.FAILED, errorMessage = "try again", errorCode = "SESSION_COMMIT_FAILED")
+        center.syncInstalled("app.test", "1.0", 1L)
+        center.syncUpgradeAvailability("app.test", true)
+        center.syncUpgradeAvailability("app.test", false)
+        val state = center.snapshot("app.test")
+        assertEquals(InstallStatus.FAILED, state.installStatus)
+        assertEquals(UpgradeStatus.FAILED, state.upgradeStatus)
+        assertEquals("try again", state.errorMessage)
+        assertEquals("SESSION_COMMIT_FAILED", state.errorCode)
+        assertEquals(1L, state.installedVersionCode)
+    }
+
+    @Test
     fun `snapshot 对未知应用返回默认状态`() {
         val center = DefaultStateCenter()
         val state = center.snapshot("unknown.app")
