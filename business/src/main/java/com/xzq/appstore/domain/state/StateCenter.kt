@@ -15,6 +15,9 @@ interface StateCenter {
     /** 同步系统已安装版本事实，保留尚未结束的任务及其错误。 */
     fun syncInstalled(appId: String, versionName: String, versionCode: Long = 0L)
 
+    /** 应用权威卸载事实，查询期间发生的任务变化必须保留。 */
+    fun syncUninstalled(appId: String, expectedState: AppState)
+
     /** 刷新目录升级可用性，不结束正在执行或等待重试的升级。 */
     fun syncUpgradeAvailability(appId: String, available: Boolean)
 

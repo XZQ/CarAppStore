@@ -57,7 +57,10 @@ class AppPrimaryActionExecutor(
                         if (stateCenter.snapshot(appId).installStatus != InstallStatus.FAILED) upgradeManager?.checkUpgrade(appId)
                     }
 
-                    PrimaryAction.OPEN -> packageName?.let { appManager.openApp(it) }
+                    PrimaryAction.OPEN -> if (packageName == null || !appManager.openApp(packageName)) {
+                        appManager.refreshInstalledApps()
+                        stateCenter.updateError(appId, BusinessText.OPEN_FAILED, "OPEN_FAILED")
+                    } else stateCenter.resetError(appId)
                     PrimaryAction.UPGRADE -> upgradeManager?.startUpgrade(appId)
                     PrimaryAction.UNSUPPORTED, PrimaryAction.DISABLED -> Unit
                 }

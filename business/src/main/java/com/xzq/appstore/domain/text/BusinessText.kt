@@ -12,6 +12,7 @@ import com.xzq.appstore.core.installer.InstallSessionStatus
  */
 object BusinessText {
     const val ACTION_FAILED = "操作未完成，请重试；如持续失败，请刷新应用信息"
+    const val OPEN_FAILED = "无法打开应用，请确认应用仍已安装且允许启动"
     /** 升级执行中状态文案。 */
     const val STATUS_UPGRADING = "升级中"
 

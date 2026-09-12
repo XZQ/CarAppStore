@@ -10,6 +10,9 @@ import com.xzq.appstore.data.model.DownloadPreferences
 import com.xzq.appstore.data.model.DownloadSegmentRecord
 import com.xzq.appstore.data.model.DownloadTaskRecord
 import com.xzq.appstore.data.model.InstalledApp
+import com.xzq.appstore.data.model.InstalledAppsSnapshot
+import kotlinx.coroutines.CancellationException
+import java.util.concurrent.ConcurrentHashMap
 import com.xzq.appstore.data.model.PolicySettings
 import com.xzq.appstore.data.model.UpgradeInfo
 import java.io.File
@@ -24,33 +27,55 @@ class RealAppRepository(
     /** 统一日志入口，记录回退时的诊断信息。 */
     private val logger: AppLogger = AppLogger(),
 ) : AppRepository {
+    private val knownAppsByPackage = ConcurrentHashMap<String, AppInfo>()
     /** 获取首页应用列表，远端失败时降级到本地已安装快照，避免页面直接报错。 */
     override suspend fun getHomeApps(): List<AppInfo> = runCatching { remote.getHomeApps() }
-        .onFailure { logger.d(TAG, "getHomeApps remote failed: ${it.message}, fallback to local") }
+        .onFailure {
+            if (it is CancellationException) throw it
+            logger.d(TAG, "getHomeApps remote failed: ${it.message}, fallback to local")
+        }
         .getOrElse { local.getInstalledApps().map { it.toAppInfo() } }
 
     override suspend fun getRecentlyOpenedPackages(): List<String> = local.getRecentlyOpenedPackages()
 
     /** 获取指定应用详情，远端失败时尝试用本地已安装快照兜底，仍失败则抛原始异常。 */
     override suspend fun getAppDetail(appId: String): AppDetail = runCatching { remote.getAppDetail(appId) }.getOrElse { throwable ->
+        if (throwable is CancellationException) throw throwable
         logger.d(TAG, "getAppDetail remote failed: ${throwable.message}, fallback to local")
         local.getInstalledApps().firstOrNull { it.appId == appId }?.toAppDetail() ?: throw throwable
     }
 
-    /** 获取已安装应用列表，以 PackageManager 为真相，本地镜像只在目录不可用时兜底。 */
-    override suspend fun getInstalledApps(): List<InstalledApp> {
-        val catalog = runCatching { remote.getHomeApps() }.getOrElse { return local.getInstalledApps() }
-        val catalogAppIds = catalog.associateBy { it.packageName }
-        return system.queryInstalledApps(catalogAppIds.keys).map { installed ->
-            val catalogApp = catalogAppIds[installed.packageName]
-            installed.copy(appId = catalogApp?.appId ?: installed.appId, name = catalogApp?.name ?: installed.name)
+    override suspend fun getInstalledApps(): List<InstalledApp> = getInstalledAppsSnapshot().apps
+
+    /** 镜像与目录只解析包名，安装和卸载事实始终来自系统；查询失败直接交给调用者保留旧态。 */
+    override suspend fun getInstalledAppsSnapshot(): InstalledAppsSnapshot {
+        local.getInstalledApps().forEach { knownAppsByPackage[it.packageName] = it.toAppInfo() }
+        val catalog = try { remote.getHomeApps() } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (failure: Exception) {
+            logger.w(TAG, "Catalog unavailable while refreshing installed facts", failure)
+            emptyList()
         }
+        catalog.forEach { knownAppsByPackage[it.packageName] = it }
+        val knownApps = knownAppsByPackage.toMap()
+        val installed = system.queryInstalledApps(knownApps.keys).map { item ->
+            val app = knownApps.getValue(item.packageName)
+            item.copy(appId = app.appId, name = app.name)
+        }
+        val installedPackages = installed.mapTo(mutableSetOf()) { it.packageName }
+        val absent = if (system.canConfirmPackageAbsence()) knownApps.values.filter {
+            it.packageName !in installedPackages && !system.isPackageInstalled(it.packageName)
+        }.mapTo(mutableSetOf()) { it.appId } else emptySet()
+        return InstalledAppsSnapshot(installed, absent)
     }
 
     /** 以系统查询的版本写入安装镜像；目录不可达时从已有镜像解析包名。 */
     override suspend fun markInstalled(appId: String) {
         val detail = runCatching { remote.getAppDetail(appId) }
-            .onFailure { logger.d(TAG, "markInstalled remote failed: ${it.message}, fallback to local") }
+            .onFailure {
+                if (it is CancellationException) throw it
+                logger.d(TAG, "markInstalled remote failed: ${it.message}, fallback to local")
+            }
             .getOrNull()
         val packageName = detail?.packageName ?: local.getInstalledApps().firstOrNull { it.appId == appId }?.packageName ?: return
         val installed = system.queryInstalledApps(setOf(packageName)).singleOrNull() ?: return
@@ -60,8 +85,9 @@ class RealAppRepository(
 
     /** 判断指定应用是否已安装，优先使用系统包管理器而不是本地镜像。 */
     override suspend fun isInstalled(appId: String): Boolean {
-        val detail = runCatching { remote.getAppDetail(appId) }.getOrNull()
-        return if (detail != null) system.isPackageInstalled(detail.packageName) else local.isInstalled(appId)
+        val detail = runCatching { remote.getAppDetail(appId) }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+        val packageName = detail?.packageName ?: local.getInstalledApps().firstOrNull { it.appId == appId }?.packageName
+        return packageName != null && system.isPackageInstalled(packageName)
     }
 
     /** 保存已下载 APK 路径。 */

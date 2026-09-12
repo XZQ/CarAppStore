@@ -55,6 +55,37 @@ class DefaultAppManagerTest {
     }
 
     @Test
+    fun `confirmed external uninstall restores download action`() = runBlocking {
+        repository.installedApps += InstalledApp("music.app", "com.nio.music", "Music", "2.0.0", versionCode = 2L)
+        val manager = createManager()
+        assertEquals(PrimaryAction.OPEN, manager.getHomeApps().first { it.appId == "music.app" }.primaryAction)
+        repository.installedApps.clear()
+        repository.confirmedAbsent = setOf("music.app")
+        assertEquals(PrimaryAction.DOWNLOAD, manager.getHomeApps().first { it.appId == "music.app" }.primaryAction)
+        assertEquals(null, stateCenter.snapshot("music.app").installedVersion)
+    }
+
+    @Test
+    fun `missing catalog or non authoritative list cannot erase installed facts`() = runBlocking {
+        stateCenter.syncInstalled("music.app", "2.0.0", 2L)
+        createManager().getHomeApps()
+        assertEquals(PrimaryAction.OPEN, stateCenter.snapshot("music.app").primaryAction)
+    }
+
+    @Test
+    fun `uninstall snapshot protects active install and newly changed state`() = runBlocking {
+        val original = stateCenter.snapshot("music.app")
+        stateCenter.updateInstall("music.app", InstallStatus.INSTALLED, versionName = "2.0.0", versionCode = 2L)
+        stateCenter.syncUninstalled("music.app", original)
+        assertEquals("2.0.0", stateCenter.snapshot("music.app").installedVersion)
+        stateCenter.updateInstall("music.app", InstallStatus.PENDING_USER_ACTION)
+        repository.confirmedAbsent = setOf("music.app")
+        createManager().getHomeApps()
+        assertEquals(InstallStatus.PENDING_USER_ACTION, stateCenter.snapshot("music.app").installStatus)
+        assertEquals("2.0.0", stateCenter.snapshot("music.app").installedVersion)
+    }
+
+    @Test
     fun `catalog refresh preserves running upgrade and installation phases`() = runBlocking {
         repository.installedApps += InstalledApp("music.app", "com.nio.music", "Music", "1.0.0", versionCode = 1L)
         val manager = createManager()
@@ -227,6 +258,7 @@ class DefaultAppManagerTest {
 
         /** 已安装应用列表。 */
         val installedApps = mutableListOf<InstalledApp>()
+        var confirmedAbsent = emptySet<String>()
 
         /** getHomeApps 调用计数，用于验证统计快照共享加载。 */
         val homeAppsQueryCount = AtomicInteger(0)
@@ -253,6 +285,9 @@ class DefaultAppManagerTest {
         }
 
         override suspend fun getInstalledApps(): List<InstalledApp> = installedApps.toList()
+
+        override suspend fun getInstalledAppsSnapshot() = com.xzq.appstore.data.model.InstalledAppsSnapshot(
+            getInstalledApps(), confirmedAbsent)
 
         override suspend fun markInstalled(appId: String) = Unit
 

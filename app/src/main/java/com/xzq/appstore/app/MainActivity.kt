@@ -136,6 +136,7 @@ class MainActivity : AppCompatActivity(), MainNavigator {
         observeInstallUserActions()
         observeTaskSummaryStats()
         observeDownloadNotificationPermission()
+        refreshInstalledFacts()
 
         if (intent.getBooleanExtra(DownloadForegroundService.EXTRA_OPEN_DOWNLOADS, false)) {
             intent.removeExtra(DownloadForegroundService.EXTRA_OPEN_DOWNLOADS)
@@ -149,7 +150,22 @@ class MainActivity : AppCompatActivity(), MainNavigator {
     override fun onPostResume() {
         super.onPostResume()
         pendingNavigation?.let { pendingNavigation = null; it() }
-        if (shellReady) syncNavigationFromFragment()
+        if (shellReady) {
+            syncNavigationFromFragment()
+            refreshInstalledFacts()
+        }
+    }
+
+    private fun refreshInstalledFacts() {
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) { appServices.appManager.refreshInstalledApps() }
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                AppLogger().w("MainActivity", "Unable to refresh installed facts", failure)
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

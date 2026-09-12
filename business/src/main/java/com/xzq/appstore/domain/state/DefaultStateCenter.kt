@@ -44,6 +44,16 @@ class DefaultStateCenter : StateCenter {
         }
     }
 
+    override fun syncUninstalled(appId: String, expectedState: AppState) {
+        mutate(appId) {
+            if (it != expectedState || it.installStatus in setOf(InstallStatus.WAITING,
+                    InstallStatus.PENDING_USER_ACTION, InstallStatus.INSTALLING)) it
+            else it.copy(installedVersion = null, installedVersionCode = 0L,
+                installStatus = if (it.installStatus == InstallStatus.INSTALLED) InstallStatus.NOT_INSTALLED else it.installStatus,
+                upgradeStatus = if (it.upgradeStatus == UpgradeStatus.UPGRADING) it.upgradeStatus else UpgradeStatus.NONE)
+        }
+    }
+
     /** 更新下载维度状态，并保留未传入的历史字段。 */
     override fun updateDownload(appId: String, status: DownloadStatus, progress: Int?, localApkPath: String?, errorMessage: String?, errorCode: String?) {
         mutate(appId) {

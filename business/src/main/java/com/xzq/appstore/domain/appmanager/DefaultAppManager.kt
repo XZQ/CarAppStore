@@ -46,6 +46,23 @@ class DefaultAppManager(
     private val platformCapabilities: ClientPlatformCapabilities = ClientPlatformCapabilities(),
 ) : AppManager {
 
+    override suspend fun refreshInstalledApps() {
+        syncInstalledAndUpgradeStates(loadInstalledApps())
+    }
+
+    private suspend fun loadInstalledApps(): List<InstalledApp> {
+        val beforeQuery = stateCenter.observeAll().value
+        val snapshot = repository.getInstalledAppsSnapshot()
+        val sessions = installSessionStore.getLatestByAppId(snapshot.confirmedAbsentAppIds)
+        snapshot.confirmedAbsentAppIds.forEach { appId ->
+            if (sessions[appId]?.status?.let(InstallSessionStatus::isRecoverable) != true) {
+                beforeQuery[appId]?.let { stateCenter.syncUninstalled(appId, it) }
+            }
+        }
+        snapshot.apps.forEach { stateCenter.syncInstalled(it.appId, it.versionName, it.versionCode) }
+        return snapshot.apps
+    }
+
     /** 获取首页应用卡片列表，并补齐已安装版本与升级状态。 */
     override suspend fun getHomeApps(): List<AppViewData> {
         return buildAppCards(repository.getHomeApps())
@@ -53,7 +70,7 @@ class DefaultAppManager(
 
     /** 基于目录条目构建应用卡片：同步已装版本与升级可用性后合成视图数据。 */
     private suspend fun buildAppCards(apps: List<AppInfo>): List<AppViewData> {
-        val installed = repository.getInstalledApps().associateBy { it.appId }
+        val installed = loadInstalledApps().associateBy { it.appId }
         // 先把已安装版本同步进状态中心，后续构建卡片时才能得到正确主按钮。
         installed.forEach { (appId, app) -> stateCenter.syncInstalled(appId, app.versionName, app.versionCode) }
 
@@ -77,6 +94,7 @@ class DefaultAppManager(
     }
 
     override suspend fun getRecentlyUsedApps(): List<AppViewData> {
+        loadInstalledApps()
         val packages = repository.getRecentlyOpenedPackages()
         if (packages.isEmpty()) {
             return emptyList()
@@ -103,7 +121,7 @@ class DefaultAppManager(
     /** 获取指定应用详情，并在已安装情况下补齐版本和升级状态。 */
     override suspend fun getAppDetail(appId: String): AppDetail {
         val detail = repository.getAppDetail(appId)
-        val installed = repository.getInstalledApps().firstOrNull { it.appId == appId }
+        val installed = loadInstalledApps().firstOrNull { it.appId == appId }
         if (installed != null) {
             stateCenter.syncInstalled(appId, installed.versionName, installed.versionCode)
             syncUpgradeAvailability(appId, installed.versionName)
@@ -114,7 +132,7 @@ class DefaultAppManager(
     /** 获取“我的应用”页面需要展示的应用列表。 */
     override suspend fun getMyApps(): List<AppViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
-        val installedApps = repository.getInstalledApps()
+        val installedApps = loadInstalledApps()
         // “我的应用”以已安装应用为主，同时补充有进行中任务的应用。
         installedApps.forEach { installed ->
             stateCenter.syncInstalled(installed.appId, installed.versionName, installed.versionCode)
@@ -146,7 +164,7 @@ class DefaultAppManager(
     /** 获取首页中单个应用的聚合视图数据。 */
     override suspend fun getHomeAppViewData(appId: String): AppViewData? {
         val app = repository.getHomeApps().firstOrNull { it.appId == appId } ?: return null
-        val installed = repository.getInstalledApps().firstOrNull { it.appId == appId }
+        val installed = loadInstalledApps().firstOrNull { it.appId == appId }
         if (installed != null) stateCenter.syncInstalled(appId, installed.versionName, installed.versionCode)
         syncUpgradeAvailability(appId, installed?.versionName)
         return buildViewData(
@@ -188,7 +206,7 @@ class DefaultAppManager(
     /** 获取下载管理页顶部应用卡片集合。 */
     override suspend fun getDownloadManageApps(): List<AppViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
-        val installedApps = repository.getInstalledApps().associateBy { it.appId }
+        val installedApps = loadInstalledApps().associateBy { it.appId }
         installedApps.forEach { (appId, app) -> stateCenter.syncInstalled(appId, app.versionName, app.versionCode) }
         val stateMap = stateCenter.observeAll().value
         val appIds = stateMap.filterValues { state ->
@@ -262,7 +280,7 @@ class DefaultAppManager(
     /** 获取安装中心需要展示的安装任务列表。 */
     override suspend fun getInstallTasks(): List<InstallTaskViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
-        val installedApps = repository.getInstalledApps().associateBy { it.appId }
+        val installedApps = loadInstalledApps().associateBy { it.appId }
         val sessionsByAppId = installSessionStore.getLatestByAppId(stateCenter.observeAll().value.keys)
         return buildInstallTasks(homeApps, installedApps, sessionsByAppId)
     }
@@ -363,7 +381,7 @@ class DefaultAppManager(
     /** 获取升级中心需要展示的升级任务列表。 */
     override suspend fun getUpgradeTasks(): List<UpgradeTaskViewData> {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
-        val installedApps = repository.getInstalledApps().associateBy { it.appId }
+        val installedApps = loadInstalledApps().associateBy { it.appId }
         syncInstalledAndUpgradeStates(installedApps.values)
         return buildUpgradeTasks(homeApps, installedApps)
     }
@@ -421,7 +439,7 @@ class DefaultAppManager(
     /** 一次加载目录、已装应用和安装会话后同时产出三个任务中心的统计快照，避免逐个统计重复加载相同数据。 */
     override suspend fun getTaskCenterStatsSnapshot(): TaskCenterStatsSnapshot {
         val homeApps = repository.getHomeApps().associateBy { it.appId }
-        val installedApps = repository.getInstalledApps().associateBy { it.appId }
+        val installedApps = loadInstalledApps().associateBy { it.appId }
         val sessionsByAppId = installSessionStore.getLatestByAppId(stateCenter.observeAll().value.keys)
         syncInstalledAndUpgradeStates(installedApps.values)
         return TaskCenterStatsSnapshot(

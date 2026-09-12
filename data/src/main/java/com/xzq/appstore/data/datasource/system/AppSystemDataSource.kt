@@ -14,15 +14,21 @@ class AppSystemDataSource(
 ) {
     /** 请求系统打开指定包名应用。 */
     fun openApp(packageName: String): Boolean {
-        val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return false
         return try {
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return false
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             true
         } catch (_: ActivityNotFoundException) {
             false
+        } catch (_: SecurityException) {
+            false
         }
     }
+
+    /** Android 11+ 在包可见性不足时，NameNotFound 不能证明卸载。 */
+    fun canConfirmPackageAbsence(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
+        context.checkSelfPermission("android.permission.QUERY_ALL_PACKAGES") == PackageManager.PERMISSION_GRANTED
 
     /** 查询指定包名是否已安装。 */
     fun isPackageInstalled(packageName: String): Boolean {

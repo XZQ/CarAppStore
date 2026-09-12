@@ -65,4 +65,7 @@ interface AppManager {
 
     /** 尝试打开指定包名的应用。 */
     fun openApp(packageName: String): Boolean
+
+    /** 回到前台时主动刷新系统事实，具体实现可只进行事实同步。 */
+    suspend fun refreshInstalledApps() { getMyApps() }
 }

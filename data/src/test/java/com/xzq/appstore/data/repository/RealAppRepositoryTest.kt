@@ -61,6 +61,32 @@ class RealAppRepositoryTest {
     }
 
     @Test
+    fun `absence requires full package visibility`() = runTest {
+        shadowOf(context as android.app.Application).denyPermissions("android.permission.QUERY_ALL_PACKAGES")
+        assertTrue(repository.getInstalledAppsSnapshot().confirmedAbsentAppIds.isEmpty())
+        shadowOf(context as android.app.Application).grantPermissions("android.permission.QUERY_ALL_PACKAGES")
+        assertEquals(setOf("test_app"), repository.getInstalledAppsSnapshot().confirmedAbsentAppIds)
+    }
+
+    @Test
+    fun `system uninstall is confirmed even for an application missing from catalog`() = runTest {
+        local.saveInstalledApp(com.xzq.appstore.data.model.InstalledApp("removed.app", "com.example.removed", "Removed", "1.0"))
+        shadowOf(context as android.app.Application).grantPermissions("android.permission.QUERY_ALL_PACKAGES")
+        assertTrue("removed.app" in repository.getInstalledAppsSnapshot().confirmedAbsentAppIds)
+    }
+
+    @Test
+    fun `application omitted by catalog stays installed when system still has it`() = runTest {
+        local.saveInstalledApp(com.xzq.appstore.data.model.InstalledApp("removed.app", "com.example.removed", "Removed", "1.0"))
+        shadowOf(context.packageManager).installPackage(PackageInfo().apply {
+            packageName = "com.example.removed"
+            versionName = "1.0"
+            applicationInfo = ApplicationInfo().apply { packageName = "com.example.removed" }
+        })
+        assertTrue(repository.getInstalledAppsSnapshot().apps.any { it.appId == "removed.app" })
+    }
+
+    @Test
     fun `markInstalled persists InstalledApp built from remote detail`() = runTest {
         installSystemPackage()
         repository.markInstalled("test_app")

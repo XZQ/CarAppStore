@@ -21,6 +21,10 @@ interface AppRepository {
     /** 获取当前已安装应用列表。 */
     suspend fun getInstalledApps(): List<InstalledApp>
 
+    /** 无权威缺失证据的实现只提供已安装事实，不推断卸载。 */
+    suspend fun getInstalledAppsSnapshot(): com.xzq.appstore.data.model.InstalledAppsSnapshot =
+        com.xzq.appstore.data.model.InstalledAppsSnapshot(getInstalledApps())
+
     /** 标记指定应用已安装。 */
     suspend fun markInstalled(appId: String)
 

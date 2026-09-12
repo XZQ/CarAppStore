@@ -27,6 +27,18 @@ class AppPrimaryActionExecutorTest {
         override fun w(tag: String, message: String, throwable: Throwable?) = Unit
     }
     @Test
+    fun `failed open produces feedback and refreshes system facts`() = runBlocking {
+        val manager = FakeAppManager().apply { openResult = false }
+        val executor = AppPrimaryActionExecutor(manager, stateCenter, logger = logger)
+        executor.execute(TEST_OPEN_APP.appId, PrimaryAction.OPEN, TEST_OPEN_APP.packageName)
+        assertEquals("OPEN_FAILED", stateCenter.snapshot(TEST_OPEN_APP.appId).errorCode)
+        assertEquals(1, manager.refreshCount)
+        manager.openResult = true
+        executor.execute(TEST_OPEN_APP.appId, PrimaryAction.OPEN, TEST_OPEN_APP.packageName)
+        assertEquals(null, stateCenter.snapshot(TEST_OPEN_APP.appId).errorCode)
+    }
+
+    @Test
     fun `DOWNLOAD 动作会启动下载`() = runBlocking {
         val appManager = FakeAppManager()
         val downloadManager = RecordingDownloadManager()
@@ -127,6 +139,9 @@ class AppPrimaryActionExecutorTest {
     private class FakeAppManager : AppManager {
         /** 最近一次被请求打开的包名。 */
         var openedPackageName: String? = null
+        var openResult = true
+        var refreshCount = 0
+        override suspend fun refreshInstalledApps() { refreshCount++ }
 
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
 
@@ -158,7 +173,7 @@ class AppPrimaryActionExecutorTest {
 
         override fun openApp(packageName: String): Boolean {
             openedPackageName = packageName
-            return true
+            return openResult
         }
     }
 
