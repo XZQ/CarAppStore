@@ -210,6 +210,7 @@ class AppContainer(context: Context) : AppServices {
             fallbackDownloader = SimulatedFileDownloader(),
             requestHeaders = downloadEnvConfig.downloadRequestHeaders,
             requestHeadersProvider = downloadCredentials::headersFor,
+            availableSpace = storageInfoProvider::writableSpaceBytes,
         )
     }
 

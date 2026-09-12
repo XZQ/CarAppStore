@@ -69,7 +69,7 @@ open class CatalogAppAdapter(
                 AppImageLoader.load(binding.ivIcon, value.iconUrl, binding.tvInitial)
             }
             binding.tvRank.visibility = if (showRank) View.VISIBLE else View.GONE
-            binding.tvRank.text = (position + 1).toString()
+            binding.tvRank.text = binding.root.context.getString(R.string.catalog_rank_format, position + 1)
             binding.btnPrimary.applyActionStyle(CarUiStyle.actionStyle(value.primaryAction))
             binding.btnPrimary.contentDescription = binding.root.context.getString(R.string.catalog_action_description, value.name, binding.btnPrimary.text)
             binding.tvState.text = value.stateText

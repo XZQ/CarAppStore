@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.content.ActivityNotFoundException
 import android.os.Bundle
-import android.net.Uri
 import android.provider.Settings
 import android.view.View
 import android.widget.Button
@@ -18,6 +17,7 @@ import androidx.annotation.StringRes
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
@@ -286,7 +286,7 @@ class MainActivity : AppCompatActivity(), MainNavigator {
                 val intent = when (which) {
                     0 -> Intent(Settings.ACTION_WIFI_SETTINGS)
                     1 -> Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS)
-                    else -> Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+                    else -> Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:$packageName".toUri())
                 }
                 try {
                     startActivity(intent)

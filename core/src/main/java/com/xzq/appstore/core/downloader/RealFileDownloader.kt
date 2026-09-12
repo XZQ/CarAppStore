@@ -43,7 +43,8 @@ class RealFileDownloader(
     private val runningEventIntervalMs: Long = DEFAULT_RUNNING_EVENT_INTERVAL_MS,
     /** 合并前测试钩子，供测试场景注入分片文件扰动。 */
     private val beforeMergeHook: ((segments: List<DownloadSegmentRecord>, finalFile: File) -> Unit)? = null,
-    private val availableSpace: (File) -> Long = { it.usableSpace },
+    /** 由平台适配器按目标目录提供可写空间；同时检查分片和最终产物所在目录。 */
+    private val availableSpace: (File) -> Long,
     private val logger: AppLogger = AppLogger(),
     /** 每次 HEAD/GET/Range 请求读取最新的短期凭证。 */
     private val requestHeadersProvider: (String) -> Map<String, String> = { emptyMap() },

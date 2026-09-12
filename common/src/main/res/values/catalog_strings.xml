@@ -1,4 +1,5 @@
 <resources>
+    <string name="catalog_rank_format">%1$d</string>
     <string name="catalog_rating_format">评分 %1$.1f / 5</string>
     <string name="catalog_action_description">%1$s，%2$s</string>
 </resources>
