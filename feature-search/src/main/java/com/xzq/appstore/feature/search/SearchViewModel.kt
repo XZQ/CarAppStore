@@ -1,6 +1,7 @@
 package com.xzq.appstore.feature.search
 
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.SavedStateHandle
 import com.xzq.appstore.common.base.BaseViewModel
 import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.AppViewData
@@ -45,7 +46,11 @@ class SearchViewModel(
     private val eventTracker: EventTracker = EventTracker(),
     /** 页面数据加载与主动作执行使用的调度器，测试时可注入 TestDispatcher。 */
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : BaseViewModel<SearchUiState>(SearchUiState()) {
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+) : BaseViewModel<SearchUiState>(SearchUiState(
+    keyword = savedStateHandle.get<String>(KEYWORD).orEmpty(),
+    selectedCategory = savedStateHandle[SELECTED_CATEGORY],
+)) {
     /** 搜索页状态订阅任务。 */
     private var observeJob: Job? = null
 
@@ -85,11 +90,13 @@ class SearchViewModel(
     /** 根据关键字刷新搜索结果。
      * 关键字立即写入 UI 状态，延迟重查询并取消旧请求。 */
     fun search(keyword: String) {
+        savedStateHandle[KEYWORD] = keyword
         _uiState.update { it.copy(keyword = keyword, screenState = SearchScreenState.Loading) }
         requestRefresh(SEARCH_DEBOUNCE_MS)
     }
 
     fun selectCategory(category: String?) {
+        savedStateHandle[SELECTED_CATEGORY] = category
         _uiState.update { it.copy(selectedCategory = category) }
         requestRefresh()
     }
@@ -173,6 +180,8 @@ class SearchViewModel(
     }
 
     private companion object {
+        const val KEYWORD = "search.keyword"
+        const val SELECTED_CATEGORY = "search.category"
         /** 搜索输入防抖窗口（毫秒）。 */
         const val SEARCH_DEBOUNCE_MS = 300L
 

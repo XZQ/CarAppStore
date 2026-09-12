@@ -2,6 +2,9 @@ package com.xzq.appstore.feature.search
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewmodel.CreationExtras
 import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
@@ -28,7 +31,13 @@ class SearchViewModelFactory(
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     /** 创建搜索页 ViewModel。 */
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+    override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T =
+        createModel(extras.createSavedStateHandle())
+
+    override fun <T : ViewModel> create(modelClass: Class<T>): T = createModel(SavedStateHandle())
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : ViewModel> createModel(savedStateHandle: SavedStateHandle): T {
         return SearchViewModel(
             appManager = appManager,
             stateCenter = stateCenter,
@@ -37,6 +46,7 @@ class SearchViewModelFactory(
             upgradeManager = upgradeManager,
             policyCenter = policyCenter,
             eventTracker = eventTracker,
+            savedStateHandle = savedStateHandle,
         ) as T
     }
 }

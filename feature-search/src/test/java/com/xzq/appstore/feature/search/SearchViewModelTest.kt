@@ -47,6 +47,22 @@ class SearchViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
+    fun `keyword and category are saved before debounce and restored in a fresh model`() = runTest {
+        fun model(handle: androidx.lifecycle.SavedStateHandle) = SearchViewModel(
+            FakeAppManager(), DefaultStateCenter(), RecordingDownloadManager(), RecordingInstallManager(),
+            RecordingUpgradeManager(), FakePolicyCenter(), ioDispatcher = mainDispatcherRule.dispatcher,
+            savedStateHandle = handle)
+        val handle = androidx.lifecycle.SavedStateHandle()
+        val original = model(handle)
+        original.search("unfinished input")
+        original.selectCategory("工具")
+        val restored = model(androidx.lifecycle.SavedStateHandle(handle.keys().associateWith { handle.get<Any?>(it) }))
+        assertEquals("unfinished input", restored.uiState.value.keyword)
+        assertEquals("工具", restored.uiState.value.selectedCategory)
+        advanceUntilIdle()
+    }
+
+    @Test
     fun `onPrimaryClick 为恢复动作时会恢复下载`() = runTest {
         val downloadManager = RecordingDownloadManager()
         val installManager = RecordingInstallManager()
