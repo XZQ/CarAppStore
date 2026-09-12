@@ -26,8 +26,8 @@ CarAppStore 是一个跨平台应用分发与管理 App。当前仓库承载它�
 
 - 当前主分支：`main`
 - 已同步远端：`origin/main`
-- 最近完整验证：2026-07-31 已在 JDK 17 下通过 `testDebugUnitTest`、`compileDebugKotlin`、`lintDebug`、`:app:assembleDebug` 与 `:app:assembleRelease`；45 份测试报告共 247 个测试，0 失败、0 错误，13 份 Lint 报告为 0 告警、0 错误。
-- GitHub Actions 已在远端成功运行；本轮平台策略解耦、API 36、平台能力模型、文档校准和生产发布门禁均已逐项提交并推送。
+- 当前验证记录见 [2026-09 客户端审查修复记录](docs/34-2026-09客户端审查修复记录.md)。CI 执行 Debug / Release 单测、Lint 和 APK 构建，并从 XML 自动生成带提交 SHA 的验证摘要。
+- 每个提交的实际门禁结果以 GitHub Actions 对应 SHA 的运行和 `carappstore-verification-<SHA>` 产物为准；其中测试、Lint 与设备/生产验收分开记录。
 - 换机接手总览：[docs/29-换机接手与当前进度总览.md](docs/29-换机接手与当前进度总览.md)
 
 实际最新状态请以 `git status --short --branch` 和 `git log --oneline -5` 为准。
@@ -122,20 +122,20 @@ Windows PowerShell:
 
 ```powershell
 $env:JAVA_HOME="<your-jdk-17-path>"
-.\gradlew.bat testDebugUnitTest --no-daemon
+.\gradlew.bat testDebugUnitTest testReleaseUnitTest --no-daemon
 .\gradlew.bat compileDebugKotlin --no-daemon
 .\gradlew.bat :app:assembleDebug --no-daemon
-.\gradlew.bat lintDebug --no-daemon
+.\gradlew.bat lintDebug lintRelease --no-daemon
 .\gradlew.bat :app:assembleRelease --no-daemon
 ```
 
 macOS / Linux / Git Bash:
 
 ```bash
-./gradlew testDebugUnitTest --no-daemon
+./gradlew testDebugUnitTest testReleaseUnitTest --no-daemon
 ./gradlew compileDebugKotlin --no-daemon
 ./gradlew :app:assembleDebug --no-daemon
-./gradlew lintDebug --no-daemon
+./gradlew lintDebug lintRelease --no-daemon
 ./gradlew :app:assembleRelease --no-daemon
 ```
 

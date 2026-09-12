@@ -54,6 +54,9 @@ jobs:
             -validity 1 \
             -dname "CN=CarAppStore CI,OU=Engineering,O=CarAppStore,L=CI,ST=CI,C=US"
 
+      - name: Verify report summarizer
+        run: python3 -m unittest discover -s tools/verification -p 'test_*.py'
+
       - name: Verify tests, lint and APK builds
         env:
           CARAPPSTORE_CATALOG_PROD_URL: https://catalog.ci.carappstore.dev/catalog.json
@@ -67,16 +70,30 @@ jobs:
           CARAPPSTORE_RELEASE_STORE_PASSWORD: ${{ env.CARAPPSTORE_CI_KEY_PASSWORD }}
           CARAPPSTORE_RELEASE_KEY_ALIAS: carappstore-ci
           CARAPPSTORE_RELEASE_KEY_PASSWORD: ${{ env.CARAPPSTORE_CI_KEY_PASSWORD }}
-        run: ./gradlew testDebugUnitTest compileDebugKotlin lintDebug :app:assembleDebug assembleProductionRelease --no-daemon --stacktrace
+        run: ./gradlew testDebugUnitTest testReleaseUnitTest compileDebugKotlin lintDebug lintRelease :app:assembleDebug assembleProductionRelease --no-daemon --stacktrace --continue
+
+      - name: Summarize verification reports
+        if: always()
+        run: |
+          report_status=0
+          python3 tools/verification/summarize_android_checks.py || report_status=$?
+          cat build/verification/android-checks.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$report_status"
 
       - name: Upload verification outputs
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: carappstore-verification-${{ github.sha }}
           path: |
             app/build/outputs/apk/**/*.apk
             **/build/reports/lint-results-debug.html
+            **/build/reports/lint-results-debug.xml
+            **/build/reports/lint-results-release.html
+            **/build/reports/lint-results-release.xml
+            **/build/reports/tests/**
             **/build/test-results/testDebugUnitTest/*.xml
+            **/build/test-results/testReleaseUnitTest/*.xml
+            build/verification/*
           if-no-files-found: error
           retention-days: 14
