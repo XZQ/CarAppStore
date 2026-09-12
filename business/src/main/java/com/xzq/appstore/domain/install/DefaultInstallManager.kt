@@ -71,14 +71,7 @@ class DefaultInstallManager(
         // 安装依赖已经下载完成的本地 APK，因此要先确认路径和文件有效性。
         val apkPath = repository.getDownloadedApk(appId)
         if (apkPath.isNullOrEmpty()) {
-            stateCenter.updateDownload(
-                appId,
-                DownloadStatus.FAILED,
-                progress = 0,
-                localApkPath = null,
-                errorMessage = BusinessText.DOWNLOAD_APK_MISSING,
-                errorCode = "APK_MISSING",
-            )
+            invalidateDownloadedApk(appId, InstallFailureCode.APK_MISSING, BusinessText.DOWNLOAD_APK_MISSING)
             stateCenter.updateInstall(
                 appId,
                 InstallStatus.FAILED,
@@ -161,15 +154,7 @@ class DefaultInstallManager(
                 is InstallEvent.Failed -> {
                     // APK 缺失或损坏时，需要同时把下载状态打回失败，提示用户重新下载。
                     if (invalidatesDownloadedApk(event.code)) {
-                        repository.clearDownloadedApk(appId)
-                        stateCenter.updateDownload(
-                            appId,
-                            DownloadStatus.FAILED,
-                            progress = 0,
-                            localApkPath = null,
-                            errorMessage = BusinessText.retryDownload(event.message),
-                            errorCode = event.code.name,
-                        )
+                        invalidateDownloadedApk(appId, event.code, event.message)
                     }
                     // 安装失败统一回写到安装状态，保持错误来源可追踪。
                     stateCenter.updateInstall(
@@ -182,6 +167,20 @@ class DefaultInstallManager(
                 }
             }
         }
+    }
+
+    /** 先持久化失效事实，再回收文件，防止重启继续把不可信产物当作已完成任务。 */
+    private suspend fun invalidateDownloadedApk(appId: String, code: InstallFailureCode, message: String) {
+        val reason = BusinessText.retryDownload(message)
+        stateCenter.updateDownload(appId, DownloadStatus.FAILED, progress = 0, localApkPath = null,
+            errorMessage = reason, errorCode = code.name)
+        repository.getDownloadTask(appId)?.let { record ->
+            repository.saveDownloadTask(record.copy(status = DownloadStatus.FAILED, progress = 0,
+                downloadedBytes = 0L, speedBytesPerSec = 0L, failureCode = code.name, failureMessage = reason,
+                eTag = null, lastModified = null, updatedAt = System.currentTimeMillis()))
+        }
+        repository.saveDownloadSegments(appId, emptyList())
+        repository.clearDownloadedApk(appId)
     }
 
     /** 判断失败是否说明当前下载产物不再可信、不能继续复用。 */

@@ -509,6 +509,10 @@ class DefaultDownloadManager(
         )
         // 下载器启动前先把等待态写入持久化和状态中心，保证页面立即看到任务。
         repository.saveDownloadTask(prepared)
+        val snapshot = stateCenter.snapshot(appId)
+        if (snapshot.installStatus == InstallStatus.FAILED) {
+            stateCenter.updateInstall(appId, if (snapshot.installedVersion != null) InstallStatus.INSTALLED else InstallStatus.NOT_INSTALLED)
+        }
         stateCenter.resetError(appId)
         stateCenter.updateDownload(
             appId = appId,

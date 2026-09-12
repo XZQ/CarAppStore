@@ -31,13 +31,15 @@ object StateReducer {
             base.upgradeStatus == UpgradeStatus.FAILED -> PrimaryAction.UPGRADE
             base.installStatus == InstallStatus.PENDING_USER_ACTION -> PrimaryAction.DISABLED
             base.installStatus == InstallStatus.INSTALLING -> PrimaryAction.DISABLED
-            base.installStatus == InstallStatus.FAILED -> PrimaryAction.RETRY_INSTALL
-            base.installStatus == InstallStatus.INSTALLED && base.upgradeStatus == UpgradeStatus.AVAILABLE -> PrimaryAction.UPGRADE
-            base.installStatus == InstallStatus.INSTALLED -> PrimaryAction.OPEN
-            base.downloadStatus == DownloadStatus.COMPLETED -> PrimaryAction.INSTALL
             base.downloadStatus == DownloadStatus.WAITING -> PrimaryAction.DISABLED
             base.downloadStatus == DownloadStatus.RUNNING -> PrimaryAction.PAUSE
             base.downloadStatus == DownloadStatus.PAUSED -> PrimaryAction.RESUME
+            base.installStatus == InstallStatus.FAILED -> if (
+                base.downloadStatus == DownloadStatus.COMPLETED && !base.localApkPath.isNullOrBlank()
+            ) PrimaryAction.RETRY_INSTALL else PrimaryAction.RETRY_DOWNLOAD
+            base.installStatus == InstallStatus.INSTALLED && base.upgradeStatus == UpgradeStatus.AVAILABLE -> PrimaryAction.UPGRADE
+            base.installStatus == InstallStatus.INSTALLED -> PrimaryAction.OPEN
+            base.downloadStatus == DownloadStatus.COMPLETED -> PrimaryAction.INSTALL
             base.downloadStatus == DownloadStatus.FAILED || base.downloadStatus == DownloadStatus.CANCELED -> PrimaryAction.RETRY_DOWNLOAD
             else -> PrimaryAction.DOWNLOAD
         }

@@ -166,8 +166,17 @@ class DefaultStateCenterTest {
 
     @Test
     fun `StateReducer 安装失败时主动作为 RETRY_INSTALL`() {
-        val state = StateReducer.reduce(AppState(appId = "test", installStatus = InstallStatus.FAILED))
+        val state = StateReducer.reduce(AppState(appId = "test", installStatus = InstallStatus.FAILED,
+            downloadStatus = DownloadStatus.COMPLETED, localApkPath = "/data/test.apk"))
         assertEquals(PrimaryAction.RETRY_INSTALL, state.primaryAction)
+    }
+
+    @Test
+    fun `failed installation without a usable artifact offers redownload`() {
+        for (status in listOf(DownloadStatus.IDLE, DownloadStatus.FAILED, DownloadStatus.CANCELED, DownloadStatus.COMPLETED)) {
+            val state = StateReducer.reduce(AppState(appId = "test", installStatus = InstallStatus.FAILED, downloadStatus = status))
+            assertEquals(PrimaryAction.RETRY_DOWNLOAD, state.primaryAction)
+        }
     }
 
     @Test

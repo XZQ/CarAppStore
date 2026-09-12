@@ -14,6 +14,7 @@ import com.xzq.appstore.domain.policy.PolicyResult
 import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.DownloadStatus
 import com.xzq.appstore.domain.state.InstallStatus
+import com.xzq.appstore.domain.state.PrimaryAction
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -91,6 +92,7 @@ class DefaultInstallManagerTest {
         assertEquals(DownloadStatus.FAILED, state.downloadStatus)
         assertEquals(InstallStatus.FAILED, state.installStatus)
         assertEquals(InstallFailureCode.APK_MISSING.name, state.errorCode)
+        assertEquals(PrimaryAction.RETRY_DOWNLOAD, state.primaryAction)
     }
 
     @Test
@@ -132,6 +134,9 @@ class DefaultInstallManagerTest {
         val apkFile = File(workDir, "test.apk").apply { writeBytes(ByteArray(1024)) }
         repository.saveApk(TEST_APP_ID, apkFile.absolutePath)
         installer.scenario = InstallScenario.APK_TRUST_FAILURE
+        repository.saveDownloadTask(DownloadTaskRecord(taskId = "download-$TEST_APP_ID", appId = TEST_APP_ID,
+            status = DownloadStatus.COMPLETED, progress = 100, targetFilePath = apkFile.absolutePath,
+            downloadedBytes = 1024, totalBytes = 1024, createdAt = 1, updatedAt = 1))
 
         val manager = createManager()
         manager.install(TEST_APP_ID)
@@ -141,6 +146,10 @@ class DefaultInstallManagerTest {
         assertEquals(DownloadStatus.FAILED, state.downloadStatus)
         assertEquals(InstallFailureCode.APK_SIGNER_MISMATCH.name, state.errorCode)
         assertNull(repository.getApk(TEST_APP_ID))
+        assertEquals(PrimaryAction.RETRY_DOWNLOAD, state.primaryAction)
+        assertEquals(DownloadStatus.FAILED, repository.getDownloadTask(TEST_APP_ID)?.status)
+        assertEquals(InstallFailureCode.APK_SIGNER_MISMATCH.name, repository.getDownloadTask(TEST_APP_ID)?.failureCode)
+        assertEquals(0L, repository.getDownloadTask(TEST_APP_ID)?.downloadedBytes)
     }
 
     @Test
@@ -300,6 +309,7 @@ class DefaultInstallManagerTest {
     private class FakeInstallRepository(private val workDir: File) : AppRepository {
         private val apkPaths = mutableMapOf<String, String>()
         private val stagedVersions = mutableMapOf<String, String>()
+        private val tasks = mutableMapOf<String, DownloadTaskRecord>()
         val installedApps = mutableSetOf<String>()
         val taskRemoved = mutableSetOf<String>()
         var supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID)
@@ -348,10 +358,11 @@ class DefaultInstallManagerTest {
         }
 
         override suspend fun peekStagedUpgradeVersion(appId: String) = stagedVersions[appId]
-        override suspend fun saveDownloadTask(record: DownloadTaskRecord) = Unit
-        override suspend fun getDownloadTask(appId: String): DownloadTaskRecord? = null
-        override suspend fun getAllDownloadTasks() = emptyList<DownloadTaskRecord>()
+        override suspend fun saveDownloadTask(record: DownloadTaskRecord) { tasks[record.appId] = record }
+        override suspend fun getDownloadTask(appId: String) = tasks[appId]
+        override suspend fun getAllDownloadTasks() = tasks.values.toList()
         override suspend fun removeDownloadTask(appId: String) {
+            tasks.remove(appId)
             taskRemoved.add(appId)
         }
 

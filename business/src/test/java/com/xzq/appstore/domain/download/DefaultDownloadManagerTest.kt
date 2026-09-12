@@ -42,6 +42,22 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class DefaultDownloadManagerTest {
     @Test
+    fun `redownload after invalid APK exposes pause resume and install actions`() = runBlocking {
+        val harness = TestHarness()
+        harness.stateCenter.updateDownload(TEST_APP_ID, DownloadStatus.FAILED, errorCode = "APK_INVALID")
+        harness.stateCenter.updateInstall(TEST_APP_ID, com.xzq.appstore.domain.state.InstallStatus.FAILED)
+        harness.manager.startDownload(TEST_APP_ID)
+        waitUntil { harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.RUNNING }
+        assertEquals(com.xzq.appstore.domain.state.PrimaryAction.PAUSE, harness.stateCenter.snapshot(TEST_APP_ID).primaryAction)
+        harness.manager.pauseDownload(TEST_APP_ID)
+        assertEquals(com.xzq.appstore.domain.state.PrimaryAction.RESUME, harness.stateCenter.snapshot(TEST_APP_ID).primaryAction)
+        harness.manager.resumeDownload(TEST_APP_ID)
+        waitUntil { harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus == DownloadStatus.COMPLETED }
+        assertEquals(com.xzq.appstore.domain.state.PrimaryAction.INSTALL, harness.stateCenter.snapshot(TEST_APP_ID).primaryAction)
+        harness.manager.close()
+    }
+
+    @Test
     fun `cache cleanup skips installer lease and clears engine files after release`() = runBlocking {
         val access = com.xzq.appstore.domain.install.ApkArtifactAccess()
         val harness = TestHarness(artifactAccess = access)
