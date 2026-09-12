@@ -62,10 +62,8 @@ android {
         buildConfigField("String", "CARAPPSTORE_DOWNLOAD_DEV_BASE_URL", buildConfigString("CARAPPSTORE_DOWNLOAD_DEV_BASE_URL"))
         buildConfigField("String", "CARAPPSTORE_DOWNLOAD_TEST_BASE_URL", buildConfigString("CARAPPSTORE_DOWNLOAD_TEST_BASE_URL"))
         buildConfigField("String", "CARAPPSTORE_DOWNLOAD_PROD_BASE_URL", buildConfigString("CARAPPSTORE_DOWNLOAD_PROD_BASE_URL"))
-        buildConfigField("String", "CARAPPSTORE_CATALOG_AUTH_HEADER", buildConfigString("CARAPPSTORE_CATALOG_AUTH_HEADER"))
-        buildConfigField("String", "CARAPPSTORE_CATALOG_AUTH_VALUE", buildConfigString("CARAPPSTORE_CATALOG_AUTH_VALUE"))
-        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_AUTH_HEADER", buildConfigString("CARAPPSTORE_DOWNLOAD_AUTH_HEADER"))
-        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_AUTH_VALUE", buildConfigString("CARAPPSTORE_DOWNLOAD_AUTH_VALUE"))
+        buildConfigField("String", "CARAPPSTORE_CATALOG_AUTH_MODE", buildConfigString("CARAPPSTORE_CATALOG_AUTH_MODE"))
+        buildConfigField("String", "CARAPPSTORE_DOWNLOAD_AUTH_MODE", buildConfigString("CARAPPSTORE_DOWNLOAD_AUTH_MODE"))
     }
 }
 

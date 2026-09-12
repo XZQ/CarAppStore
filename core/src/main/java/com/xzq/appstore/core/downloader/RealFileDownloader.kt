@@ -45,6 +45,8 @@ class RealFileDownloader(
     private val beforeMergeHook: ((segments: List<DownloadSegmentRecord>, finalFile: File) -> Unit)? = null,
     private val availableSpace: (File) -> Long = { it.usableSpace },
     private val logger: AppLogger = AppLogger(),
+    /** 每次 HEAD/GET/Range 请求读取最新的短期凭证。 */
+    private val requestHeadersProvider: (String) -> Map<String, String> = { emptyMap() },
 ) : FileDownloader {
     override suspend fun clearTaskCache(taskId: String) = withContext(Dispatchers.IO) {
         store.clearTask(taskId)
@@ -814,11 +816,14 @@ class RealFileDownloader(
 
     /** 按需构建 HTTP 连接，并在存在续传需求时补齐 Range 请求头。 */
     private fun openConnection(url: String, head: Boolean = false, rangeStart: Long? = null, rangeEnd: Long? = null): HttpURLConnection {
+        val headers = requestHeaders + requestHeadersProvider(url)
+        require(headers.keys.all(HTTP_HEADER_NAME_PATTERN::matches) &&
+            headers.values.none { it.contains('\r') || it.contains('\n') }) { "Invalid runtime request headers" }
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
         connection.requestMethod = if (head) "HEAD" else "GET"
-        requestHeaders.forEach(connection::setRequestProperty)
+        headers.forEach(connection::setRequestProperty)
         connection.setRequestProperty("Accept", "*/*")
         if (rangeStart != null) {
             val value = if (rangeEnd != null && rangeEnd >= rangeStart) {
@@ -828,8 +833,8 @@ class RealFileDownloader(
             }
             connection.setRequestProperty("Range", value)
         }
-        // 固定鉴权头模式禁止自动重定向，避免认证信息被转发到非预期主机。
-        connection.instanceFollowRedirects = requestHeaders.isEmpty()
+        // 携带鉴权头时禁止自动重定向，避免认证信息被转发到非预期主机。
+        connection.instanceFollowRedirects = headers.isEmpty()
         connection.doInput = true
         return connection
     }

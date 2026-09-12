@@ -34,6 +34,8 @@ data class DownloadEnvironmentConfig(
     val downloadRequestHeaders: Map<String, String> = emptyMap(),
     /** 当前环境下 APK 下载基地址，用于构造未显式配置应用的默认下载 URL。 */
     val downloadBaseUrl: String = "https://example.com",
+    val runtimeCatalogAuthentication: Boolean = false,
+    val runtimeDownloadAuthentication: Boolean = false,
 ) {
     companion object {
         /** 根据下载环境生成对应的能力配置。 */
@@ -76,6 +78,8 @@ data class DownloadEnvironmentConfig(
                     catalogRequestHeaders = configuredCatalogHeaders("carappstore-prod"),
                     downloadRequestHeaders = configuredDownloadHeaders(),
                     downloadBaseUrl = configuredDownloadBaseUrl(BuildConfig.CARAPPSTORE_DOWNLOAD_PROD_BASE_URL, ""),
+                    runtimeCatalogAuthentication = BuildConfig.CARAPPSTORE_CATALOG_AUTH_MODE.trim().equals("RUNTIME", ignoreCase = true),
+                    runtimeDownloadAuthentication = BuildConfig.CARAPPSTORE_DOWNLOAD_AUTH_MODE.trim().equals("RUNTIME", ignoreCase = true),
                 )
 
                 DownloadEnvironment.LOCAL_SIM -> DownloadEnvironmentConfig(
@@ -100,27 +104,9 @@ data class DownloadEnvironmentConfig(
         }
 
         private fun configuredCatalogHeaders(channel: String): Map<String, String> {
-            val headers = linkedMapOf("X-Client-Channel" to channel, "X-Client-Platform" to "android")
-            headers += configuredAuthenticationHeaders(
-                BuildConfig.CARAPPSTORE_CATALOG_AUTH_HEADER,
-                BuildConfig.CARAPPSTORE_CATALOG_AUTH_VALUE,
-            )
-            return headers
+            return mapOf("X-Client-Channel" to channel, "X-Client-Platform" to "android")
         }
 
-        private fun configuredDownloadHeaders(): Map<String, String> =
-            configuredAuthenticationHeaders(
-                BuildConfig.CARAPPSTORE_DOWNLOAD_AUTH_HEADER,
-                BuildConfig.CARAPPSTORE_DOWNLOAD_AUTH_VALUE,
-            )
-
-        private fun configuredAuthenticationHeaders(rawHeader: String, rawValue: String): Map<String, String> {
-            val authHeader = rawHeader.trim()
-            val authValue = rawValue.trim()
-            if (authHeader.isNotBlank() && authValue.isNotBlank()) {
-                return mapOf(authHeader to authValue)
-            }
-            return emptyMap()
-        }
+        private fun configuredDownloadHeaders(): Map<String, String> = emptyMap()
     }
 }

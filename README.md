@@ -101,7 +101,7 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 | 接入项 | 当前状态 |
 | --- | --- |
 | 远端目录 API | 客户端链路、缓存回退、鉴权头、HTTPS/签名门禁和 Gradle/环境变量注入已完成；真实服务仍须提供 APK `versionCode`、`signerCertificateSha256` 并完成联调 |
-| APK 联网下载源 | 下载器已支持固定 Header 与签名 URL 两种 CDN 认证模式，覆盖 HEAD/GET/Range、断点续传、checksum 和安装前身份校验；真实 CDN、包体和灰度策略仍须外部接入 |
+| APK 联网下载源 | 下载器支持运行时短期凭证与签名 URL，覆盖 HEAD/GET/Range、断点续传、checksum 和安装前身份校验；令牌签发/刷新、真实 CDN、包体和灰度策略仍须外部接入，详见 [鉴权接入](docs/35-运行时短期鉴权接入.md) |
 | Android 设备安装行为 | 已接 Android `PackageInstaller`，并在创建会话前检查“允许安装未知应用”权限；不同 Android 版本和 ROM 的确认页、回调码及权限行为仍需设备矩阵验证 |
 | 通用平台策略解耦 | 已完成：只有 OEM 车况动作和驻车字段配置完整时才启用车载驻车安装限制；普通手机、平板和大屏不依赖车况信号 |
 | 应用平台能力 | 目录已支持 `supportedPlatforms`，客户端显式维护 `currentPlatform`；Android 客户端会禁用并在下载、安装、升级业务层拒绝其他平台安装包 |

@@ -83,8 +83,7 @@ val verifyProductionConfig = tasks.register("verifyProductionConfig") {
         val requiredKeys = listOf(
             "CARAPPSTORE_CATALOG_PROD_URL",
             "CARAPPSTORE_DOWNLOAD_PROD_BASE_URL",
-            "CARAPPSTORE_CATALOG_AUTH_HEADER",
-            "CARAPPSTORE_CATALOG_AUTH_VALUE",
+            "CARAPPSTORE_CATALOG_AUTH_MODE",
             "CARAPPSTORE_DOWNLOAD_AUTH_MODE",
             "CARAPPSTORE_RELEASE_STORE_FILE",
             "CARAPPSTORE_RELEASE_STORE_PASSWORD",
@@ -108,46 +107,18 @@ val verifyProductionConfig = tasks.register("verifyProductionConfig") {
             ?.let { validateHttpsUrl("CARAPPSTORE_DOWNLOAD_PROD_BASE_URL", it, baseUrl = true) }
             ?.let(errors::add)
 
-        val headerNamePattern = Regex("""^[!#$%&'*+.^_`|~0-9A-Za-z-]+$""")
-        val catalogAuthHeader = values["CARAPPSTORE_CATALOG_AUTH_HEADER"].orEmpty().trim()
-        val catalogAuthValue = values["CARAPPSTORE_CATALOG_AUTH_VALUE"].orEmpty().trim()
-        if (catalogAuthHeader.isNotBlank() && !headerNamePattern.matches(catalogAuthHeader)) {
-            errors += "CARAPPSTORE_CATALOG_AUTH_HEADER is not a valid HTTP header name"
+        val catalogAuthMode = values["CARAPPSTORE_CATALOG_AUTH_MODE"].orEmpty().trim().uppercase()
+        if (catalogAuthMode !in setOf("PUBLIC", "RUNTIME")) {
+            errors += "CARAPPSTORE_CATALOG_AUTH_MODE must be PUBLIC or RUNTIME"
         }
-        if (catalogAuthValue.contains('\r') || catalogAuthValue.contains('\n')) {
-            errors += "CARAPPSTORE_CATALOG_AUTH_VALUE must not contain line breaks"
-        }
-
         val downloadAuthMode = values["CARAPPSTORE_DOWNLOAD_AUTH_MODE"].orEmpty().trim().uppercase()
-        val downloadAuthHeader = productionConfigValue("CARAPPSTORE_DOWNLOAD_AUTH_HEADER").trim()
-        val downloadAuthValue = productionConfigValue("CARAPPSTORE_DOWNLOAD_AUTH_VALUE").trim()
-        when (downloadAuthMode) {
-            "HEADER" -> {
-                if (downloadAuthHeader.isBlank()) errors += "HEADER mode requires CARAPPSTORE_DOWNLOAD_AUTH_HEADER"
-                if (downloadAuthValue.isBlank()) errors += "HEADER mode requires CARAPPSTORE_DOWNLOAD_AUTH_VALUE"
-            }
-            "SIGNED_URL" -> {
-                if (downloadAuthHeader.isNotBlank() || downloadAuthValue.isNotBlank()) {
-                    errors += "SIGNED_URL mode must not configure fixed CDN authentication headers"
-                }
-            }
-            "" -> Unit
-            else -> errors += "CARAPPSTORE_DOWNLOAD_AUTH_MODE must be HEADER or SIGNED_URL"
+        if (downloadAuthMode !in setOf("SIGNED_URL", "RUNTIME")) {
+            errors += "CARAPPSTORE_DOWNLOAD_AUTH_MODE must be SIGNED_URL or RUNTIME"
         }
-        if (downloadAuthHeader.isNotBlank() && !headerNamePattern.matches(downloadAuthHeader)) {
-            errors += "CARAPPSTORE_DOWNLOAD_AUTH_HEADER is not a valid HTTP header name"
-        }
-        if (downloadAuthValue.contains('\r') || downloadAuthValue.contains('\n')) {
-            errors += "CARAPPSTORE_DOWNLOAD_AUTH_VALUE must not contain line breaks"
-        }
-
-        val placeholderValues = setOf("***", "change-me", "changeme", "placeholder")
-        mapOf(
-            "CARAPPSTORE_CATALOG_AUTH_VALUE" to catalogAuthValue,
-            "CARAPPSTORE_DOWNLOAD_AUTH_VALUE" to downloadAuthValue,
-        ).forEach { (name, value) ->
-            if (value.lowercase() in placeholderValues) {
-                errors += "$name is still a placeholder"
+        listOf("CARAPPSTORE_CATALOG_AUTH_HEADER", "CARAPPSTORE_CATALOG_AUTH_VALUE",
+            "CARAPPSTORE_DOWNLOAD_AUTH_HEADER", "CARAPPSTORE_DOWNLOAD_AUTH_VALUE").forEach { key ->
+            if (productionConfigValue(key).isNotBlank()) {
+                errors += "$key is obsolete; fixed credentials must not be embedded in APKs"
             }
         }
 

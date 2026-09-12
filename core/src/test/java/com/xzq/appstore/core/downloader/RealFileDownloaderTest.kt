@@ -22,6 +22,20 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class RealFileDownloaderTest {
     @Test
+    fun `every HTTP request resolves current runtime headers`() = runBlocking {
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt()), requestHeadersProvider = {
+            mapOf("X-Test-Runtime" to "test-only-${calls.incrementAndGet()}")
+        }).use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            assertTrue(events.last() is DownloadEvent.Completed)
+            val observed = fixture.server.receivedHeaderValues("X-Test-Runtime")
+            assertTrue(observed.size >= 2)
+            assertEquals(observed.size, observed.toSet().size)
+        }
+    }
+    @Test
     fun `insufficient space rejects known package before any body transfer`() = runBlocking {
         TestFixture(0, 0, ByteArray(64 * 1024), availableSpace = { com.xzq.appstore.core.policy.StorageBudget.RESERVE_BYTES + 128 * 1024 - 1 }).use { fixture ->
             val events = mutableListOf<DownloadEvent>()
@@ -489,6 +503,7 @@ class RealFileDownloaderTest {
         runningEventIntervalMs: Long = 0L,
         contentRangeOverride: String? = null,
         availableSpace: (File) -> Long = { Long.MAX_VALUE },
+        requestHeadersProvider: (String) -> Map<String, String> = { emptyMap() },
     ) : AutoCloseable {
         /** 测试工作目录。 */
         private val workDir = Files.createTempDirectory("real-file-downloader-test").toFile()
@@ -527,6 +542,7 @@ class RealFileDownloaderTest {
             requestHeaders = requestHeaders,
             runningEventIntervalMs = runningEventIntervalMs,
             availableSpace = availableSpace,
+            requestHeadersProvider = requestHeadersProvider,
         )
 
         /** 当前测试下载请求。 */

@@ -105,6 +105,16 @@ class AppContainer(context: Context) : AppServices {
         downloadEnvironmentEntry.currentConfig()
     }
 
+    /** 生产认证接入层写入短期令牌；两种 audience 独立管理，不保存到磁盘或构建配置。 */
+    val catalogCredentials by lazy {
+        com.xzq.appstore.core.auth.RuntimeBearerCredentials(if (downloadEnvConfig.runtimeCatalogAuthentication)
+            requireNotNull(downloadEnvConfig.catalogEndpointUrl) else null)
+    }
+    val downloadCredentials by lazy {
+        com.xzq.appstore.core.auth.RuntimeBearerCredentials(if (downloadEnvConfig.runtimeDownloadAuthentication)
+            downloadEnvConfig.downloadBaseUrl else null)
+    }
+
     /** 远端数据源，根据当前下载环境切换下载源目录。 */
     private val remoteDataSource: AppRemoteDataSource by lazy {
         AppRemoteDataSource(
@@ -112,7 +122,7 @@ class AppContainer(context: Context) : AppServices {
             sourceCatalog = DownloadSourceCatalog(downloadEnvConfig),
             catalogEndpointUrl = downloadEnvConfig.catalogEndpointUrl,
             catalogRequestHeaders = downloadEnvConfig.catalogRequestHeaders,
-            httpClient = HttpUrlConnectionAppCatalogHttpClient(),
+            httpClient = HttpUrlConnectionAppCatalogHttpClient(catalogCredentials::headersFor),
             catalogCacheFile = storagePaths.remoteCatalogCacheFile,
             catalogCacheMetadataFile = storagePaths.remoteCatalogCacheMetadataFile,
         )
@@ -199,6 +209,7 @@ class AppContainer(context: Context) : AppServices {
             ),
             fallbackDownloader = SimulatedFileDownloader(),
             requestHeaders = downloadEnvConfig.downloadRequestHeaders,
+            requestHeadersProvider = downloadCredentials::headersFor,
         )
     }
 

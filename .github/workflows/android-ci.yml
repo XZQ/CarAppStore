@@ -61,11 +61,8 @@ jobs:
         env:
           CARAPPSTORE_CATALOG_PROD_URL: https://catalog.ci.carappstore.dev/catalog.json
           CARAPPSTORE_DOWNLOAD_PROD_BASE_URL: https://downloads.ci.carappstore.dev/apks
-          CARAPPSTORE_CATALOG_AUTH_HEADER: X-CI-Catalog-Proof
-          CARAPPSTORE_CATALOG_AUTH_VALUE: ci-validation-marker
-          CARAPPSTORE_DOWNLOAD_AUTH_MODE: HEADER
-          CARAPPSTORE_DOWNLOAD_AUTH_HEADER: X-CI-Download-Proof
-          CARAPPSTORE_DOWNLOAD_AUTH_VALUE: ci-validation-marker
+          CARAPPSTORE_CATALOG_AUTH_MODE: PUBLIC
+          CARAPPSTORE_DOWNLOAD_AUTH_MODE: SIGNED_URL
           CARAPPSTORE_RELEASE_STORE_FILE: ${{ runner.temp }}/carappstore-ci.p12
           CARAPPSTORE_RELEASE_STORE_PASSWORD: ${{ env.CARAPPSTORE_CI_KEY_PASSWORD }}
           CARAPPSTORE_RELEASE_KEY_ALIAS: carappstore-ci

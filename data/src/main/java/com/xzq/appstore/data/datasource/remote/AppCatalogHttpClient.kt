@@ -46,7 +46,9 @@ interface AppCatalogHttpClient {
 /**
  * HttpUrlConnectionAppCatalogHttpClient 使用 HttpURLConnection 请求目录接口。
  */
-class HttpUrlConnectionAppCatalogHttpClient : AppCatalogHttpClient {
+class HttpUrlConnectionAppCatalogHttpClient(
+    private val requestHeadersProvider: (String) -> Map<String, String> = { emptyMap() },
+) : AppCatalogHttpClient {
     /** 请求目录接口并返回响应体。 */
     override suspend fun fetch(request: AppCatalogHttpRequest): AppCatalogHttpResponse = withContext(Dispatchers.IO) {
         request(request)
@@ -54,6 +56,9 @@ class HttpUrlConnectionAppCatalogHttpClient : AppCatalogHttpClient {
 
     /** 发起 HTTP 请求并返回响应体。 */
     private fun request(request: AppCatalogHttpRequest): AppCatalogHttpResponse {
+        val headers = request.headers + requestHeadersProvider(request.endpointUrl)
+        require(headers.keys.all(HTTP_HEADER_NAME_PATTERN::matches) &&
+            headers.values.none { it.contains('\r') || it.contains('\n') }) { "Invalid runtime request headers" }
         val connection = (URL(request.endpointUrl).openConnection() as HttpURLConnection).apply {
             connectTimeout = CONNECT_TIMEOUT_MILLIS
             readTimeout = READ_TIMEOUT_MILLIS
@@ -62,7 +67,7 @@ class HttpUrlConnectionAppCatalogHttpClient : AppCatalogHttpClient {
             // 目录请求可能携带认证头；禁止自动跨主机重定向，避免凭据泄漏到非预期目标。
             instanceFollowRedirects = false
             setRequestProperty(HEADER_ACCEPT, MIME_JSON)
-            request.headers.forEach { (name, value) ->
+            headers.forEach { (name, value) ->
                 if (name.isNotBlank() && value.isNotBlank()) {
                     setRequestProperty(name, value)
                 }
@@ -80,7 +85,7 @@ class HttpUrlConnectionAppCatalogHttpClient : AppCatalogHttpClient {
                     notModified = true,
                 )
             }
-            require(code in SUCCESS_CODE_RANGE) { buildFailureMessage(connection, code) }
+            require(code in SUCCESS_CODE_RANGE) { buildFailureMessage(code) }
             AppCatalogHttpResponse(
                 statusCode = code,
                 body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() },
@@ -93,20 +98,19 @@ class HttpUrlConnectionAppCatalogHttpClient : AppCatalogHttpClient {
     }
 
     /** 组装非成功状态码的异常文案，区分客户端错误、服务端错误与其他，便于上游诊断。 */
-    private fun buildFailureMessage(connection: HttpURLConnection, code: Int): String {
-        val errorText = runCatching {
-            connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-        }.getOrNull()
+    private fun buildFailureMessage(code: Int): String {
         val category = when {
             code in HTTP_CLIENT_ERROR_RANGE -> "client_error"
             code >= HTTP_SERVER_ERROR_THRESHOLD -> "server_error"
             else -> "non_success"
         }
         val base = "catalog request failed category=$category code=$code"
-        return if (errorText.isNullOrBlank()) base else "$base message=$errorText"
+        // 服务端错误正文可能回显请求凭据，诊断只保留类别和状态码。
+        return base
     }
 
     private companion object {
+        val HTTP_HEADER_NAME_PATTERN = Regex("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
         private const val METHOD_GET = "GET"
         private const val MIME_JSON = "application/json"
         private const val HEADER_ACCEPT = "Accept"
