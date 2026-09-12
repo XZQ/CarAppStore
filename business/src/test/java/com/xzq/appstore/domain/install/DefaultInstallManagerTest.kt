@@ -233,7 +233,7 @@ class DefaultInstallManagerTest {
     }
 
     @Test
-    fun `clearFailed 本地APK有效时恢复到等待安装状态`() = runBlocking {
+    fun `clearFailed 本地APK有效时恢复到可安装的非活动状态`() = runBlocking {
         val apkFile = File(workDir, "test.apk").apply { writeBytes(ByteArray(1024)) }
         repository.saveApk(TEST_APP_ID, apkFile.absolutePath)
         stateCenter.updateInstall(TEST_APP_ID, InstallStatus.FAILED, errorMessage = "安装失败", errorCode = "UNKNOWN")
@@ -242,11 +242,55 @@ class DefaultInstallManagerTest {
         manager.clearFailed(TEST_APP_ID)
 
         val state = stateCenter.snapshot(TEST_APP_ID)
-        assertEquals(InstallStatus.WAITING, state.installStatus)
+        assertEquals(InstallStatus.NOT_INSTALLED, state.installStatus)
+        assertEquals(PrimaryAction.INSTALL, state.primaryAction)
         assertEquals(DownloadStatus.COMPLETED, state.downloadStatus)
         assertNull(state.errorMessage)
         assertNull(state.errorCode)
     }
+
+    @Test
+    fun `cleared installation failure allows download cache removal`() = runBlocking {
+        val apkFile = completedApk()
+        val downloads = createDownloadManager()
+        try {
+            stateCenter.updateInstall(TEST_APP_ID, InstallStatus.FAILED, errorCode = "SESSION_COMMIT_FAILED")
+            createManager().clearFailed(TEST_APP_ID)
+            assertEquals(1, downloads.clearCompletedTasks())
+            assertNull(repository.getDownloadTask(TEST_APP_ID))
+            assertTrue(!apkFile.exists())
+        } finally { downloads.close() }
+    }
+
+    @Test
+    fun `clear failed cannot reset an active installer or erase installed version`() = runBlocking {
+        completedApk()
+        stateCenter.updateInstall(TEST_APP_ID, InstallStatus.INSTALLED, versionName = "1.0", versionCode = 1)
+        stateCenter.updateInstall(TEST_APP_ID, InstallStatus.PENDING_USER_ACTION)
+        createManager().clearFailed(TEST_APP_ID)
+        assertEquals(InstallStatus.PENDING_USER_ACTION, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        stateCenter.updateInstall(TEST_APP_ID, InstallStatus.FAILED)
+        createManager().clearFailed(TEST_APP_ID)
+        assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        assertEquals(1L, stateCenter.snapshot(TEST_APP_ID).installedVersionCode)
+    }
+
+    private suspend fun completedApk(): File = File(workDir, "completed.apk").apply {
+        writeBytes(ByteArray(1024))
+        repository.saveApk(TEST_APP_ID, absolutePath)
+        stateCenter.updateDownload(TEST_APP_ID, DownloadStatus.COMPLETED, 100, localApkPath = absolutePath)
+        repository.saveDownloadTask(DownloadTaskRecord(taskId = "download-$TEST_APP_ID", appId = TEST_APP_ID,
+            status = DownloadStatus.COMPLETED, progress = 100, targetFilePath = absolutePath,
+            downloadedBytes = length(), totalBytes = length(), createdAt = 1, updatedAt = 1))
+    }
+
+    private fun createDownloadManager() = com.xzq.appstore.domain.download.DefaultDownloadManager(
+        repository, stateCenter, AllowAllPolicyCenter(),
+        object : com.xzq.appstore.core.downloader.FileDownloader {
+            override suspend fun download(request: com.xzq.appstore.core.downloader.DownloadRequest,
+                control: com.xzq.appstore.core.downloader.DownloadExecutionControl,
+                onEvent: suspend (com.xzq.appstore.core.downloader.DownloadEvent) -> Unit) = error("No transfer expected")
+        }, QuietLogger(), QuietTracker(), dispatcher = kotlinx.coroutines.Dispatchers.Unconfined)
 
     @Test
     fun `clearFailed 本地APK无效时复位下载和安装状态`() = runBlocking {
@@ -406,6 +450,7 @@ class DefaultInstallManagerTest {
 
         override suspend fun getDownloadedApk(appId: String) = apkPaths[appId]
         override suspend fun clearDownloadedApk(appId: String) {
+            apkPaths[appId]?.let { File(it).delete() }
             apkPaths.remove(appId)
         }
 

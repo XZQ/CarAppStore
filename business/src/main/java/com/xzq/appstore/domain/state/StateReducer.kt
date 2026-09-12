@@ -29,6 +29,7 @@ object StateReducer {
         val primaryAction = when {
             base.upgradeStatus == UpgradeStatus.UPGRADING -> PrimaryAction.DISABLED
             base.upgradeStatus == UpgradeStatus.FAILED -> PrimaryAction.UPGRADE
+            base.installStatus == InstallStatus.WAITING -> PrimaryAction.DISABLED
             base.installStatus == InstallStatus.PENDING_USER_ACTION -> PrimaryAction.DISABLED
             base.installStatus == InstallStatus.INSTALLING -> PrimaryAction.DISABLED
             base.downloadStatus == DownloadStatus.WAITING -> PrimaryAction.DISABLED

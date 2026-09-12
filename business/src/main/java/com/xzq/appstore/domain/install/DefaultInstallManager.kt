@@ -219,17 +219,27 @@ class DefaultInstallManager(
     /** 清理指定应用的安装失败态，并恢复到可继续操作的状态。 */
     override suspend fun clearFailed(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
+        artifactAccess.tryUse(appId) { clearFailedInternal(appId) }
+    }
+
+    private suspend fun clearFailedInternal(appId: String) {
+        val snapshot = stateCenter.snapshot(appId)
+        if (snapshot.installStatus != InstallStatus.FAILED) return
         val apkPath = repository.getDownloadedApk(appId)
         val apkFile = apkPath?.let { File(it) }
-        val hasValidApk = apkFile?.exists() == true && apkFile.length() > 0
+        val hasValidApk = apkFile?.isFile == true && apkFile.canRead() && apkFile.length() > 0 &&
+            snapshot.downloadStatus != DownloadStatus.FAILED
+        val idleInstallStatus = if (snapshot.installedVersion != null) InstallStatus.INSTALLED else InstallStatus.NOT_INSTALLED
         if (hasValidApk) {
             // 本地 APK 仍然可用时，保留下载完成态，让用户可以直接重新安装。
             stateCenter.updateDownload(appId, DownloadStatus.COMPLETED, progress = 100, localApkPath = apkPath, errorMessage = null, errorCode = null)
-            stateCenter.updateInstall(appId, InstallStatus.WAITING, errorMessage = null, errorCode = null)
+            stateCenter.updateInstall(appId, idleInstallStatus, errorMessage = null, errorCode = null)
         } else {
             // 本地 APK 已经失效时，直接把下载态和安装态都复位，避免误导用户。
             repository.clearDownloadedApk(appId)
-            stateCenter.updateInstall(appId, InstallStatus.NOT_INSTALLED, errorMessage = null, errorCode = null)
+            repository.saveDownloadSegments(appId, emptyList())
+            repository.removeDownloadTask(appId)
+            stateCenter.updateInstall(appId, idleInstallStatus, errorMessage = null, errorCode = null)
             stateCenter.updateDownload(appId, DownloadStatus.IDLE, progress = 0, localApkPath = null, errorMessage = null, errorCode = null)
         }
         // 最后统一清空错误展示，保证页面从失败态中退出来。
