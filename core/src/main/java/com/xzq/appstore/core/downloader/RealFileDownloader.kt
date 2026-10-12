@@ -141,7 +141,11 @@ class RealFileDownloader(
         val taskTempDir = store.getTaskTempDir(request.taskId)
         if (!request.targetFile.exists()) request.targetFile.createNewFile()
         if (!supportsRange) store.clearSegments(request.taskId)
-        val existingSegments = store.readSegments(request.taskId)
+        var existingSegments = store.readSegments(request.taskId)
+        if (existingSegments.isEmpty() || !DownloadSegmentValidator.isValid(request.taskId, taskTempDir, existingSegments, totalBytes)) {
+            store.clearSegments(request.taskId)
+            existingSegments = emptyList()
+        }
         val plannedSegments = segmentPlanner.plan(
             taskId = request.taskId,
             tempDir = taskTempDir,
@@ -203,8 +207,14 @@ class RealFileDownloader(
             return null
         }
         onEvent(DownloadEvent.Waiting)
+        val previousMeta = store.readMeta(request.taskId)
         val meta = try {
             probeRemoteMeta(request.url, control)
+        } catch (e: HttpProbeException) {
+            if (!emitStoppedIfRequested(request, control, onEvent, request.totalBytes)) {
+                onEvent(DownloadEvent.Failed(e.failureCode, e.message ?: e.failureCode.displayText))
+            }
+            return null
         } catch (e: SocketTimeoutException) {
             if (emitStoppedIfRequested(request, control, onEvent, request.totalBytes)) {
                 return null
@@ -218,19 +228,22 @@ class RealFileDownloader(
             onEvent(DownloadEvent.Failed(DownloadFailureCode.NETWORK_INTERRUPTED, e.message ?: DownloadFailureCode.NETWORK_INTERRUPTED.displayText))
             return null
         }
-        store.saveMeta(request.taskId, meta)
-        onEvent(DownloadEvent.MetaReady(meta))
+        val effectiveMeta = meta.copy(supportsRange = meta.supportsRange && rangeValidator(meta) != null &&
+            (meta.contentLength > 0L || request.totalBytes > 0L))
+        store.saveMeta(request.taskId, effectiveMeta)
+        onEvent(DownloadEvent.MetaReady(effectiveMeta))
 
         // 如果远端文件已经变化，就终止当前续传，避免把不同版本文件拼到一起。
-        if (request.eTag != null && meta.eTag != null && request.eTag != meta.eTag) {
+        if (remoteIdentityChanged(request.eTag, request.lastModified, request.totalBytes, meta) ||
+            (store.readSegments(request.taskId).isNotEmpty() && previousMeta != null &&
+                remoteIdentityChanged(previousMeta.eTag, previousMeta.lastModified, previousMeta.contentLength, meta))) {
             store.clearSegments(request.taskId)
             onEvent(DownloadEvent.Failed(DownloadFailureCode.REMOTE_FILE_CHANGED, DownloaderText.REMOTE_FILE_CHANGED_REDOWNLOAD, false))
             return null
         }
-        if (request.lastModified != null && meta.lastModified != null && request.lastModified != meta.lastModified) {
+        if (store.readSegments(request.taskId).isNotEmpty() &&
+            (previousMeta == null || rangeValidator(previousMeta) == null || rangeValidator(meta) == null)) {
             store.clearSegments(request.taskId)
-            onEvent(DownloadEvent.Failed(DownloadFailureCode.REMOTE_FILE_CHANGED, DownloaderText.REMOTE_FILE_CHANGED_REDOWNLOAD, false))
-            return null
         }
 
         val totalBytes = when {
@@ -241,8 +254,18 @@ class RealFileDownloader(
         if (emitStoppedIfRequested(request, control, onEvent, totalBytes)) {
             return null
         }
-        return Pair(meta, totalBytes)
+        return Pair(effectiveMeta, totalBytes)
     }
+
+    /** 续传身份必须同时满足已有 validator 和已知长度；validator 消失也属于身份变化。 */
+    private fun remoteIdentityChanged(eTag: String?, lastModified: String?, contentLength: Long, meta: DownloadRemoteMeta): Boolean =
+        (eTag != null && eTag != meta.eTag) || (lastModified != null && lastModified != meta.lastModified) ||
+            (contentLength > 0L && meta.contentLength > 0L && contentLength != meta.contentLength)
+
+    /** If-Range 仅使用强 ETag；无法证明 Last-Modified 为强 validator 时采用单次完整响应。 */
+    private fun rangeValidator(meta: DownloadRemoteMeta): String? =
+        meta.eTag?.takeIf { it.length >= 2 && it.startsWith('"') && it.endsWith('"') &&
+            it.substring(1, it.lastIndex).all { char -> char == '!' || char in '#'..'~' || char in '\u0080'..'\u00ff' } }
 
     /** 分批执行分片下载，受 maxParallelSegments 控制并发度。 */
     private suspend fun executeBatches(
@@ -429,11 +452,12 @@ class RealFileDownloader(
             request.url,
             rangeStart = if (meta.supportsRange) resumeOffset else null,
             rangeEnd = if (segment.endByte >= segment.startByte) segment.endByte else null,
+            ifRange = if (meta.supportsRange) rangeValidator(meta) else null,
         )
         val removeInterrupt = control.registerInterrupt { connection.disconnect() }
 
         return try {
-            transferSegmentBytes(connection, partFile, existingBytes, request, segment, attempt, control, meta.supportsRange, onProgress)
+            transferSegmentBytes(connection, partFile, existingBytes, request, segment, attempt, control, meta, onProgress)
         } catch (e: SocketTimeoutException) {
             handleSegmentError(e, existingBytes, partFile, request, segment, attempt, control)
         } catch (e: IOException) {
@@ -453,19 +477,20 @@ class RealFileDownloader(
         segment: DownloadSegmentRecord,
         attempt: Int,
         control: DownloadExecutionControl,
-        requestedRange: Boolean,
+        meta: DownloadRemoteMeta,
         onProgress: suspend (speedBytesPerSec: Long) -> Unit,
     ): SegmentResult {
         control.currentStopReason()?.let { reason ->
             saveSegmentRecord(request, segment, existingBytes, stopStatus(reason), retryCount = attempt)
             return SegmentResult(segment.segmentId, false, stopReason = reason, attempts = attempt)
         }
-        val codeError = interpretResponseCode(connection.responseCode, segment, attempt)
+        val codeError = interpretResponseCode(connection.responseCode, segment, attempt, meta.supportsRange)
         if (codeError != null) {
             return codeError
         }
-        if (requestedRange) {
-            val rangeError = validateRangeResponse(connection, existingBytes, segment, attempt)
+        if (meta.supportsRange) {
+            val rangeError = validateRangeResponse(connection, existingBytes, segment, attempt,
+                meta.copy(contentLength = meta.contentLength.takeIf { it > 0L } ?: request.totalBytes))
             if (rangeError != null) return rangeError
         } else if (connection.responseCode != HttpURLConnection.HTTP_OK) {
             return SegmentResult(segment.segmentId, false, code = DownloadFailureCode.RANGE_NOT_SUPPORTED, message = DownloaderText.RANGE_RESPONSE_INVALID, attempts = attempt)
@@ -490,18 +515,16 @@ class RealFileDownloader(
     }
 
     /** 按响应码归一化失败原因，返回 null 表示响应正常可以继续下载。 */
-    private fun interpretResponseCode(code: Int, segment: DownloadSegmentRecord, attempt: Int): SegmentResult? = when {
+    private fun interpretResponseCode(code: Int, segment: DownloadSegmentRecord, attempt: Int, requestedRange: Boolean): SegmentResult? = when {
         code in HTTP_SUCCESS_RANGE -> null
 
-        // 416 Requested Range Not Satisfiable：续传 offset 越界（远端文件已变 / 已完整下载），
-        // 删除本分片临时文件并标记可重试，下次重新从 0 下载，避免无限重试同一越界范围。
+        // Range 416 进入上层至多一次完整下载降级，避免继续发送同一个无效范围。
         code == HTTP_RANGE_NOT_SATISFIABLE -> {
-            runCatching { File(segment.tmpFilePath).delete() }
             SegmentResult(
                 segment.segmentId,
                 false,
-                code = DownloadFailureCode.HTTP_4XX,
-                message = "HTTP 416 range not satisfiable, will retry from start",
+                code = if (requestedRange) DownloadFailureCode.RANGE_NOT_SUPPORTED else DownloadFailureCode.HTTP_4XX,
+                message = "HTTP 416 range not satisfiable",
                 attempts = attempt,
             )
         }
@@ -526,15 +549,18 @@ class RealFileDownloader(
     }
 
     /** 校验服务器实际返回的字节区间，避免把错位数据拼入 APK。 */
-    private fun validateRangeResponse(connection: HttpURLConnection, existingBytes: Long, segment: DownloadSegmentRecord, attempt: Int): SegmentResult? {
+    private fun validateRangeResponse(connection: HttpURLConnection, existingBytes: Long, segment: DownloadSegmentRecord, attempt: Int, meta: DownloadRemoteMeta): SegmentResult? {
         if (connection.responseCode == HttpURLConnection.HTTP_OK) {
             return SegmentResult(segment.segmentId, false, code = DownloadFailureCode.RANGE_NOT_SUPPORTED, message = DownloaderText.RANGE_RESPONSE_INVALID, attempts = attempt)
         }
         val range = CONTENT_RANGE_PATTERN.matchEntire(connection.getHeaderField("Content-Range").orEmpty())
         val start = range?.groupValues?.get(1)?.toLongOrNull()
         val end = range?.groupValues?.get(2)?.toLongOrNull()
+        val total = range?.groupValues?.get(3)?.toLongOrNull()
         val valid = connection.responseCode == HttpURLConnection.HTTP_PARTIAL && start == segment.startByte + existingBytes &&
-            end != null && end >= start && (segment.endByte < segment.startByte || end == segment.endByte)
+            end != null && end >= start && (segment.endByte < segment.startByte || end == segment.endByte) &&
+            total != null && total > end && (meta.contentLength <= 0L || total == meta.contentLength) &&
+            (meta.eTag == null || connection.getHeaderField("ETag") == meta.eTag)
         return if (valid) null else SegmentResult(segment.segmentId, false, code = DownloadFailureCode.REMOTE_FILE_CHANGED, message = DownloaderText.RANGE_RESPONSE_INVALID, attempts = attempt)
     }
 
@@ -802,21 +828,59 @@ class RealFileDownloader(
             if (control.isStopRequested()) {
                 throw IOException("download stopped after probe connect")
             }
-            DownloadRemoteMeta(
-                contentLength = headConnection.getHeaderFieldLong("Content-Length", -1L),
-                eTag = headConnection.getHeaderField("ETag"),
-                lastModified = headConnection.getHeaderField("Last-Modified"),
-                supportsRange = headConnection.getHeaderField("Accept-Ranges")?.contains("bytes", ignoreCase = true) == true,
-                mimeType = headConnection.contentType,
-            )
+            when (headConnection.responseCode) {
+                HttpURLConnection.HTTP_OK -> readRemoteMeta(headConnection)
+                HttpURLConnection.HTTP_BAD_METHOD, HttpURLConnection.HTTP_NOT_IMPLEMENTED -> probeMetaUsingGet(url, control)
+                else -> throw probeFailure(headConnection.responseCode)
+            }
         } finally {
             removeInterrupt()
             headConnection.disconnect()
         }
     }
 
+    /** 不支持 HEAD 时仅请求一个字节，并在读取响应头后关闭连接，不把错误页当成包体元数据。 */
+    private fun probeMetaUsingGet(url: String, control: DownloadExecutionControl): DownloadRemoteMeta {
+        val connection = openConnection(url, rangeStart = 0L, rangeEnd = 0L)
+        val removeInterrupt = control.registerInterrupt { connection.disconnect() }
+        return try {
+            if (control.isStopRequested()) throw IOException("download stopped before GET probe")
+            when (connection.responseCode) {
+                HttpURLConnection.HTTP_OK -> readRemoteMeta(connection).copy(supportsRange = false)
+                HttpURLConnection.HTTP_PARTIAL -> {
+                    val range = CONTENT_RANGE_PATTERN.matchEntire(connection.getHeaderField("Content-Range").orEmpty())
+                    val total = range?.groupValues?.get(3)?.toLongOrNull()
+                    if (range?.groupValues?.get(1) != "0" || range?.groupValues?.get(2) != "0" || total == null || total <= 0L) {
+                        throw HttpProbeException(DownloadFailureCode.REMOTE_FILE_CHANGED, DownloaderText.RANGE_RESPONSE_INVALID)
+                    }
+                    readRemoteMeta(connection).copy(contentLength = total, supportsRange = true)
+                }
+                else -> throw probeFailure(connection.responseCode)
+            }
+        } finally {
+            removeInterrupt()
+            connection.disconnect()
+        }
+    }
+
+    /** 仅由已经确认成功的探测响应读取远端元数据。 */
+    private fun readRemoteMeta(connection: HttpURLConnection): DownloadRemoteMeta = DownloadRemoteMeta(
+        contentLength = connection.getHeaderFieldLong("Content-Length", -1L),
+        eTag = connection.getHeaderField("ETag"),
+        lastModified = connection.getHeaderField("Last-Modified"),
+        supportsRange = connection.getHeaderField("Accept-Ranges")?.contains("bytes", ignoreCase = true) == true,
+        mimeType = connection.contentType,
+    )
+
+    private fun probeFailure(status: Int): HttpProbeException = HttpProbeException(
+        if (status >= HTTP_SERVER_ERROR_THRESHOLD) DownloadFailureCode.HTTP_5XX else DownloadFailureCode.HTTP_4XX,
+        "HTTP $status",
+    )
+
+    private class HttpProbeException(val failureCode: DownloadFailureCode, message: String) : IOException(message)
+
     /** 按需构建 HTTP 连接，并在存在续传需求时补齐 Range 请求头。 */
-    private fun openConnection(url: String, head: Boolean = false, rangeStart: Long? = null, rangeEnd: Long? = null): HttpURLConnection {
+    private fun openConnection(url: String, head: Boolean = false, rangeStart: Long? = null, rangeEnd: Long? = null, ifRange: String? = null): HttpURLConnection {
         val headers = requestHeaders + requestHeadersProvider(url)
         require(headers.keys.all(HTTP_HEADER_NAME_PATTERN::matches) &&
             headers.values.none { it.contains('\r') || it.contains('\n') }) { "Invalid runtime request headers" }
@@ -833,6 +897,7 @@ class RealFileDownloader(
                 "bytes=$rangeStart-"
             }
             connection.setRequestProperty("Range", value)
+            if (ifRange != null) connection.setRequestProperty("If-Range", ifRange)
         }
         // 携带鉴权头时禁止自动重定向，避免认证信息被转发到非预期主机。
         connection.instanceFollowRedirects = headers.isEmpty()
@@ -841,7 +906,7 @@ class RealFileDownloader(
     }
 
     private companion object {
-        val CONTENT_RANGE_PATTERN = Regex("bytes (\\d+)-(\\d+)/(?:\\d+|\\*)", RegexOption.IGNORE_CASE)
+        val CONTENT_RANGE_PATTERN = Regex("bytes (\\d+)-(\\d+)/(\\d+|\\*)", RegexOption.IGNORE_CASE)
         /** 默认连接超时时间。 */
         const val DEFAULT_CONNECT_TIMEOUT_MS = 10_000
 

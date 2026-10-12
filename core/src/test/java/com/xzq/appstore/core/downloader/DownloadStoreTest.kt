@@ -3,6 +3,8 @@ package com.xzq.appstore.core.downloader
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
@@ -32,7 +34,7 @@ class DownloadStoreTest {
                   "endByte": 1023,
                   "downloadedBytes": 256,
                   "status": "RUNNING",
-                  "tmpFilePath": "/tmp/seg-1.tmp",
+                  "tmpFilePath": "${File(metaFile.parentFile, "part-0.tmp").absolutePath.replace("\\", "\\\\")}",
                   "retryCount": 1,
                   "createdAt": 11,
                   "updatedAt": 12
@@ -61,12 +63,12 @@ class DownloadStoreTest {
             DownloadSegmentRecord(
                 segmentId = "seg-2",
                 taskId = "task-2",
-                index = 1,
-                startByte = 100,
+                index = 0,
+                startByte = 0,
                 endByte = 200,
                 downloadedBytes = 50,
                 status = "PAUSED",
-                tmpFilePath = "/tmp/seg-2.tmp",
+                tmpFilePath = File(store.getTaskTempDir("task-2"), "part-0.tmp").absolutePath,
                 retryCount = 2,
                 createdAt = 20,
                 updatedAt = 21,
@@ -102,6 +104,68 @@ class DownloadStoreTest {
     @Test(expected = IllegalArgumentException::class)
     fun `getTaskTempDir 拒绝超长任务标识`() {
         DownloadStore(Files.createTempDirectory("download-store-long-id-test").toFile()).getTaskTempDir("a".repeat(MAX_TASK_ID_LENGTH + 1))
+    }
+
+    @Test
+    fun `磁盘分片指向任务外文件时只清理受控缓存并保留外部文件`() {
+        val baseDir = Files.createTempDirectory("download-store-invalid-record").toFile()
+        val store = DownloadStore(baseDir)
+        val outside = File(baseDir, "outside.txt").apply { writeText("keep me") }
+        val ownedPart = File(store.getTaskTempDir("task-1"), "part-0.tmp").apply { writeText("old part") }
+        store.getTaskMetaFile("task-1").writeText(JSONObject().put("schemaVersion", 1).put("segments",
+            org.json.JSONArray().put(JSONObject().put("segmentId", "seg-1").put("taskId", "task-1")
+                .put("index", 0).put("startByte", 0).put("endByte", 100)
+                .put("tmpFilePath", outside.absolutePath))).toString())
+
+        assertTrue(store.readSegments("task-1").isEmpty())
+        assertEquals("keep me", outside.readText())
+        assertTrue(!ownedPart.exists())
+    }
+
+    @Test
+    fun `磁盘分片身份或范围损坏时不会作为续传记录返回`() {
+        val baseDir = Files.createTempDirectory("download-store-invalid-identity").toFile()
+        val store = DownloadStore(baseDir)
+        val path = File(store.getTaskTempDir("task-1"), "part-0.tmp").absolutePath
+        val records = listOf(
+            JSONObject().put("taskId", "another-task").put("startByte", 0).put("endByte", 100),
+            JSONObject().put("taskId", "task-1").put("startByte", 1).put("endByte", 100),
+            JSONObject().put("taskId", "task-1").put("startByte", 0).put("endByte", Long.MAX_VALUE),
+        )
+        records.forEach { record ->
+            record.put("segmentId", "seg-1").put("index", 0).put("tmpFilePath", path)
+            store.getTaskMetaFile("task-1").writeText(JSONObject().put("schemaVersion", 1)
+                .put("segments", org.json.JSONArray().put(record)).toString())
+            assertTrue(store.readSegments("task-1").isEmpty())
+        }
+    }
+
+    @Test
+    fun `非对象分片记录会安全清理缓存而不是复用孤立分片`() {
+        val baseDir = Files.createTempDirectory("download-store-malformed-item").toFile()
+        val store = DownloadStore(baseDir)
+        val part = File(store.getTaskTempDir("task-1"), "part-0.tmp").apply { writeText("old partial") }
+        store.getTaskMetaFile("task-1").writeText(JSONObject().put("schemaVersion", 1)
+            .put("segments", org.json.JSONArray().put("invalid item")).toString())
+        assertTrue(store.readSegments("task-1").isEmpty())
+        assertTrue(!part.exists())
+    }
+
+    @Test
+    fun `meta 或临时文件符号链接不能改写任务外的文件`() {
+        listOf("meta.json", "meta.json.tmp").forEach { fileName ->
+            val baseDir = Files.createTempDirectory("download-store-meta-symlink").toFile()
+            val store = DownloadStore(baseDir)
+            val outside = File(baseDir, "outside.json").apply { writeText("external sentinel") }
+            val link = File(store.getTaskTempDir("task-1"), fileName)
+            val created = runCatching { Files.createSymbolicLink(link.toPath(), outside.toPath()); true }.getOrDefault(false)
+            assumeTrue("当前文件系统没有创建符号链接的权限", created)
+            assertThrows(IllegalArgumentException::class.java) {
+                store.saveMeta("task-1", DownloadRemoteMeta(1024))
+            }
+            assertThrows(IllegalArgumentException::class.java) { store.readMeta("task-1") }
+            assertEquals("external sentinel", outside.readText())
+        }
     }
 
     private companion object {

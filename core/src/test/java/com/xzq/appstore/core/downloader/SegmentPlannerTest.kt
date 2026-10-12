@@ -20,7 +20,7 @@ class SegmentPlannerTest {
     @Test
     fun testPlanWithExistingSegments_returnsExistingSorted() {
         val existing = listOf(createSegment(index = 2), createSegment(index = 0), createSegment(index = 1))
-        val result = planner.plan("task-1", tempDir, 10L * 1024L * 1024L, existingSegments = existing)
+        val result = planner.plan("task-1", tempDir, 303L, existingSegments = existing)
         // 返回的是按 index 升序排列的已有分片
         assertEquals(3, result.size)
         assertEquals(0, result[0].index)
@@ -72,17 +72,26 @@ class SegmentPlannerTest {
         assertTrue("至少 1 个分片", result.size >= 1)
     }
 
+    @Test
+    fun `范围与当前文件大小不一致时重新生成完整计划`() {
+        val existing = listOf(createSegment(0))
+        val result = planner.plan("task-1", tempDir, 1024L, existingSegments = existing)
+        assertEquals(0L, result.single().startByte)
+        assertEquals(1023L, result.single().endByte)
+        assertTrue(result.single().segmentId != existing.single().segmentId)
+    }
+
     /** 构造测试用 DownloadSegmentRecord。 */
     private fun createSegment(index: Int): DownloadSegmentRecord {
         return DownloadSegmentRecord(
             segmentId = "seg-$index",
             taskId = "task-1",
             index = index,
-            startByte = 0L,
-            endByte = 100L,
+            startByte = index * 101L,
+            endByte = index * 101L + 100L,
             downloadedBytes = 0L,
             status = "WAITING",
-            tmpFilePath = "/tmp/part-$index.tmp",
+            tmpFilePath = File(tempDir, "part-$index.tmp").absolutePath,
             createdAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis(),
         )

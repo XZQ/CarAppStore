@@ -19,7 +19,7 @@ class SegmentPlanner(
         allowRanges: Boolean = true,
     ): List<DownloadSegmentRecord> {
         // 冷启动恢复时优先复用已有分片，避免重复切片。
-        if (existingSegments.isNotEmpty()) {
+        if (allowRanges && existingSegments.isNotEmpty() && DownloadSegmentValidator.isValid(taskId, tempDir, existingSegments, totalBytes)) {
             return existingSegments.sortedBy { it.index }
         }
         if (totalBytes <= 0L) {

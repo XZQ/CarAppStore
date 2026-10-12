@@ -5,6 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 
 class DownloadStore(private val baseDir: File) {
     /** 不跟随符号链接或记录中的外部路径，只删除本任务生成的文件。 */
@@ -37,7 +38,16 @@ class DownloadStore(private val baseDir: File) {
     }
 
     /** 返回指定任务的 meta 文件路径。 */
-    fun getTaskMetaFile(taskId: String): File = File(getTaskTempDir(taskId), "meta.json")
+    fun getTaskMetaFile(taskId: String): File {
+        val taskDir = getTaskTempDir(taskId)
+        val metaFile = File(taskDir, "meta.json")
+        listOf(metaFile, File(taskDir, "meta.json.tmp")).forEach { file ->
+            require(!Files.isSymbolicLink(file.toPath()) && file.canonicalFile == file.absoluteFile) {
+                "下载元数据文件不得重定向: $taskId"
+            }
+        }
+        return metaFile
+    }
 
     /** 重建下载方案前清除本任务分片，不按记录中的外部路径执行删除。 */
     fun clearSegments(taskId: String) {
@@ -85,6 +95,7 @@ class DownloadStore(private val baseDir: File) {
 
     /** 持久化分片下载记录。 */
     fun saveSegments(taskId: String, segments: List<DownloadSegmentRecord>) {
+        require(DownloadSegmentValidator.isValid(taskId, getTaskTempDir(taskId), segments)) { "非法下载分片记录: $taskId" }
         metaStore(taskId).update { root ->
             root.put("segments", JSONArray().apply {
                 // 每个分片都独立落盘，便于冷启动恢复时继续续传。
@@ -113,11 +124,11 @@ class DownloadStore(private val baseDir: File) {
         if (!file.exists()) {
             return emptyList()
         }
-        return metaStore(taskId).read { obj ->
+        val segments: List<DownloadSegmentRecord>? = metaStore(taskId).read { obj ->
             val arr = obj.optJSONArray("segments") ?: JSONArray()
             buildList {
                 repeat(arr.length()) { index ->
-                    val item = arr.getJSONObject(index)
+                    val item = arr.optJSONObject(index) ?: return@read null
                     add(DownloadSegmentRecord(
                         segmentId = item.optString("segmentId"),
                         taskId = item.optString("taskId"),
@@ -134,6 +145,11 @@ class DownloadStore(private val baseDir: File) {
                 }
             }
         }
+        if (segments == null || !DownloadSegmentValidator.isValid(taskId, getTaskTempDir(taskId), segments)) {
+            clearSegments(taskId)
+            return emptyList()
+        }
+        return segments
     }
 
     /** 创建空的下载 meta 根节点。 */

@@ -9,6 +9,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.File
 import java.io.IOException
@@ -459,6 +460,156 @@ class RealFileDownloaderTest {
         }
     }
 
+    @Test
+    fun `Content-Range total must match the probed resource`() = runBlocking {
+        TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt()), contentRangeOverride = "bytes 0-65535/65537").use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request) { events += it }
+            assertEquals(DownloadFailureCode.REMOTE_FILE_CHANGED, (events.last() as DownloadEvent.Failed).code)
+            assertEquals(0L, File(fixture.store.readSegments(TEST_TASK_ID).single().tmpFilePath).length())
+        }
+    }
+
+    @Test
+    fun `GET validator change after HEAD rejects a resumed response before writing`() = runBlocking {
+        TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt()) { 2 }, getETagProvider = { "\"changed\"" }).use { fixture ->
+            fixture.primePartialSegment(PARTIAL_DOWNLOADED_BYTES, TEST_TOTAL_BYTES)
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request) { events += it }
+            assertEquals(DownloadFailureCode.REMOTE_FILE_CHANGED, (events.last() as DownloadEvent.Failed).code)
+            assertEquals(listOf(TEST_ETAG), fixture.server.receivedHeaderValues("If-Range"))
+            assertEquals(PARTIAL_DOWNLOADED_BYTES, File(fixture.store.readSegments(TEST_TASK_ID).single().tmpFilePath).length())
+            assertTrue(events.none { it is DownloadEvent.Completed })
+        }
+    }
+
+    @Test
+    fun `multipart responses with different validators never complete a mixed file`() = runBlocking {
+        val response = java.util.concurrent.atomic.AtomicInteger()
+        TestFixture(0, 0, ByteArray(8 * 1024 * 1024), getETagProvider = {
+            if (response.incrementAndGet() == 1) TEST_ETAG else "\"changed\""
+        }).use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request) { events += it }
+            assertEquals(DownloadFailureCode.REMOTE_FILE_CHANGED, (events.last() as DownloadEvent.Failed).code)
+            assertEquals(listOf(TEST_ETAG, TEST_ETAG), fixture.server.receivedHeaderValues("If-Range"))
+            assertEquals(0L, File(fixture.store.readSegments(TEST_TASK_ID).last().tmpFilePath).length())
+        }
+    }
+
+    @Test
+    fun `weak or missing ETag restarts cached bytes with one full response`() = runBlocking {
+        listOf(null, "W/\"weak\"").forEach { eTag ->
+            val payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 2 }
+            TestFixture(0, 0, payload, headETag = eTag).use { fixture ->
+                fixture.primePartialSegment(PARTIAL_DOWNLOADED_BYTES, TEST_TOTAL_BYTES)
+                val events = mutableListOf<DownloadEvent>()
+                fixture.downloader.download(fixture.request) { events += it }
+                assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
+                assertTrue(fixture.server.receivedHeaderValues("Range").isEmpty())
+                assertArrayEquals(payload, fixture.request.targetFile.readBytes())
+            }
+        }
+    }
+
+    @Test
+    fun `cached validators are checked even when a recovered request omitted them`() = runBlocking {
+        TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt())).use { fixture ->
+            fixture.primePartialSegment(PARTIAL_DOWNLOADED_BYTES, TEST_TOTAL_BYTES)
+            fixture.store.saveMeta(TEST_TASK_ID, DownloadRemoteMeta(TEST_TOTAL_BYTES, eTag = "\"old\"", supportsRange = true))
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request) { events += it }
+            assertEquals(DownloadFailureCode.REMOTE_FILE_CHANGED, (events.last() as DownloadEvent.Failed).code)
+            assertTrue(fixture.store.readSegments(TEST_TASK_ID).isEmpty())
+            assertTrue(fixture.server.receivedHeaderValues("Range").isEmpty())
+        }
+    }
+
+    @Test
+    fun `a disappeared cached ETag cannot authorize old segment reuse`() = runBlocking {
+        TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt()), headETag = null).use { fixture ->
+            fixture.primePartialSegment(PARTIAL_DOWNLOADED_BYTES, TEST_TOTAL_BYTES)
+            fixture.store.saveMeta(TEST_TASK_ID, DownloadRemoteMeta(TEST_TOTAL_BYTES, eTag = TEST_ETAG, supportsRange = true))
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request) { events += it }
+            assertEquals(DownloadFailureCode.REMOTE_FILE_CHANGED, (events.last() as DownloadEvent.Failed).code)
+            assertTrue(fixture.store.readSegments(TEST_TASK_ID).isEmpty())
+            assertTrue(fixture.server.receivedHeaderValues("Range").isEmpty())
+        }
+    }
+
+    @Test
+    fun `tampered disk path cannot overwrite or merge an external file`() = runBlocking {
+        val payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 2 }
+        TestFixture(0, 0, payload).use { fixture ->
+            fixture.primePartialSegment(PARTIAL_DOWNLOADED_BYTES, TEST_TOTAL_BYTES)
+            val outside = File(fixture.request.targetFile.parentFile, "outside.txt").apply { writeText("preserve this file") }
+            val metaFile = fixture.store.getTaskMetaFile(TEST_TASK_ID)
+            val root = JSONObject(metaFile.readText())
+            root.getJSONArray("segments").getJSONObject(0).put("tmpFilePath", outside.absolutePath)
+            metaFile.writeText(root.toString())
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request) { events += it }
+            assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
+            assertEquals("preserve this file", outside.readText())
+            assertArrayEquals(payload, fixture.request.targetFile.readBytes())
+        }
+    }
+
+    @Test
+    fun `unsupported HEAD probes one byte and uses GET resource metadata`() = runBlocking {
+        listOf(405, 501).forEach { status ->
+            val payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 3 }
+            TestFixture(0, 0, payload, headStatusCode = status, headContentLength = 123).use { fixture ->
+                val events = mutableListOf<DownloadEvent>()
+                fixture.downloader.download(fixture.request) { events += it }
+                assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
+                assertEquals(TEST_TOTAL_BYTES, events.filterIsInstance<DownloadEvent.MetaReady>().single().meta.contentLength)
+                assertEquals(listOf("bytes=0-0", "bytes=0-65535"), fixture.server.receivedHeaderValues("Range"))
+                assertArrayEquals(payload, fixture.request.targetFile.readBytes())
+            }
+        }
+    }
+
+    @Test
+    fun `GET probe ignored Range closes probe and then downloads one full response`() = runBlocking {
+        val payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 3 }
+        TestFixture(0, 0, payload, headStatusCode = 405, ignoreRangeRequest = true).use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request) { events += it }
+            assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
+            assertEquals(listOf("bytes=0-0"), fixture.server.receivedHeaderValues("Range"))
+            assertArrayEquals(payload, fixture.request.targetFile.readBytes())
+        }
+    }
+
+    @Test
+    fun `failed HEAD is classified without persisting error page metadata`() = runBlocking {
+        listOf(401 to DownloadFailureCode.HTTP_4XX, 500 to DownloadFailureCode.HTTP_5XX).forEach { (status, failureCode) ->
+            TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt()), headStatusCode = status, headContentLength = 123).use { fixture ->
+                val events = mutableListOf<DownloadEvent>()
+                fixture.downloader.download(fixture.request) { events += it }
+                assertEquals(failureCode, (events.last() as DownloadEvent.Failed).code)
+                assertTrue(events.none { it is DownloadEvent.MetaReady })
+                assertEquals(null, fixture.store.readMeta(TEST_TASK_ID))
+                assertTrue(fixture.server.receivedHeaderValues("Range").isEmpty())
+            }
+        }
+    }
+
+    @Test
+    fun `Range 416 downgrades once and does not retry the invalid range`() = runBlocking {
+        val payload = ByteArray(TEST_TOTAL_BYTES.toInt()) { 3 }
+        TestFixture(0, 0, payload, rangeStatusCode = 416).use { fixture ->
+            fixture.primePartialSegment(PARTIAL_DOWNLOADED_BYTES, TEST_TOTAL_BYTES)
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request) { events += it }
+            assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
+            assertEquals(listOf("bytes=8192-65535"), fixture.server.receivedHeaderValues("Range"))
+            assertArrayEquals(payload, fixture.request.targetFile.readBytes())
+        }
+    }
+
     /** 下载器测试专用的依赖集合。 */
     private class TestFixture(
         /** HEAD 请求的响应延迟。 */
@@ -480,7 +631,7 @@ class RealFileDownloaderTest {
         /** HEAD 中声明的内容长度。 */
         headContentLength: Long = payload.size.toLong(),
         /** HEAD 中返回的 ETag。 */
-        headETag: String? = null,
+        headETag: String? = TEST_ETAG,
         /** HEAD 中返回的 Last-Modified。 */
         headLastModified: String? = null,
         /** 请求中声明的已下载字节数。 */
@@ -504,6 +655,9 @@ class RealFileDownloaderTest {
         contentRangeOverride: String? = null,
         availableSpace: (File) -> Long = { Long.MAX_VALUE },
         requestHeadersProvider: (String) -> Map<String, String> = { emptyMap() },
+        headStatusCode: Int = 200,
+        rangeStatusCode: Int? = null,
+        getETagProvider: () -> String? = { headETag },
     ) : AutoCloseable {
         /** 测试工作目录。 */
         private val workDir = Files.createTempDirectory("real-file-downloader-test").toFile()
@@ -525,7 +679,12 @@ class RealFileDownloaderTest {
             headETag = headETag,
             headLastModified = headLastModified,
             contentRangeOverride = contentRangeOverride,
+            headStatusCode = headStatusCode,
+            rangeStatusCode = rangeStatusCode,
+            getETagProvider = getETagProvider,
         )
+
+        private val cachedMeta = DownloadRemoteMeta(headContentLength, headETag, headLastModified, supportRangeHeader)
 
         /** 被测下载器实例。 */
         val downloader = RealFileDownloader(
@@ -568,6 +727,7 @@ class RealFileDownloaderTest {
                 parentFile?.mkdirs()
                 writeBytes(ByteArray(downloadedBytes.toInt()) { 1 })
             }
+            store.saveMeta(TEST_TASK_ID, cachedMeta.copy(contentLength = totalBytes))
             store.saveSegments(
                 TEST_TASK_ID,
                 listOf(
@@ -619,6 +779,9 @@ class RealFileDownloaderTest {
         /** HEAD 中返回的 Last-Modified。 */
         private val headLastModified: String?,
         private val contentRangeOverride: String?,
+        private val headStatusCode: Int,
+        private val rangeStatusCode: Int?,
+        private val getETagProvider: () -> String?,
     ) : AutoCloseable {
         /** 测试服务端监听 socket。 */
         private val serverSocket = ServerSocket(0)
@@ -684,7 +847,7 @@ class RealFileDownloaderTest {
             if (headDelayMs > 0L) Thread.sleep(headDelayMs)
             writeHeaders(
                 output = output,
-                statusLine = "HTTP/1.1 200 OK",
+                statusLine = "HTTP/1.1 $headStatusCode Response",
                 headers = buildMap {
                     put("Content-Length", headContentLength.toString())
                     put("Content-Type", "application/vnd.android.package-archive")
@@ -700,8 +863,9 @@ class RealFileDownloaderTest {
         /** 模拟支持 Range 且可慢速输出的文件下载响应。 */
         private fun handleGet(output: OutputStream, rangeHeader: String?) {
             if (headDelayMs > 0L) Thread.sleep(headDelayMs)
-            if (getStatusCode !in 200..206) {
-                writeHeaders(output = output, statusLine = "HTTP/1.1 $getStatusCode Error", headers = mapOf("Content-Length" to "0"))
+            val responseCode = if (rangeHeader != null) rangeStatusCode ?: getStatusCode else getStatusCode
+            if (responseCode !in 200..206) {
+                writeHeaders(output = output, statusLine = "HTTP/1.1 $responseCode Error", headers = mapOf("Content-Length" to "0"))
                 return
             }
             val effectiveRangeHeader = rangeHeader?.takeUnless { ignoreRangeRequest }
@@ -714,6 +878,8 @@ class RealFileDownloaderTest {
                     put("Accept-Ranges", "bytes")
                     put("Content-Type", "application/vnd.android.package-archive")
                     put("Content-Length", body.size.toString())
+                    getETagProvider()?.let { put("ETag", it) }
+                    headLastModified?.let { put("Last-Modified", it) }
                     if (effectiveRangeHeader != null) {
                         put("Content-Range", contentRangeOverride ?: "bytes ${range.first}-${range.last}/${payload.size}")
                     }
@@ -795,6 +961,8 @@ class RealFileDownloaderTest {
 
         /** 测试任务标识。 */
         const val TEST_TASK_ID = "download-demo-app"
+
+        const val TEST_ETAG = "\"fixture-etag\""
 
         /** 测试文件总大小。 */
         const val TEST_TOTAL_BYTES = 64 * 1024L
