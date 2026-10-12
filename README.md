@@ -26,7 +26,7 @@ CarAppStore 是一个跨平台应用分发与管理 App。当前仓库承载它�
 
 - 当前主分支：`main`
 - 已同步远端：`origin/main`
-- 当前验证记录见 [2026-09 客户端审查修复记录](docs/34-2026-09客户端审查修复记录.md)。CI 执行 Debug / Release 单测、Lint 和 APK 构建，并从 XML 自动生成带提交 SHA 的验证摘要。
+- 当前审查规划、逐项修复与本地验证记录见 [2026-10 深度审查与修复规划](docs/36-2026-10深度审查与修复规划.md)。CI 执行 Debug / Release 单测、Lint 和 APK 构建，并从 XML 自动生成带提交 SHA 的验证摘要。
 - 每个提交的实际门禁结果以 GitHub Actions 对应 SHA 的运行和 `carappstore-verification-<SHA>` 产物为准；其中测试、Lint 与设备/生产验收分开记录。
 - 换机接手总览：[docs/29-换机接手与当前进度总览.md](docs/29-换机接手与当前进度总览.md)
 
