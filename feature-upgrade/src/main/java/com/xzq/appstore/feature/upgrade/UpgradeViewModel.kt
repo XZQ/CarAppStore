@@ -10,6 +10,7 @@ import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,7 +51,7 @@ class UpgradeViewModel(
 
     /** 处理升级任务主按钮点击。 */
     fun onPrimaryClick(item: UpgradeTaskViewData) {
-        viewModelScope.launch {
+        launchOperation {
             primaryActionExecutor.execute(appId = item.appId, action = item.primaryAction, packageName = item.packageName)
             refresh()
         }
@@ -58,7 +59,7 @@ class UpgradeViewModel(
 
     /** 重试失败升级任务。 */
     fun onRetryFailed() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 val failed = appManager.getUpgradeTasks().filter {
                     it.overallStatus == TaskOverallStatus.FAILED || it.primaryAction == PrimaryAction.UPGRADE
@@ -73,7 +74,7 @@ class UpgradeViewModel(
 
     /** 批量启动当前筛选范围内所有可执行升级任务。 */
     fun onStartAllRunnable() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 val runnable = appManager.getUpgradeTasks().filter {
                     (it.primaryAction == PrimaryAction.UPGRADE) && selectedFilter.matches(it.overallStatus)
@@ -87,7 +88,7 @@ class UpgradeViewModel(
     /** 切换升级中心筛选条件。 */
     fun onCycleFilter() {
         selectedFilter = selectedFilter.next()
-        viewModelScope.launch { refresh() }
+        launchOperation { refresh() }
     }
 
     /** 监听页面全局状态变化。
@@ -131,7 +132,21 @@ class UpgradeViewModel(
                 )
             }
         }.onSuccess { _uiState.value = it }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
             _uiState.value = UpgradeUiState(selectedFilter = selectedFilter, screenState = UpgradeScreenState.Error(throwable.message.orEmpty()))
+        }
+    }
+
+    /** 操作异常反馈到页面，取消继续传播，后续重试仍可执行。 */
+    private fun launchOperation(operation: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                operation()
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                _uiState.update { it.copy(screenState = UpgradeScreenState.Error(failure.message.orEmpty())) }
+            }
         }
     }
 

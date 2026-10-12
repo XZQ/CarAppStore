@@ -76,7 +76,7 @@ class DownloadManagerViewModel(
 
     /** 处理下载任务主按钮点击。 */
     fun onPrimaryClick(item: DownloadTaskViewData) {
-        viewModelScope.launch {
+        launchOperation {
             primaryActionExecutor.execute(appId = item.appId, action = item.primaryAction)
             refresh()
         }
@@ -84,7 +84,7 @@ class DownloadManagerViewModel(
 
     /** 处理安装任务区主按钮点击。 */
     fun onInstallPrimaryClick(item: InstallTaskViewData) {
-        viewModelScope.launch {
+        launchOperation {
             primaryActionExecutor.execute(appId = item.appId, action = item.primaryAction, packageName = item.packageName)
             refresh()
         }
@@ -92,7 +92,7 @@ class DownloadManagerViewModel(
 
     /** 处理下载任务二级按钮点击。 */
     fun onSecondaryClick(item: DownloadTaskViewData) {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) { downloadManager.removeTask(item.appId, clearFile = true) }
             refresh()
         }
@@ -101,27 +101,21 @@ class DownloadManagerViewModel(
     /** 切换当前筛选条件。 */
     fun onCycleFilter() {
         selectedFilter = selectedFilter.next()
-        viewModelScope.launch { refresh() }
+        launchOperation { refresh() }
     }
 
     /** 清理所有已完成任务。 */
     fun onClearCompleted() {
-        viewModelScope.launch {
-            try {
-                val count = withContext(ioDispatcher) { downloadManager.clearCompletedTasks() }
-                refresh()
-                _uiState.update { it.copy(clearedTaskCount = count) }
-            } catch (canceled: CancellationException) {
-                throw canceled
-            } catch (failure: Exception) {
-                _uiState.update { it.copy(screenState = DownloadManagerScreenState.Error(failure.message.orEmpty())) }
-            }
+        launchOperation {
+            val count = withContext(ioDispatcher) { downloadManager.clearCompletedTasks() }
+            refresh()
+            _uiState.update { it.copy(clearedTaskCount = count) }
         }
     }
 
     /** 清理所有失败任务。 */
     fun onClearFailed() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 val failedTasks = appManager.getDownloadTasks().filter {
                     it.overallStatus == TaskOverallStatus.FAILED
@@ -134,7 +128,7 @@ class DownloadManagerViewModel(
 
     /** 重试失败的下载和安装任务。 */
     fun onRetryFailed() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 val installFailed = appManager.getInstallTasks().filter { it.primaryAction == PrimaryAction.RETRY_INSTALL }
                 installFailed.forEach { primaryActionExecutor.execute(it.appId, it.primaryAction, it.packageName) }
@@ -146,7 +140,7 @@ class DownloadManagerViewModel(
 
     /** 批量安装所有已下载完成的任务。 */
     fun onBatchInstallReady() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 val readyDownloads = appManager.getDownloadTasks().filter {
                     it.primaryAction == PrimaryAction.INSTALL || it.primaryAction == PrimaryAction.RETRY_INSTALL
@@ -159,7 +153,7 @@ class DownloadManagerViewModel(
 
     /** 切换自动恢复开关。 */
     fun onToggleAutoResume() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 val current = downloadManager.getPreferences()
                 downloadManager.updatePreferences(current.copy(autoResumeOnLaunch = !current.autoResumeOnLaunch))
@@ -170,7 +164,7 @@ class DownloadManagerViewModel(
 
     /** 切换自动重试开关。 */
     fun onToggleAutoRetry() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 val current = downloadManager.getPreferences()
                 downloadManager.updatePreferences(current.copy(autoRetryEnabled = !current.autoRetryEnabled))
@@ -195,7 +189,7 @@ class DownloadManagerViewModel(
     }
 
     private fun updatePolicy(change: (com.xzq.appstore.data.model.PolicySettings) -> com.xzq.appstore.data.model.PolicySettings) {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) { policyCenter.updateSettings(change(policyCenter.getStoredSettings())) }
             refresh()
         }
@@ -282,6 +276,19 @@ class DownloadManagerViewModel(
                 selectedFilter = selectedFilter,
                 screenState = DownloadManagerScreenState.Error(throwable.message.orEmpty()),
             )
+        }
+    }
+
+    /** 操作异常反馈到页面，取消继续传播，后续重试仍可执行。 */
+    private fun launchOperation(operation: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                operation()
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                _uiState.update { it.copy(screenState = DownloadManagerScreenState.Error(failure.message.orEmpty())) }
+            }
         }
     }
 

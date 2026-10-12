@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.xzq.appstore.common.base.BaseViewModel
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.state.StateCenter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -57,6 +58,7 @@ class MyAppViewModel(
                 MyAppUiState(apps = apps, screenState = if (apps.isEmpty()) MyAppScreenState.Empty else MyAppScreenState.Content)
             }
         }.onSuccess { _uiState.value = it }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
             _uiState.value = MyAppUiState(screenState = MyAppScreenState.Error(throwable.message.orEmpty()))
         }
     }

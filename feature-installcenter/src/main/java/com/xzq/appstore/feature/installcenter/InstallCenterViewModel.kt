@@ -13,6 +13,7 @@ import com.xzq.appstore.domain.install.InstallManager
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -60,7 +61,7 @@ class InstallCenterViewModel(
 
     /** 处理安装任务主按钮点击。 */
     fun onPrimaryClick(appId: String, action: PrimaryAction) {
-        viewModelScope.launch {
+        launchOperation {
             primaryActionExecutor.execute(appId = appId, action = action)
             refresh()
         }
@@ -69,18 +70,18 @@ class InstallCenterViewModel(
     /** 切换安装中心总状态筛选条件。 */
     fun onCycleFilter() {
         selectedFilter = selectedFilter.next()
-        viewModelScope.launch { refresh() }
+        launchOperation { refresh() }
     }
 
     /** 切换安装中心会话筛选条件。 */
     fun onCycleSessionFilter() {
         selectedSessionFilter = selectedSessionFilter.next()
-        viewModelScope.launch { refresh() }
+        launchOperation { refresh() }
     }
 
     /** 批量启动所有当前可执行的安装任务。 */
     fun onBatchStartRunnable() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 appManager.getInstallTasks()
                     .filter { selectedFilter.matches(it.overallStatus) }
@@ -94,7 +95,7 @@ class InstallCenterViewModel(
 
     /** 批量重试当前筛选范围内的失败安装任务。 */
     fun onRetryFailed() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 appManager.getInstallTasks()
                     .filter { selectedSessionFilter.matches(it.sessionBucket) }
@@ -107,7 +108,7 @@ class InstallCenterViewModel(
 
     /** 按安装会话维度批量重试可恢复会话。 */
     fun onRetryRetryableSessions() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 installSessionStore.getRetryableSessions().map { it.appId }.distinct().forEach { primaryActionExecutor.execute(it, PrimaryAction.RETRY_INSTALL) }
             }
@@ -117,7 +118,7 @@ class InstallCenterViewModel(
 
     /** 清理安装中心失败态和失败会话。 */
     fun onClearFailed() {
-        viewModelScope.launch {
+        launchOperation {
             withContext(ioDispatcher) {
                 // 先清空失败会话，再把应用级失败态恢复成可继续操作的状态。
                 installSessionStore.clearFailedSessions()
@@ -206,11 +207,25 @@ class InstallCenterViewModel(
                 )
             }
         }.onSuccess { _uiState.value = it }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
             _uiState.value = InstallCenterUiState(
                 selectedFilter = selectedFilter,
                 selectedSessionFilter = selectedSessionFilter,
                 screenState = InstallCenterScreenState.Error(throwable.message.orEmpty()),
             )
+        }
+    }
+
+    /** 操作异常反馈到页面，取消继续传播，后续重试仍可执行。 */
+    private fun launchOperation(operation: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                operation()
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (failure: Exception) {
+                _uiState.update { it.copy(screenState = InstallCenterScreenState.Error(failure.message.orEmpty())) }
+            }
         }
     }
 

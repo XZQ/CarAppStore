@@ -16,6 +16,7 @@ import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.upgrade.UpgradeBatchResult
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -89,7 +90,57 @@ class InstallCenterViewModelTest {
         assertEquals(InstallCenterScreenState.Error("install tasks unavailable"), viewModel.uiState.value.screenState)
     }
 
+    @Test
+    fun `batch query failure is visible and subsequent operation recovers`() = runTest {
+        val manager = FakeAppManager()
+        val viewModel = InstallCenterViewModel(
+            appManager = manager, stateCenter = DefaultStateCenter(),
+            installManager = RecordingInstallManager(), upgradeManager = RecordingUpgradeManager(),
+            installSessionStore = InstallSessionStore(Files.createTempFile("install-operation", ".json").toFile()),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        manager.taskReadFailure = IllegalStateException("task storage unavailable")
+        viewModel.onBatchStartRunnable()
+        advanceUntilIdle()
+        assertEquals(InstallCenterScreenState.Error("task storage unavailable"), viewModel.uiState.value.screenState)
+
+        manager.taskReadFailure = null
+        viewModel.onBatchStartRunnable()
+        advanceUntilIdle()
+        assertEquals(InstallCenterScreenState.Content, viewModel.uiState.value.screenState)
+    }
+
+    @Test
+    fun `batch cancellation does not become a page error or refresh`() = runTest {
+        val manager = FakeAppManager().apply { taskReadFailure = CancellationException("screen closed") }
+        val viewModel = InstallCenterViewModel(
+            appManager = manager, stateCenter = DefaultStateCenter(),
+            installManager = RecordingInstallManager(), upgradeManager = RecordingUpgradeManager(),
+            installSessionStore = InstallSessionStore(Files.createTempFile("install-operation", ".json").toFile()),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        viewModel.onBatchStartRunnable()
+        advanceUntilIdle()
+        assertEquals(InstallCenterScreenState.Loading, viewModel.uiState.value.screenState)
+    }
+
+    @Test
+    fun `cancelled page load does not become a load error`() = runTest {
+        val manager = FakeAppManager().apply { taskReadFailure = CancellationException("screen closed") }
+        val viewModel = InstallCenterViewModel(
+            appManager = manager, stateCenter = DefaultStateCenter(),
+            installManager = RecordingInstallManager(), upgradeManager = RecordingUpgradeManager(),
+            installSessionStore = InstallSessionStore(Files.createTempFile("install-operation", ".json").toFile()),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        viewModel.load()
+        advanceUntilIdle()
+        assertEquals(InstallCenterScreenState.Loading, viewModel.uiState.value.screenState)
+    }
+
     private open class FakeAppManager : AppManager {
+        var taskReadFailure: Exception? = null
+
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
 
         override suspend fun getAppDetail(appId: String): AppDetail = TEST_APP_DETAIL
@@ -106,7 +157,10 @@ class InstallCenterViewModelTest {
 
         override suspend fun getUpgradeManageApps(): List<AppViewData> = emptyList()
 
-        override suspend fun getInstallTasks(): List<InstallTaskViewData> = listOf(TEST_RETRY_INSTALL_TASK)
+        override suspend fun getInstallTasks(): List<InstallTaskViewData> {
+            taskReadFailure?.let { throw it }
+            return listOf(TEST_RETRY_INSTALL_TASK)
+        }
 
         override suspend fun getUpgradeTasks(): List<UpgradeTaskViewData> = emptyList()
 

@@ -13,6 +13,7 @@ import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.upgrade.UpgradeBatchResult
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -80,7 +81,51 @@ class UpgradeViewModelTest {
         assertEquals(UpgradeScreenState.Error("upgrade tasks unavailable"), viewModel.uiState.value.screenState)
     }
 
+    @Test
+    fun `batch query failure is visible and subsequent operation recovers`() = runTest {
+        val manager = FakeAppManager()
+        val viewModel = UpgradeViewModel(
+            appManager = manager, stateCenter = DefaultStateCenter(),
+            upgradeManager = RecordingUpgradeManager(), ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        manager.taskReadFailure = IllegalStateException("task storage unavailable")
+        viewModel.onStartAllRunnable()
+        advanceUntilIdle()
+        assertEquals(UpgradeScreenState.Error("task storage unavailable"), viewModel.uiState.value.screenState)
+
+        manager.taskReadFailure = null
+        viewModel.onStartAllRunnable()
+        advanceUntilIdle()
+        assertEquals(UpgradeScreenState.Content, viewModel.uiState.value.screenState)
+    }
+
+    @Test
+    fun `batch cancellation does not become a page error or refresh`() = runTest {
+        val manager = FakeAppManager().apply { taskReadFailure = CancellationException("screen closed") }
+        val viewModel = UpgradeViewModel(
+            appManager = manager, stateCenter = DefaultStateCenter(),
+            upgradeManager = RecordingUpgradeManager(), ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        viewModel.onStartAllRunnable()
+        advanceUntilIdle()
+        assertEquals(UpgradeScreenState.Loading, viewModel.uiState.value.screenState)
+    }
+
+    @Test
+    fun `cancelled page load does not become a load error`() = runTest {
+        val manager = FakeAppManager().apply { taskReadFailure = CancellationException("screen closed") }
+        val viewModel = UpgradeViewModel(
+            appManager = manager, stateCenter = DefaultStateCenter(),
+            upgradeManager = RecordingUpgradeManager(), ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        viewModel.load()
+        advanceUntilIdle()
+        assertEquals(UpgradeScreenState.Loading, viewModel.uiState.value.screenState)
+    }
+
     private open class FakeAppManager : AppManager {
+        var taskReadFailure: Exception? = null
+
         /** 最近一次被请求打开的包名。 */
         var openedPackageName: String? = null
 
@@ -102,7 +147,10 @@ class UpgradeViewModelTest {
 
         override suspend fun getInstallTasks(): List<InstallTaskViewData> = emptyList()
 
-        override suspend fun getUpgradeTasks(): List<UpgradeTaskViewData> = listOf(TEST_UPGRADE_TASK, TEST_OPEN_TASK)
+        override suspend fun getUpgradeTasks(): List<UpgradeTaskViewData> {
+            taskReadFailure?.let { throw it }
+            return listOf(TEST_UPGRADE_TASK, TEST_OPEN_TASK)
+        }
 
         override suspend fun getDownloadTaskStats(): TaskCenterStats = TaskCenterStats()
 

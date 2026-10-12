@@ -10,6 +10,7 @@ import com.xzq.appstore.data.model.UpgradeTaskViewData
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.PrimaryAction
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -51,15 +52,30 @@ class MyAppViewModelTest {
         assertEquals(MyAppScreenState.Error("my apps unavailable"), viewModel.uiState.value.screenState)
     }
 
+    @Test
+    fun `cancelled page load does not become a load error`() = runTest {
+        val manager = FakeAppManager().apply { readFailure = CancellationException("screen closed") }
+        val viewModel = MyAppViewModel(
+            appManager = manager, stateCenter = DefaultStateCenter(), ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        viewModel.load()
+        advanceUntilIdle()
+        assertEquals(MyAppScreenState.Loading, viewModel.uiState.value.screenState)
+    }
+
     private open class FakeAppManager(
         /** 测试应用列表。 */
         private val apps: List<AppViewData> = emptyList(),
     ) : AppManager {
+        var readFailure: Exception? = null
         override suspend fun getHomeApps(): List<AppViewData> = emptyList()
 
         override suspend fun getAppDetail(appId: String): AppDetail = TEST_APP_DETAIL
 
-        override suspend fun getMyApps(): List<AppViewData> = apps
+        override suspend fun getMyApps(): List<AppViewData> {
+            readFailure?.let { throw it }
+            return apps
+        }
 
         override suspend fun getHomeAppViewData(appId: String): AppViewData? = null
 

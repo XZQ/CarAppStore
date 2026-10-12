@@ -20,6 +20,7 @@ import com.xzq.appstore.domain.state.DownloadStatus
 import com.xzq.appstore.domain.state.PrimaryAction
 import com.xzq.appstore.domain.upgrade.UpgradeBatchResult
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -151,7 +152,57 @@ class DownloadManagerViewModelTest {
         assertTrue(appManager.downloadTaskQueryCount >= initialQueryCount + 3)
     }
 
+    @Test
+    fun `batch query failure is visible and subsequent operation recovers`() = runTest {
+        val manager = FakeAppManager()
+        val viewModel = DownloadManagerViewModel(
+            appManager = manager, stateCenter = DefaultStateCenter(),
+            downloadManager = RecordingDownloadManager(), installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(), policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        manager.taskReadFailure = IllegalStateException("task storage unavailable")
+        viewModel.onClearFailed()
+        advanceUntilIdle()
+        assertEquals(DownloadManagerScreenState.Error("task storage unavailable"), viewModel.uiState.value.screenState)
+
+        manager.taskReadFailure = null
+        viewModel.onClearFailed()
+        advanceUntilIdle()
+        assertEquals(DownloadManagerScreenState.Content, viewModel.uiState.value.screenState)
+    }
+
+    @Test
+    fun `batch cancellation does not become a page error or refresh`() = runTest {
+        val manager = FakeAppManager().apply { taskReadFailure = CancellationException("screen closed") }
+        val viewModel = DownloadManagerViewModel(
+            appManager = manager, stateCenter = DefaultStateCenter(),
+            downloadManager = RecordingDownloadManager(), installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(), policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        viewModel.onClearFailed()
+        advanceUntilIdle()
+        assertEquals(DownloadManagerScreenState.Loading, viewModel.uiState.value.screenState)
+    }
+
+    @Test
+    fun `cancelled page load does not become a load error`() = runTest {
+        val manager = FakeAppManager().apply { taskReadFailure = CancellationException("screen closed") }
+        val viewModel = DownloadManagerViewModel(
+            appManager = manager, stateCenter = DefaultStateCenter(),
+            downloadManager = RecordingDownloadManager(), installManager = RecordingInstallManager(),
+            upgradeManager = RecordingUpgradeManager(), policyCenter = FakePolicyCenter(),
+            ioDispatcher = mainDispatcherRule.dispatcher,
+        )
+        viewModel.load()
+        advanceUntilIdle()
+        assertEquals(DownloadManagerScreenState.Loading, viewModel.uiState.value.screenState)
+    }
+
     private open class FakeAppManager : AppManager {
+        var taskReadFailure: Exception? = null
+
         /** 最近一次被请求打开的包名。 */
         var openedPackageName: String? = null
 
@@ -172,6 +223,7 @@ class DownloadManagerViewModelTest {
         override suspend fun getDownloadManageApps(): List<AppViewData> = emptyList()
 
         override suspend fun getDownloadTasks(): List<DownloadTaskViewData> {
+            taskReadFailure?.let { throw it }
             downloadTaskQueryCount += 1
             return listOf(TEST_RESUME_TASK)
         }

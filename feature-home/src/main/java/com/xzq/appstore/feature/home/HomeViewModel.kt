@@ -11,6 +11,7 @@ import com.xzq.appstore.domain.install.InstallManager
 import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.upgrade.UpgradeManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -107,6 +108,7 @@ class HomeViewModel(
                 )
             }
         }.onSuccess { _uiState.value = it }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
             _uiState.value = HomeUiState(loading = false, policyPrompt = "", screenState = HomeScreenState.Error(throwable.message.orEmpty()))
         }
     }
