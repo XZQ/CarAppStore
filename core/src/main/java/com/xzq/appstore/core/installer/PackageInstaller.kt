@@ -57,6 +57,9 @@ enum class InstallFailureCode(val displayText: String) {
     /** PackageManager 中的最终版本与已验证 APK 不一致。 */
     INSTALLED_VERSION_MISMATCH(InstallerText.FAILURE_INSTALLED_VERSION_MISMATCH),
 
+    /** PackageManager 中的签名身份与已验证 APK 不一致。 */
+    INSTALLED_SIGNER_MISMATCH(InstallerText.FAILURE_INSTALLED_SIGNER_MISMATCH),
+
     /** 安装前被策略中心拦截。 */
     POLICY_BLOCKED(InstallerText.FAILURE_POLICY_BLOCKED),
 

@@ -1,6 +1,9 @@
 package com.xzq.appstore.core.installer
 
+import com.xzq.appstore.core.logger.AppLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
@@ -21,6 +24,7 @@ class RealPackageInstaller(
     },
     /** 平台不支持真实安装会话时使用的兜底安装器。 */
     private val fallbackInstaller: PackageInstaller? = null,
+    private val logger: AppLogger = AppLogger(),
 ) : PackageInstaller {
 
     /**
@@ -58,7 +62,10 @@ class RealPackageInstaller(
         // 第一步创建系统安装会话，并在失败时立即记录失败会话。
         val sessionId = try {
             sessionAdapter.createSession(request)
-        } catch (_: Throwable) {
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (failure: Exception) {
+            logger.w("PackageInstaller", "Unable to create installation session", failure)
             -1
         }
         if (sessionId < 0) {
@@ -83,30 +90,57 @@ class RealPackageInstaller(
             return@withContext
         }
 
-        // 会话创建成功后先持久化 CREATED 状态，保证安装中心能看到新会话。
-        persistSession(
-            InstallSessionRecord(
-                sessionId = sessionId,
-                appId = request.appId,
-                packageName = request.packageName,
-                apkPath = request.apkFile.absolutePath,
-                targetVersion = request.targetVersion,
-                targetVersionCode = verifiedApk.versionCode,
-                signerCertificateSha256 = verifiedApk.signerCertificateSha256,
-                status = InstallSessionStatus.CREATED,
-                progress = 0,
-                createdAt = createdAt,
-                updatedAt = System.currentTimeMillis(),
-            )
-        )
-        onEvent(InstallEvent.SessionCreated(sessionId))
-        onEvent(InstallEvent.Installing)
+        executeCreatedSession(request, verifiedApk, sessionId, createdAt, onEvent)
+    }
 
-        // 第二步把 APK 内容写入系统会话。
+    /** 会话创建后始终释放未成功的系统资源；成功事实不因页面取消而丢失。 */
+    private suspend fun executeCreatedSession(request: InstallRequest, verifiedApk: ApkIdentity, sessionId: Int,
+        createdAt: Long, onEvent: suspend (InstallEvent) -> Unit) {
+        var platformSucceeded = false
+        try {
+            persistSession(InstallSessionRecord(sessionId = sessionId, appId = request.appId,
+                packageName = request.packageName, apkPath = request.apkFile.absolutePath,
+                targetVersion = request.targetVersion, targetVersionCode = verifiedApk.versionCode,
+                signerCertificateSha256 = verifiedApk.signerCertificateSha256, status = InstallSessionStatus.CREATED,
+                progress = 0, createdAt = createdAt, updatedAt = System.currentTimeMillis()))
+            onEvent(InstallEvent.SessionCreated(sessionId))
+            onEvent(InstallEvent.Installing)
+            if (!writeSession(request, sessionId, onEvent)) return
+            val commit = commitSession(sessionId, onEvent)
+            platformSucceeded = commit.success
+            if (!commit.success) return
+            withContext(NonCancellable) {
+                val installedIdentity = verifyInstalledIdentity(request, verifiedApk, commit, sessionId, onEvent) ?: return@withContext
+                publishInstalledSuccess(sessionId, installedIdentity, onEvent)
+            }
+        } catch (canceled: CancellationException) {
+            if (!platformSucceeded) {
+                try {
+                    reconcileCanceledSession(request, verifiedApk, sessionId, onEvent)
+                } catch (failure: Exception) {
+                    canceled.addSuppressed(failure)
+                    logger.w("PackageInstaller", "Unable to reconcile canceled session: $sessionId", failure)
+                }
+            }
+            throw canceled
+        } finally {
+            if (!platformSucceeded) {
+                // 事实对账成功也可能只是目标原本已安装，仍回收本次可能存活的冗余 Session。
+                runCatching { sessionAdapter.abandonSession(sessionId) }
+                    .onFailure { logger.w("PackageInstaller", "Unable to abandon installation session: $sessionId", it) }
+            }
+        }
+    }
+
+    /** 将安装包写入平台 Session，并把写入失败转换为可重试事件。 */
+    private suspend fun writeSession(request: InstallRequest, sessionId: Int, onEvent: suspend (InstallEvent) -> Unit): Boolean {
         delay(80L)
         val writeOk = try {
             sessionAdapter.writeApkToSession(sessionId, request.apkFile)
-        } catch (_: Throwable) {
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (failure: Exception) {
+            logger.w("PackageInstaller", "Unable to write installation session: $sessionId", failure)
             false
         }
         if (!writeOk) {
@@ -119,14 +153,17 @@ class RealPackageInstaller(
             )
             onEvent(InstallEvent.Progress(sessionId, 20))
             onEvent(InstallEvent.Failed(InstallFailureCode.SESSION_WRITE_FAILED, InstallFailureCode.SESSION_WRITE_FAILED.displayText))
-            return@withContext
+            return false
         }
 
         // APK 写入成功后，更新会话进度，供安装中心展示中间阶段。
         sessionStore.updateStatus(sessionId = sessionId, status = InstallSessionStatus.WRITTEN, progress = 55)
         onEvent(InstallEvent.Progress(sessionId, 55))
+        return true
+    }
 
-        // 第三步提交系统会话，并在需要用户确认时把中间态抛给上层。
+    /** 提交并等待系统确认，协程取消由外层统一持久化和回收。 */
+    private suspend fun commitSession(sessionId: Int, onEvent: suspend (InstallEvent) -> Unit): InstallCommitResult {
         delay(120L)
         sessionStore.updateStatus(sessionId = sessionId, status = InstallSessionStatus.COMMITTED, progress = 80)
         onEvent(InstallEvent.Progress(sessionId, 80))
@@ -137,7 +174,9 @@ class RealPackageInstaller(
                 onEvent(InstallEvent.Progress(sessionId, 90))
                 onEvent(InstallEvent.PendingUserAction(sessionId = sessionId, message = message, confirmationIntent = confirmationIntent))
             }
-        } catch (t: Throwable) {
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (t: Exception) {
             InstallCommitResult(success = false, message = t.message ?: InstallFailureCode.SESSION_COMMIT_FAILED.displayText, installedPackageName = null)
         }
 
@@ -152,15 +191,35 @@ class RealPackageInstaller(
             )
             onEvent(InstallEvent.Progress(sessionId, 85))
             onEvent(InstallEvent.Failed(InstallFailureCode.SESSION_COMMIT_FAILED, commit.message))
-            return@withContext
         }
+        return commit
+    }
 
-        val installedIdentity = verifyInstalledIdentity(request, verifiedApk, commit, sessionId, onEvent) ?: return@withContext
+    /** 取消时保留安装包，记录可恢复的中断事实。 */
+    private fun persistInterruptedSession(sessionId: Int) {
+        runCatching {
+            sessionStore.updateStatus(sessionId, InstallSessionStatus.RECOVERED_INTERRUPTED,
+                sessionStore.get(sessionId)?.progress ?: 0, InstallFailureCode.INSTALL_INTERRUPTED.name,
+                InstallFailureCode.INSTALL_INTERRUPTED.displayText)
+        }.onFailure { logger.w("PackageInstaller", "Unable to persist interrupted session: $sessionId", it) }
+    }
 
-        // 提交成功且系统事实校验完成后，把会话收口为成功态。
+    /** 系统成功与协程取消可能同时发生，取消后仍以完整安装身份核对最终事实。 */
+    private suspend fun reconcileCanceledSession(request: InstallRequest, verifiedApk: ApkIdentity, sessionId: Int,
+        onEvent: suspend (InstallEvent) -> Unit) = withContext(NonCancellable) {
+        val result = validateInstalledIdentity(request, verifiedApk)
+        if (result is ApkVerificationResult.Verified) {
+            publishInstalledSuccess(sessionId, result.identity, onEvent)
+        } else {
+            persistInterruptedSession(sessionId)
+        }
+    }
+
+    /** 最终成功事件与会话记录一起发布，保持系统事实和业务状态一致。 */
+    private suspend fun publishInstalledSuccess(sessionId: Int, installed: ApkIdentity, onEvent: suspend (InstallEvent) -> Unit) {
         sessionStore.updateStatus(sessionId = sessionId, status = InstallSessionStatus.CALLBACK_SUCCESS, progress = 100)
         onEvent(InstallEvent.Progress(sessionId, 100))
-        onEvent(InstallEvent.Success(installedIdentity.versionName, installedIdentity.versionCode))
+        onEvent(InstallEvent.Success(installed.versionName, installed.versionCode))
     }
 
     /** 在创建系统会话前校验 APK archive 的包名、版本和签名证书。 */
@@ -180,7 +239,7 @@ class RealPackageInstaller(
         }
     }
 
-    /** 平台成功回调后，以 PackageManager 的包名和版本作为最终安装事实。 */
+    /** 平台成功回调后，以 PackageManager 的包名、版本和签名作为最终安装事实。 */
     private suspend fun verifyInstalledIdentity(
         request: InstallRequest,
         verifiedApk: ApkIdentity,
@@ -192,20 +251,30 @@ class RealPackageInstaller(
             failInstalledVerification(sessionId, InstallFailureCode.INSTALLED_PACKAGE_MISMATCH, onEvent)
             return null
         }
+        return when (val result = validateInstalledIdentity(request, verifiedApk)) {
+            is ApkVerificationResult.Verified -> result.identity
+            is ApkVerificationResult.Rejected -> {
+                failInstalledVerification(sessionId, result.code, onEvent)
+                null
+            }
+        }
+    }
+
+    /** 正常完成及取消对账共用同一身份规则，防止只匹配版本就接受其他签名的包。 */
+    private fun validateInstalledIdentity(request: InstallRequest, verifiedApk: ApkIdentity): ApkVerificationResult {
         val installed = installedPackageInspector.getInstalledIdentity(request.packageName)
-        if (installed == null) {
-            failInstalledVerification(sessionId, InstallFailureCode.INSTALLED_PACKAGE_NOT_FOUND, onEvent)
-            return null
+            ?: return ApkVerificationResult.Rejected(InstallFailureCode.INSTALLED_PACKAGE_NOT_FOUND)
+        val expected = ExpectedApkIdentity(request.packageName, verifiedApk.versionCode, verifiedApk.versionName,
+            verifiedApk.signerCertificateSha256)
+        return when (val result = ApkIdentityValidator.validate(installed, expected, POST_INSTALL_VERIFICATION_POLICY)) {
+            is ApkVerificationResult.Verified -> result
+            is ApkVerificationResult.Rejected -> ApkVerificationResult.Rejected(when (result.code) {
+                InstallFailureCode.APK_PACKAGE_MISMATCH -> InstallFailureCode.INSTALLED_PACKAGE_MISMATCH
+                InstallFailureCode.APK_VERSION_MISSING, InstallFailureCode.APK_VERSION_MISMATCH -> InstallFailureCode.INSTALLED_VERSION_MISMATCH
+                InstallFailureCode.APK_SIGNER_MISSING, InstallFailureCode.APK_SIGNER_MISMATCH -> InstallFailureCode.INSTALLED_SIGNER_MISMATCH
+                else -> result.code
+            })
         }
-        if (installed.packageName != request.packageName) {
-            failInstalledVerification(sessionId, InstallFailureCode.INSTALLED_PACKAGE_MISMATCH, onEvent)
-            return null
-        }
-        if (installed.versionCode != verifiedApk.versionCode) {
-            failInstalledVerification(sessionId, InstallFailureCode.INSTALLED_VERSION_MISMATCH, onEvent)
-            return null
-        }
-        return installed
     }
 
     /** 持久化安装后的事实校验失败并通知业务层。 */
@@ -232,5 +301,6 @@ class RealPackageInstaller(
 
     private companion object {
         const val POST_INSTALL_VERIFICATION_PROGRESS = 95
+        val POST_INSTALL_VERIFICATION_POLICY = ApkVerificationPolicy(requireVersionCode = true, requireSignerCertificate = true)
     }
 }

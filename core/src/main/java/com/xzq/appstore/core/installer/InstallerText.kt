@@ -15,6 +15,7 @@ object InstallerText {
     const val FAILURE_INSTALLED_PACKAGE_MISMATCH = "系统安装结果包名不一致"
     const val FAILURE_INSTALLED_PACKAGE_NOT_FOUND = "系统未找到已安装应用"
     const val FAILURE_INSTALLED_VERSION_MISMATCH = "系统安装结果版本不一致"
+    const val FAILURE_INSTALLED_SIGNER_MISMATCH = "系统安装结果签名证书不一致"
     const val FAILURE_POLICY_BLOCKED = "安装受限"
     const val FAILURE_SESSION_CREATE_FAILED = "安装会话创建失败"
     const val FAILURE_SESSION_WRITE_FAILED = "安装包写入失败"

@@ -59,6 +59,7 @@ class InstallSessionReconciler(
     /** 执行一次冷启动安装会话对账。 */
     fun reconcile(): InstallSessionReconciliationResult {
         val ownedSessionIds = platformSessionGateway.ownedSessionIds()
+        val records = sessionStore.readAll().associateBy { it.sessionId }
         var completedSessionCount = 0
         var interruptedSessionCount = 0
         var abandonedPlatformSessionCount = 0
@@ -79,6 +80,13 @@ class InstallSessionReconciler(
                 failureMessage = record.failureMessage ?: InstallerText.SESSION_INTERRUPTED_RECOVERABLE,
             )
             interruptedSessionCount += 1
+        }
+        // 旧版本可能在失败落盘前后留下 Session；无本地记录的 Session 也无法继续接收回调。
+        ownedSessionIds.filter { sessionId ->
+            val record = records[sessionId]
+            record == null || InstallSessionStatus.isRetryable(record.status)
+        }.forEach { sessionId ->
+            if (platformSessionGateway.abandonSession(sessionId)) abandonedPlatformSessionCount += 1
         }
         return InstallSessionReconciliationResult(completedSessionCount, interruptedSessionCount, abandonedPlatformSessionCount)
     }

@@ -42,20 +42,30 @@ class DefaultInstallManager(
     override suspend fun install(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
         artifactAccess.tryUse(appId) {
+            var installedSuccessfully = false
             try {
-                installInternal(appId)
+                installInternal(appId) { installedSuccessfully = true }
             } catch (canceled: CancellationException) {
+                if (stateCenter.snapshot(appId).installStatus in ACTIVE_INSTALL_STATUSES) {
+                    stateCenter.updateInstall(appId, InstallStatus.FAILED,
+                        errorMessage = BusinessText.installFailed(InstallFailureCode.INSTALL_INTERRUPTED.displayText),
+                        errorCode = InstallFailureCode.INSTALL_INTERRUPTED.name)
+                }
                 throw canceled
             } catch (failure: Exception) {
                 logger.w("InstallManager", "Unable to prepare or execute installation: $appId", failure)
-                stateCenter.updateInstall(appId, InstallStatus.FAILED,
-                    errorMessage = BusinessText.installFailed(InstallFailureCode.UNKNOWN.displayText),
-                    errorCode = InstallFailureCode.UNKNOWN.name)
+                if (installedSuccessfully) {
+                    stateCenter.updateError(appId, BusinessText.ACTION_FAILED, InstallFailureCode.UNKNOWN.name)
+                } else {
+                    stateCenter.updateInstall(appId, InstallStatus.FAILED,
+                        errorMessage = BusinessText.installFailed(InstallFailureCode.UNKNOWN.displayText),
+                        errorCode = InstallFailureCode.UNKNOWN.name)
+                }
             }
         }
     }
 
-    private suspend fun installInternal(appId: String) {
+    private suspend fun installInternal(appId: String, onInstalled: () -> Unit) {
         require(appId.isNotBlank()) { "appId 不能为空" }
         if (stateCenter.snapshot(appId).downloadStatus in setOf(DownloadStatus.RUNNING, DownloadStatus.WAITING)) return
         val detail = repository.getAppDetail(appId)
@@ -150,6 +160,7 @@ class DefaultInstallManager(
                 is InstallEvent.Success -> {
                     // 系统成功事实先可见，镜像或清理失败不能将真实安装结果反写成失败。
                     stateCenter.updateInstall(appId, InstallStatus.INSTALLED, versionName = event.installedVersion, versionCode = event.installedVersionCode)
+                    onInstalled()
                     try {
                         repository.markInstalled(appId)
                     } catch (canceled: CancellationException) {
@@ -256,5 +267,6 @@ class DefaultInstallManager(
 
     private companion object {
         private const val PLATFORM_UNSUPPORTED_ERROR_CODE = "PLATFORM_UNSUPPORTED"
+        val ACTIVE_INSTALL_STATUSES = setOf(InstallStatus.WAITING, InstallStatus.INSTALLING, InstallStatus.PENDING_USER_ACTION)
     }
 }

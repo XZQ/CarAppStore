@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import com.xzq.appstore.core.logger.AppLogger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runInterruptible
 import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -35,6 +36,9 @@ interface PackageInstallerSessionAdapter {
 
     /** 当前运行环境是否支持真实系统安装会话。 */
     fun supportsRealSession(): Boolean
+
+    /** 放弃未成功完成的安装会话，释放系统保存的 APK 内容。 */
+    fun abandonSession(sessionId: Int): Boolean = false
 }
 
 class SystemPackageInstallerSessionAdapter(
@@ -122,6 +126,11 @@ class SystemPackageInstallerSessionAdapter(
     /** 判断当前设备是否满足真实安装会话能力要求。 */
     override fun supportsRealSession(): Boolean = true
 
+    override fun abandonSession(sessionId: Int): Boolean = runCatching {
+        systemPackageInstaller.abandonSession(sessionId)
+        true
+    }.onFailure { logger.w(TAG, "Unable to abandon installation session: $sessionId", it) }.getOrDefault(false)
+
     /** 创建安装结果广播接收器，将系统回调入队供主流程消费。 */
     private fun createResultReceiver(resultQueue: LinkedBlockingQueue<CommitCallbackPayload>): BroadcastReceiver {
         return object : BroadcastReceiver() {
@@ -163,7 +172,7 @@ class SystemPackageInstallerSessionAdapter(
         var pendingUserActionObserved = false
         while (true) {
             val timeoutSeconds = if (pendingUserActionObserved) FINAL_RESULT_TIMEOUT_SECONDS else INITIAL_RESULT_TIMEOUT_SECONDS
-            val callback = resultQueue.poll(timeoutSeconds, TimeUnit.SECONDS) ?: return timeoutResult()
+            val callback = runInterruptible { resultQueue.poll(timeoutSeconds, TimeUnit.SECONDS) } ?: return timeoutResult()
             when (callback.status) {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                     val result = handlePendingUserAction(sessionId, callback, pendingUserActionObserved, onPendingUserAction)

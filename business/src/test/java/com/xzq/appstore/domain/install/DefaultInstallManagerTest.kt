@@ -82,6 +82,31 @@ class DefaultInstallManagerTest {
     }
 
     @Test
+    fun `canceled active install becomes retryable and releases artifact lease`() = runBlocking {
+        val access = ApkArtifactAccess()
+        val apk = File(workDir, "cached.apk").apply { writeBytes(ByteArray(1024)) }
+        repository.saveApk(TEST_APP_ID, apk.absolutePath)
+        stateCenter.updateDownload(TEST_APP_ID, DownloadStatus.COMPLETED, localApkPath = apk.absolutePath)
+        val cancelingInstaller = object : PackageInstaller {
+            override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) {
+                onEvent(InstallEvent.PendingUserAction(1, "confirmation"))
+                throw kotlinx.coroutines.CancellationException("page closed")
+            }
+        }
+        try {
+            createManager(packageInstaller = cancelingInstaller, artifactAccess = access).install(TEST_APP_ID)
+            org.junit.Assert.fail("Cancellation must propagate")
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            assertEquals(InstallStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+            assertEquals(InstallFailureCode.INSTALL_INTERRUPTED.name, stateCenter.snapshot(TEST_APP_ID).errorCode)
+            assertEquals(PrimaryAction.RETRY_INSTALL, stateCenter.snapshot(TEST_APP_ID).primaryAction)
+            assertEquals(apk.absolutePath, repository.getApk(TEST_APP_ID))
+        }
+        createManager(artifactAccess = access).install(TEST_APP_ID)
+        assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+    }
+
+    @Test
     fun `installer exception becomes failed state and releases artifact lease`() = runBlocking {
         val access = ApkArtifactAccess()
         val apk = File(workDir, "cached.apk").apply { writeBytes(ByteArray(1024)) }
@@ -106,6 +131,21 @@ class DefaultInstallManagerTest {
         createManager().install(TEST_APP_ID)
         assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
         assertEquals("1.0.0", stateCenter.snapshot(TEST_APP_ID).installedVersion)
+        assertEquals(PrimaryAction.OPEN, stateCenter.snapshot(TEST_APP_ID).primaryAction)
+    }
+
+    @Test
+    fun `exception after confirmed success cannot replace installed fact with failure`() = runBlocking {
+        val apk = File(workDir, "cached.apk").apply { writeBytes(ByteArray(1024)) }
+        repository.saveApk(TEST_APP_ID, apk.absolutePath)
+        createManager(packageInstaller = object : PackageInstaller {
+            override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) {
+                onEvent(InstallEvent.Success("1.0.0", 1L))
+                throw java.io.IOException("final diagnostics unavailable")
+            }
+        }).install(TEST_APP_ID)
+        assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        assertEquals(1L, stateCenter.snapshot(TEST_APP_ID).installedVersionCode)
         assertEquals(PrimaryAction.OPEN, stateCenter.snapshot(TEST_APP_ID).primaryAction)
     }
 

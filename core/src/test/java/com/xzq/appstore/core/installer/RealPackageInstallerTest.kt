@@ -1,15 +1,157 @@
 package com.xzq.appstore.core.installer
 
 import android.content.Intent
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.atomic.AtomicReference
 
 class RealPackageInstallerTest {
+    @Test
+    fun `write failure abandons the created platform session`() = runBlocking {
+        val adapter = RecordingSessionAdapter(writeOk = false)
+        val fixture = Fixture(sessionAdapter = adapter)
+        val events = fixture.install()
+        assertEquals(InstallSessionStatus.FAILED_WRITE, fixture.sessionStore.get(TEST_SESSION_ID)?.status)
+        assertEquals(listOf(TEST_SESSION_ID), adapter.abandonedSessionIds)
+        assertEquals(InstallFailureCode.SESSION_WRITE_FAILED, (events.last() as InstallEvent.Failed).code)
+    }
+
+    @Test
+    fun `commit failure abandons the platform session`() = runBlocking {
+        val adapter = RecordingSessionAdapter(commitSuccess = false)
+        val fixture = Fixture(sessionAdapter = adapter)
+        fixture.install()
+        assertEquals(InstallSessionStatus.FAILED_COMMIT, fixture.sessionStore.get(TEST_SESSION_ID)?.status)
+        assertEquals(listOf(TEST_SESSION_ID), adapter.abandonedSessionIds)
+    }
+
+    @Test
+    fun `cancel after session creation records interruption and abandons session`() = runBlocking {
+        val adapter = RecordingSessionAdapter()
+        val fixture = Fixture(sessionAdapter = adapter, installedIdentity = null)
+        try {
+            fixture.install { if (it is InstallEvent.SessionCreated) throw CancellationException("page closed") }
+            fail("Cancellation must propagate")
+        } catch (_: CancellationException) {
+            assertEquals(InstallSessionStatus.RECOVERED_INTERRUPTED, fixture.sessionStore.get(TEST_SESSION_ID)?.status)
+            assertEquals(InstallFailureCode.INSTALL_INTERRUPTED.name, fixture.sessionStore.get(TEST_SESSION_ID)?.failureCode)
+            assertEquals(listOf(TEST_SESSION_ID), adapter.abandonedSessionIds)
+        }
+    }
+
+    @Test
+    fun `cancel during commit remains a recoverable interruption`() = runBlocking {
+        val enteredCommit = CompletableDeferred<Unit>()
+        val adapter = object : RecordingSessionAdapter() {
+            override suspend fun commitSession(sessionId: Int, onPendingUserAction: suspend (String, Intent) -> Unit): InstallCommitResult {
+                enteredCommit.complete(Unit)
+                awaitCancellation()
+            }
+        }
+        val fixture = Fixture(sessionAdapter = adapter, installedIdentity = null)
+        val operation = launch { fixture.install() }
+        withTimeout(2_000L) { enteredCommit.await() }
+        operation.cancelAndJoin()
+        assertEquals(InstallSessionStatus.RECOVERED_INTERRUPTED, fixture.sessionStore.get(TEST_SESSION_ID)?.status)
+        assertEquals(listOf(TEST_SESSION_ID), adapter.abandonedSessionIds)
+    }
+
+    @Test
+    fun `cancel during commit publishes successful installed facts even before callback is returned`() = runBlocking {
+        val enteredCommit = CompletableDeferred<Unit>()
+        val installedIdentity = AtomicReference<ApkIdentity?>(null)
+        val adapter = object : RecordingSessionAdapter() {
+            override suspend fun commitSession(sessionId: Int, onPendingUserAction: suspend (String, Intent) -> Unit): InstallCommitResult {
+                enteredCommit.complete(Unit)
+                awaitCancellation()
+            }
+        }
+        val fixture = Fixture(sessionAdapter = adapter, installedPackageInspector = object : InstalledPackageInspector {
+            override fun getInstalledIdentity(packageName: String): ApkIdentity? = installedIdentity.get()
+        })
+        var successPublished = false
+        val operation = launch { fixture.install { if (it is InstallEvent.Success) successPublished = true } }
+        withTimeout(2_000L) { enteredCommit.await() }
+        installedIdentity.set(INSTALLED_APK)
+        operation.cancelAndJoin()
+
+        assertTrue(operation.isCancelled)
+        assertTrue(successPublished)
+        assertEquals(InstallSessionStatus.CALLBACK_SUCCESS, fixture.sessionStore.get(TEST_SESSION_ID)?.status)
+        assertEquals(listOf(TEST_SESSION_ID), adapter.abandonedSessionIds)
+    }
+
+    @Test
+    fun `cancel during commit cannot reconcile a target signed by another certificate`() = runBlocking {
+        val adapter = object : RecordingSessionAdapter() {
+            override suspend fun commitSession(sessionId: Int, onPendingUserAction: suspend (String, Intent) -> Unit): InstallCommitResult {
+                throw CancellationException("callback canceled")
+            }
+        }
+        val fixture = Fixture(sessionAdapter = adapter,
+            installedIdentity = INSTALLED_APK.copy(signerCertificateSha256 = setOf("wrong-signer")))
+        var successPublished = false
+        try {
+            fixture.install { if (it is InstallEvent.Success) successPublished = true }
+            fail("Cancellation must propagate")
+        } catch (_: CancellationException) {
+            assertEquals(false, successPublished)
+            assertEquals(InstallSessionStatus.RECOVERED_INTERRUPTED, fixture.sessionStore.get(TEST_SESSION_ID)?.status)
+            assertEquals(listOf(TEST_SESSION_ID), adapter.abandonedSessionIds)
+        }
+    }
+
+    @Test
+    fun `cancel with an already installed target still releases the redundant live session`() = runBlocking {
+        val adapter = RecordingSessionAdapter()
+        val fixture = Fixture(sessionAdapter = adapter)
+        var successPublished = false
+        try {
+            fixture.install {
+                if (it is InstallEvent.SessionCreated) throw CancellationException("page closed")
+                if (it is InstallEvent.Success) successPublished = true
+            }
+            fail("Cancellation must propagate")
+        } catch (_: CancellationException) {
+            assertTrue(successPublished)
+            assertEquals(InstallSessionStatus.CALLBACK_SUCCESS, fixture.sessionStore.get(TEST_SESSION_ID)?.status)
+            assertEquals(listOf(TEST_SESSION_ID), adapter.abandonedSessionIds)
+        }
+    }
+
+    @Test
+    fun `cancellation during final progress still publishes platform success`() = runBlocking {
+        val adapter = RecordingSessionAdapter()
+        val fixture = Fixture(sessionAdapter = adapter)
+        var successPublished = false
+        lateinit var operation: Job
+        operation = launch(start = CoroutineStart.LAZY) {
+            fixture.install { event ->
+                if (event is InstallEvent.Progress && event.progress == 100) operation.cancel()
+                if (event is InstallEvent.Success) successPublished = true
+            }
+        }
+        // 取消发生在已确认成功后的进度回调；后续 Success 必须完成发布。
+        operation.start()
+        withTimeout(2_000L) { operation.join() }
+        assertTrue(successPublished)
+        assertEquals(InstallSessionStatus.CALLBACK_SUCCESS, fixture.sessionStore.get(TEST_SESSION_ID)?.status)
+        assertTrue(adapter.abandonedSessionIds.isEmpty())
+    }
 
     @Test
     fun `install 会在系统确认后使用 PackageManager 实际版本收口成功`() = runBlocking {
@@ -71,6 +213,15 @@ class RealPackageInstallerTest {
     }
 
     @Test
+    fun `install rejects successful callbacks when installed signer differs from the verified APK`() = runBlocking {
+        val fixture = Fixture(installedIdentity = INSTALLED_APK.copy(signerCertificateSha256 = setOf("wrong-signer")))
+        val events = fixture.install()
+        assertEquals(InstallFailureCode.INSTALLED_SIGNER_MISMATCH, (events.last() as InstallEvent.Failed).code)
+        assertEquals(InstallSessionStatus.FAILED_VERIFY_INSTALLED, fixture.sessionStore.get(TEST_SESSION_ID)?.status)
+        assertTrue(events.none { it is InstallEvent.Success })
+    }
+
+    @Test
     fun `install 在系统安装会话不可用且无兜底安装器时返回明确失败`() = runBlocking {
         val fixture = Fixture(sessionAdapter = UnsupportedSessionAdapter())
 
@@ -99,6 +250,7 @@ class RealPackageInstallerTest {
         permissionGateway: InstallPermissionGateway = AllowedInstallPermissionGateway,
         verificationResult: ApkVerificationResult = ApkVerificationResult.Verified(VERIFIED_APK),
         installedIdentity: ApkIdentity? = INSTALLED_APK,
+        installedPackageInspector: InstalledPackageInspector = FixedInstalledPackageInspector(installedIdentity),
     ) {
         private val workingDir = Files.createTempDirectory("real-package-installer-test").toFile()
         private val apkFile = File(workingDir, "demo.apk").apply { writeBytes(TEST_APK_BYTES) }
@@ -108,12 +260,12 @@ class RealPackageInstallerTest {
             sessionStore = sessionStore,
             permissionGateway = permissionGateway,
             apkVerifier = FixedApkVerifier(verificationResult),
-            installedPackageInspector = FixedInstalledPackageInspector(installedIdentity),
+            installedPackageInspector = installedPackageInspector,
             verificationPolicy = STRICT_POLICY,
             fallbackInstaller = null,
         )
 
-        suspend fun install(): List<InstallEvent> {
+        suspend fun install(onEvent: suspend (InstallEvent) -> Unit = {}): List<InstallEvent> {
             val events = mutableListOf<InstallEvent>()
             installer.install(
                 InstallRequest(
@@ -124,7 +276,7 @@ class RealPackageInstallerTest {
                     targetVersionCode = TEST_VERSION_CODE,
                     signerCertificateSha256 = setOf(TEST_SIGNER),
                 ),
-            ) { events += it }
+            ) { events += it; onEvent(it) }
             return events
         }
     }
@@ -137,25 +289,32 @@ class RealPackageInstallerTest {
         override fun getInstalledIdentity(packageName: String): ApkIdentity? = identity
     }
 
-    private class RecordingSessionAdapter(private val installedPackageName: String? = TEST_PACKAGE_NAME) : PackageInstallerSessionAdapter {
+    private open class RecordingSessionAdapter(private val installedPackageName: String? = TEST_PACKAGE_NAME,
+        private val writeOk: Boolean = true, private val commitSuccess: Boolean = true) : PackageInstallerSessionAdapter {
         var createSessionCalls = 0
+        val abandonedSessionIds = mutableListOf<Int>()
 
         override fun createSession(request: InstallRequest): Int {
             createSessionCalls += 1
             return TEST_SESSION_ID
         }
 
-        override fun writeApkToSession(sessionId: Int, apkFile: File): Boolean = true
+        override fun writeApkToSession(sessionId: Int, apkFile: File): Boolean = writeOk
 
         override suspend fun commitSession(
             sessionId: Int,
             onPendingUserAction: suspend (message: String, confirmationIntent: Intent) -> Unit,
         ): InstallCommitResult {
             onPendingUserAction(InstallerText.SESSION_PENDING_USER_ACTION, Intent("confirm.install"))
-            return InstallCommitResult(success = true, message = InstallerText.SESSION_COMMIT_SUCCESS, installedPackageName = installedPackageName)
+            return InstallCommitResult(success = commitSuccess, message = InstallerText.SESSION_COMMIT_SUCCESS, installedPackageName = installedPackageName)
         }
 
         override fun supportsRealSession(): Boolean = true
+
+        override fun abandonSession(sessionId: Int): Boolean {
+            abandonedSessionIds += sessionId
+            return true
+        }
     }
 
     private class UnsupportedSessionAdapter : PackageInstallerSessionAdapter {

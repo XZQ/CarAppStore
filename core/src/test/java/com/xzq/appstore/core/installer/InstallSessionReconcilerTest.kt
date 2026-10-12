@@ -11,6 +11,21 @@ import java.nio.file.Files
  */
 class InstallSessionReconcilerTest {
     @Test
+    fun `cold start reclaims orphan and legacy failed sessions without losing failure records`() {
+        val store = createStoreWithRecoverableSession()
+        store.updateStatus(TEST_SESSION_ID, InstallSessionStatus.FAILED_WRITE, 20,
+            InstallFailureCode.SESSION_WRITE_FAILED.name, InstallFailureCode.SESSION_WRITE_FAILED.displayText)
+        val orphanSessionId = TEST_SESSION_ID + 1
+        val gateway = RecordingOwnedSessionGateway(setOf(TEST_SESSION_ID, orphanSessionId))
+
+        val result = InstallSessionReconciler(store, gateway, FixedInstalledPackageInspector(null)).reconcile()
+
+        assertEquals(setOf(TEST_SESSION_ID, orphanSessionId), gateway.abandonedSessionIds)
+        assertEquals(2, result.abandonedPlatformSessionCount)
+        assertEquals(InstallSessionStatus.FAILED_WRITE, store.get(TEST_SESSION_ID)?.status)
+        assertEquals(InstallFailureCode.SESSION_WRITE_FAILED.name, store.get(TEST_SESSION_ID)?.failureCode)
+    }
+    @Test
     fun `same versionName with older code or wrong signer is not recovered as success`() {
         listOf(ApkIdentity(TEST_PACKAGE_NAME, 9L, TEST_TARGET_VERSION, setOf("signer")),
             ApkIdentity(TEST_PACKAGE_NAME, 10L, TEST_TARGET_VERSION, setOf("wrong-signer"))).forEach { identity ->
