@@ -84,6 +84,7 @@ object BusinessText {
     const val UPGRADE_INSTALL_FAILED = "升级安装失败"
     const val UPGRADE_DOWNLOAD_TIMEOUT = "升级下载超时"
     const val UPGRADE_INSTALL_TIMEOUT = "升级安装超时"
+    const val UPGRADE_INTERRUPTED = "升级已中断，可重试"
 
     private const val DOWNLOADING_FORMAT = "下载中 %d%%"
     private const val PAUSED_FORMAT = "已暂停 %d%%"

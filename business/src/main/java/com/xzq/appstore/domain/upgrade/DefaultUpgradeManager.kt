@@ -18,9 +18,12 @@ import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.state.UpgradeStatus
 import com.xzq.appstore.domain.text.BusinessText
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 
 class DefaultUpgradeManager(
     /** 统一数据入口，负责升级信息和 staged version 读写。 */
@@ -47,6 +50,9 @@ class DefaultUpgradeManager(
     private val apkVerifier: ApkVerifier? = null,
     private val apkVerificationPolicy: ApkVerificationPolicy = ApkVerificationPolicy(true, true),
 ) : UpgradeManager {
+    /** 同一应用只允许一个升级编排器，重复点击不能覆盖正在执行的任务。 */
+    private val upgradeLocks = ConcurrentHashMap<String, Mutex>()
+
     /** 检查当前应用是否存在可升级版本，并同步升级状态。 */
     override suspend fun checkUpgrade(appId: String): Boolean {
         require(appId.isNotBlank()) { "appId 不能为空" }
@@ -111,6 +117,36 @@ class DefaultUpgradeManager(
      */
     override suspend fun startUpgrade(appId: String) {
         require(appId.isNotBlank()) { "appId 不能为空" }
+        val lock = upgradeLocks.computeIfAbsent(appId) { Mutex() }
+        if (!lock.tryLock()) return
+        var targetVersionCode = 0L
+        try {
+            startUpgradeInternal(appId) { targetVersionCode = it }
+        } catch (canceled: CancellationException) {
+            if (stateCenter.snapshot(appId).upgradeStatus == UpgradeStatus.UPGRADING) {
+                finishInterruptedUpgrade(appId, targetVersionCode, BusinessText.UPGRADE_INTERRUPTED, "UPGRADE_INTERRUPTED")
+            }
+            throw canceled
+        } catch (failure: Exception) {
+            logger.w("UpgradeManager", "Unable to execute upgrade: $appId", failure)
+            finishInterruptedUpgrade(appId, targetVersionCode, BusinessText.ACTION_FAILED, "UPGRADE_FAILED")
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    /** 中断或异常不得覆盖已经确认的目标版本安装事实。 */
+    private fun finishInterruptedUpgrade(appId: String, targetVersionCode: Long, message: String, code: String) {
+        val state = stateCenter.snapshot(appId)
+        if (targetVersionCode > 0L && state.installStatus == InstallStatus.INSTALLED &&
+            state.installedVersionCode >= targetVersionCode) {
+            stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
+        } else {
+            stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = message, errorCode = code)
+        }
+    }
+
+    private suspend fun startUpgradeInternal(appId: String, onTargetChosen: (Long) -> Unit) {
         if (!isCurrentPlatformSupported(appId)) {
             stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.STATUS_PLATFORM_UNSUPPORTED)
             return
@@ -130,6 +166,7 @@ class DefaultUpgradeManager(
             stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
             return
         }
+        onTargetChosen(upgradeInfo.latestVersionCode)
 
         logger.d("UpgradeManager", "startUpgrade: $appId to ${upgradeInfo.latestVersion}")
         tracker.track("upgrade_start_$appId")
@@ -163,7 +200,7 @@ class DefaultUpgradeManager(
 
         // 第二阶段进入安装链路，等待最终安装结果决定升级是否成功。
         installManager.install(appId)
-        when (awaitInstallResult(appId)) {
+        when (awaitInstallResult(appId, upgradeInfo.latestVersionCode)) {
             InstallAwaitResult.INSTALLED -> {
                 stateCenter.updateUpgrade(appId, UpgradeStatus.NONE)
                 tracker.track("upgrade_success_$appId")
@@ -194,11 +231,14 @@ class DefaultUpgradeManager(
     }
 
     /** 等待安装阶段进入终态，超时返回 null。 */
-    private suspend fun awaitInstallResult(appId: String): InstallAwaitResult? = withTimeoutOrNull(waitTimeoutMs) {
+    private suspend fun awaitInstallResult(appId: String, targetVersionCode: Long): InstallAwaitResult? = withTimeoutOrNull(waitTimeoutMs) {
         while (true) {
             delay(pollIntervalMs)
-            when (stateCenter.snapshot(appId).installStatus) {
-                InstallStatus.INSTALLED -> return@withTimeoutOrNull InstallAwaitResult.INSTALLED
+            val state = stateCenter.snapshot(appId)
+            when (state.installStatus) {
+                InstallStatus.INSTALLED -> if (state.installedVersionCode >= targetVersionCode) {
+                    return@withTimeoutOrNull InstallAwaitResult.INSTALLED
+                }
                 InstallStatus.FAILED -> return@withTimeoutOrNull InstallAwaitResult.FAILED
                 else -> Unit
             }

@@ -28,6 +28,7 @@ import com.xzq.appstore.data.model.UpgradeInfo
 import com.xzq.appstore.data.repository.AppRepository
 import com.xzq.appstore.domain.download.DefaultDownloadManager
 import com.xzq.appstore.domain.install.DefaultInstallManager
+import com.xzq.appstore.domain.install.InstallManager
 import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.policy.PolicyResult
 import com.xzq.appstore.domain.state.DefaultStateCenter
@@ -36,6 +37,10 @@ import com.xzq.appstore.domain.state.InstallStatus
 import com.xzq.appstore.domain.state.UpgradeStatus
 import com.xzq.appstore.domain.text.BusinessText
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
@@ -47,6 +52,116 @@ import java.io.File
 import java.nio.file.Files
 
 class DefaultUpgradeManagerTest {
+    @Test
+    fun `canceled upgrade becomes retryable and releases per app execution`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
+        val enteredDownload = CompletableDeferred<Unit>()
+        val finishDownload = CompletableDeferred<Unit>()
+        val manager = createManager(fileDownloader = object : FileDownloader {
+            override suspend fun download(request: DownloadRequest, control: DownloadExecutionControl, onEvent: suspend (DownloadEvent) -> Unit) {
+                onEvent(DownloadEvent.Running(0L, 1024L, 0L))
+                enteredDownload.complete(Unit)
+                finishDownload.await()
+                request.targetFile.writeBytes(ByteArray(1024))
+                onEvent(DownloadEvent.Completed(request.targetFile, 1024L))
+            }
+        }, pollIntervalMs = 1L)
+        val operation = launch { manager.startUpgrade(TEST_APP_ID) }
+        withTimeout(2_000L) { enteredDownload.await() }
+        operation.cancelAndJoin()
+        assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+        assertEquals(BusinessText.UPGRADE_INTERRUPTED, stateCenter.snapshot(TEST_APP_ID).errorMessage)
+        finishDownload.complete(Unit)
+        withTimeout(2_000L) { manager.startUpgrade(TEST_APP_ID) }
+        assertEquals(UpgradeStatus.NONE, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+    }
+
+    @Test
+    fun `duplicate cached upgrade does not treat the old installed version as success`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
+        repository.saveApk(TEST_APP_ID, File(workDir, "cached.apk").apply { writeBytes(byteArrayOf(1)) }.absolutePath)
+        val enteredInstall = CompletableDeferred<Unit>()
+        val finishInstall = CompletableDeferred<Unit>()
+        var installCalls = 0
+        val manager = createManager(apkVerifier = targetVerifier(2L), packageInstaller = object : PackageInstaller {
+            override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) {
+                installCalls++
+                enteredInstall.complete(Unit)
+                finishInstall.await()
+                onEvent(InstallEvent.Success("2.0.0", 2L))
+            }
+        }, pollIntervalMs = 1L)
+        val operation = launch { manager.startUpgrade(TEST_APP_ID) }
+        withTimeout(2_000L) { enteredInstall.await() }
+        manager.startUpgrade(TEST_APP_ID)
+        assertEquals(1, installCalls)
+        assertEquals(UpgradeStatus.UPGRADING, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+        finishInstall.complete(Unit)
+        withTimeout(2_000L) { operation.join() }
+        assertEquals(UpgradeStatus.NONE, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+    }
+
+    @Test
+    fun `unchanged installed version is not accepted as upgraded`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
+        repository.saveApk(TEST_APP_ID, File(workDir, "cached.apk").apply { writeBytes(byteArrayOf(1)) }.absolutePath)
+        createManager(apkVerifier = targetVerifier(2L), packageInstaller = object : PackageInstaller {
+            override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) = Unit
+        }, waitTimeoutMs = 20L, pollIntervalMs = 1L).startUpgrade(TEST_APP_ID)
+        assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+        assertEquals(BusinessText.UPGRADE_INSTALL_TIMEOUT, stateCenter.snapshot(TEST_APP_ID).errorMessage)
+    }
+
+    @Test
+    fun `upgrade staging exception ends waiting state and can be retried`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
+        repository.stageFailure = java.io.IOException("store unavailable")
+        val manager = createManager(pollIntervalMs = 1L)
+        manager.startUpgrade(TEST_APP_ID)
+        assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+        repository.stageFailure = null
+        withTimeout(2_000L) { manager.startUpgrade(TEST_APP_ID) }
+        assertEquals(UpgradeStatus.NONE, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+    }
+
+    @Test
+    fun `exception after upgrade enters running state becomes failure and releases execution`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
+        repository.saveApk(TEST_APP_ID, File(workDir, "cached.apk").apply { writeBytes(byteArrayOf(1)) }.absolutePath)
+        var failInstall = true
+        val manager = createManager(apkVerifier = targetVerifier(2L), installManagerOverride = object : InstallManager {
+            override suspend fun install(appId: String) {
+                if (failInstall) throw java.io.IOException("installer unavailable")
+                stateCenter.updateInstall(appId, InstallStatus.INSTALLED, versionName = "2.0.0", versionCode = 2L)
+            }
+            override suspend fun clearFailed(appId: String) = Unit
+        }, pollIntervalMs = 1L)
+        manager.startUpgrade(TEST_APP_ID)
+        assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+        assertEquals("UPGRADE_FAILED", stateCenter.snapshot(TEST_APP_ID).errorCode)
+        failInstall = false
+        withTimeout(2_000L) { manager.startUpgrade(TEST_APP_ID) }
+        assertEquals(UpgradeStatus.NONE, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+    }
+
+    @Test
+    fun `cancellation after successful installation preserves installed upgrade`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
+        repository.saveApk(TEST_APP_ID, File(workDir, "cached.apk").apply { writeBytes(byteArrayOf(1)) }.absolutePath)
+        val manager = createManager(apkVerifier = targetVerifier(2L), packageInstaller = object : PackageInstaller {
+            override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) {
+                onEvent(InstallEvent.Success("2.0.0", 2L))
+                throw CancellationException("caller closed")
+            }
+        })
+        try {
+            manager.startUpgrade(TEST_APP_ID)
+            fail("Cancellation must propagate")
+        } catch (_: CancellationException) {
+            assertEquals(UpgradeStatus.NONE, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+            assertEquals(2L, stateCenter.snapshot(TEST_APP_ID).installedVersionCode)
+        }
+    }
     @Test
     fun `same display version with higher numeric code is an update`() = runBlocking {
         stateCenter.syncInstalled(TEST_APP_ID, "2.0.0", 1L)
@@ -319,6 +434,7 @@ class DefaultUpgradeManagerTest {
         pollIntervalMs: Long = 200L,
         waitTimeoutMs: Long = 30L * 60L * 1000L,
         apkVerifier: ApkVerifier? = null,
+        installManagerOverride: InstallManager? = null,
     ): DefaultUpgradeManager {
         File(workDir, "test.apk").apply { parentFile?.mkdirs() }
         val effectivePackageInstaller = packageInstaller ?: object : PackageInstaller {
@@ -326,7 +442,7 @@ class DefaultUpgradeManagerTest {
                 onEvent(InstallEvent.Waiting)
                 onEvent(InstallEvent.SessionCreated(1))
                 onEvent(InstallEvent.Installing)
-                onEvent(InstallEvent.Success("2.0.0"))
+                onEvent(InstallEvent.Success("2.0.0", request.targetVersionCode))
             }
         }
 
@@ -362,7 +478,7 @@ class DefaultUpgradeManagerTest {
             stateCenter = stateCenter,
             policyCenter = policyCenter,
             downloadManager = downloadManager,
-            installManager = installManager,
+            installManager = installManagerOverride ?: installManager,
             logger = QuietLogger(),
             tracker = QuietTracker(),
             pollIntervalMs = pollIntervalMs,
@@ -410,6 +526,7 @@ class DefaultUpgradeManagerTest {
 
     private class QuietLogger : AppLogger() {
         override fun d(tag: String, message: String) = Unit
+        override fun w(tag: String, message: String, throwable: Throwable?) = Unit
     }
 
     private class QuietTracker : EventTracker() {
@@ -422,6 +539,7 @@ class DefaultUpgradeManagerTest {
         private val installedAppsList = mutableListOf<InstalledApp>()
         var supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID)
         var checksumValue: String? = null
+        var stageFailure: Exception? = null
 
         fun saveApk(appId: String, path: String) {
             apkPaths[appId] = path
@@ -458,6 +576,7 @@ class DefaultUpgradeManagerTest {
 
         override suspend fun getUpgradeInfo(appId: String) = UpgradeInfo(appId = appId, latestVersion = "2.0.0", apkUrl = "", hasUpgrade = true, latestVersionCode = 2L)
         override suspend fun stageUpgrade(appId: String, versionName: String) {
+            stageFailure?.let { throw it }
             stagedVersion = versionName
         }
 
