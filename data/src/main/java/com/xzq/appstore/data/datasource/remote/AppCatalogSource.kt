@@ -2,6 +2,7 @@ package com.xzq.appstore.data.datasource.remote
 
 import com.xzq.appstore.common.grayscale.GrayscaleHeaderStore
 import com.xzq.appstore.core.logger.AppLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -52,82 +53,104 @@ class ResilientAppCatalogSource(
 ) : AppCatalogSource {
     /** 加载商店目录。 */
     override suspend fun load(): List<RemoteCatalogItem> {
-        val httpCatalog = loadFromHttp()
-        if (httpCatalog != null) {
-            return httpCatalog
-        }
-
-        val cacheCatalog = loadFromCache()
-        if (cacheCatalog != null) {
-            return cacheCatalog
-        }
-
-        return fallbackSource.load()
+        val request = createRequest()
+        val fingerprint = AppCatalogCacheIdentity.requestFingerprint(request)
+        val cached = loadFromCache(fingerprint)
+        return loadFromHttp(request, fingerprint, cached) ?: cached?.catalog ?: fallbackSource.load()
     }
 
-    /** 尝试通过 HTTP 获取目录。 */
-    private suspend fun loadFromHttp(): List<RemoteCatalogItem>? {
-        if (endpointUrl.isNullOrBlank()) {
-            return null
+    /** 每次读取生效灰度配置，并用相同的请求维度判断缓存能否复用。 */
+    private fun createRequest(): AppCatalogHttpRequest {
+        val grayscaleHeader = try {
+            GrayscaleHeaderStore.toHeader(grayscaleHeaderProvider())
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (failure: Exception) {
+            logger.d(TAG, "load grayscale configuration failed: ${failure.message}")
+            null
         }
-        return runCatching {
-            val cachedMetadata = cacheMetadataFile?.let(AppCatalogCacheMetadataStore::read)
-            // 实时读取开发者设置的灰度头，启用且标识非空时追加到目录请求头，
-            // 让后端按 rollout 过滤可见应用；读取失败（如上下文异常）则降级为不带灰度头。
-            val grayscaleHeader = runCatching { grayscaleHeaderProvider() }.getOrNull()?.let(GrayscaleHeaderStore::toHeader)
-            val effectiveHeaders = if (grayscaleHeader != null) requestHeaders + grayscaleHeader else requestHeaders
-            val response = httpClient.fetch(
-                AppCatalogHttpRequest(
-                    endpointUrl = requireNotNull(endpointUrl),
-                    headers = effectiveHeaders,
-                    eTag = cachedMetadata?.eTag,
-                    lastModified = cachedMetadata?.lastModified,
-                ),
-            )
-            if (response.notModified) {
-                // 304 响应可能携带更新后的 ETag/Last-Modified，刷新 metadata 避免下次仍用旧值
-                // 陷入"304 永远命中"循环。
-                val refreshedEtag = response.eTag ?: cachedMetadata?.eTag
-                val refreshedLastModified = response.lastModified ?: cachedMetadata?.lastModified
-                if (refreshedEtag != cachedMetadata?.eTag || refreshedLastModified != cachedMetadata?.lastModified) {
-                    withContext(Dispatchers.IO) {
-                        cacheMetadataFile?.let {
-                            AppCatalogCacheMetadataStore.write(it, AppCatalogCacheMetadata(eTag = refreshedEtag, lastModified = refreshedLastModified))
-                        }
-                    }
-                }
-                return@runCatching loadFromCache()
+        return AppCatalogHttpRequest(
+            endpointUrl = endpointUrl.orEmpty(),
+            headers = if (grayscaleHeader != null) requestHeaders + grayscaleHeader else requestHeaders,
+        )
+    }
+
+    /** 仅对完整且属于当前请求的缓存发条件请求，缓存丢失时恢复全量响应。 */
+    private suspend fun loadFromHttp(
+        request: AppCatalogHttpRequest,
+        fingerprint: String,
+        cached: CachedCatalog?,
+    ): List<RemoteCatalogItem>? {
+        if (request.endpointUrl.isBlank()) return null
+        return try {
+            var response = httpClient.fetch(request.copy(eTag = cached?.metadata?.eTag, lastModified = cached?.metadata?.lastModified))
+            if (response.notModified && cached != null) {
+                val metadata = cached.metadata.copy(
+                    eTag = response.eTag ?: cached.metadata.eTag,
+                    lastModified = response.lastModified ?: cached.metadata.lastModified,
+                )
+                persistCache(cached.body, metadata)
+                return cached.catalog
             }
+            if (response.notModified) response = httpClient.fetch(request)
+            require(!response.notModified) { "catalog returned 304 without a reusable cache" }
             val responseText = requireNotNull(response.body) { "catalog response body is empty" }
             val catalog = loader.parse(responseText)
-            withContext(Dispatchers.IO) {
-                cacheFile?.apply {
-                    parentFile?.mkdirs()
-                    writeText(responseText, Charsets.UTF_8)
-                }
-                cacheMetadataFile?.let {
-                    AppCatalogCacheMetadataStore.write(it, AppCatalogCacheMetadata(eTag = response.eTag, lastModified = response.lastModified))
-                }
-            }
+            persistCache(responseText, AppCatalogCacheMetadata(
+                eTag = response.eTag,
+                lastModified = response.lastModified,
+                requestFingerprint = fingerprint,
+                bodySha256 = AppCatalogCacheIdentity.bodySha256(responseText),
+            ))
             catalog
-        }.onFailure {
-            logger.d(TAG, "load catalog from http failed: ${it.message}")
-        }.getOrNull()
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (failure: Exception) {
+            logger.d(TAG, "load catalog from http failed: ${failure.message}")
+            null
+        }
     }
 
-    /** 尝试从缓存文件恢复目录。 */
-    private suspend fun loadFromCache(): List<RemoteCatalogItem>? {
-        val target = cacheFile?.takeIf { it.exists() } ?: return null
-        return runCatching {
-            val cachedText = readCache(target)
-            loader.parse(cachedText)
-        }.onFailure {
-            logger.d(TAG, "load catalog from cache failed: ${it.message}")
-        }.getOrNull()
+    /** 缺失、损坏、旧版或其他环境的元数据只使缓存失效，仍继续请求远端。 */
+    private suspend fun loadFromCache(fingerprint: String): CachedCatalog? {
+        return try {
+            withContext(Dispatchers.IO) {
+                val target = cacheFile ?: return@withContext null
+                val metadata = cacheMetadataFile?.let(AppCatalogCacheMetadataStore::read) ?: return@withContext null
+                if (metadata.requestFingerprint != fingerprint || !target.exists()) return@withContext null
+                val body = target.readText(Charsets.UTF_8)
+                if (metadata.bodySha256 != AppCatalogCacheIdentity.bodySha256(body)) return@withContext null
+                CachedCatalog(body, loader.parse(body), metadata)
+            }
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (failure: Exception) {
+            logger.d(TAG, "load catalog from cache failed: ${failure.message}")
+            null
+        }
     }
 
-    /** 在 IO 线程读取缓存文本。 */
-    private suspend fun readCache(target: File): String = withContext(Dispatchers.IO) { target.readText(Charsets.UTF_8) }
+    /** 缓存写入失败不丢弃已成功获取的目录；正文摘要使中断写入不会复用错配数据。 */
+    private suspend fun persistCache(body: String, metadata: AppCatalogCacheMetadata) {
+        try {
+            withContext(Dispatchers.IO) {
+                if (cacheFile == null || cacheMetadataFile == null) return@withContext
+                cacheFile.parentFile?.mkdirs()
+                cacheFile.writeText(body, Charsets.UTF_8)
+                AppCatalogCacheMetadataStore.write(cacheMetadataFile, metadata)
+            }
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (failure: Exception) {
+            logger.d(TAG, "persist catalog cache failed: ${failure.message}")
+        }
+    }
+
+    private data class CachedCatalog(
+        val body: String,
+        val catalog: List<RemoteCatalogItem>,
+        val metadata: AppCatalogCacheMetadata,
+    )
 
     private companion object {
         private const val TAG = "AppCatalogSource"

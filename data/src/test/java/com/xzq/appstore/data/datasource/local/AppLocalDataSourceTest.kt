@@ -3,6 +3,7 @@ package com.xzq.appstore.data.datasource.local
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.test.core.app.ApplicationProvider
+import com.xzq.appstore.data.local.store.JsonBackedLocalStoreFacade
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -31,6 +32,18 @@ class AppLocalDataSourceTest {
             override fun getApplicationContext(): Context = this
         }
         local = AppLocalDataSource(context)
+    }
+
+    @Test
+    fun `staged upgrade is consumed from both stores and stays consumed after reopening`() {
+        val storeFile = File(context.filesDir, "structured_local_store.json")
+        val persisted = AppLocalDataSource(context, JsonBackedLocalStoreFacade(storeFile))
+        persisted.stageUpgradeVersion("app.a", "2.0")
+
+        assertEquals("2.0", persisted.consumeStagedUpgradeVersion("app.a"))
+        assertNull(persisted.peekStagedUpgradeVersion("app.a"))
+        assertNull(persisted.consumeStagedUpgradeVersion("app.a"))
+        assertNull(AppLocalDataSource(context, JsonBackedLocalStoreFacade(storeFile)).peekStagedUpgradeVersion("app.a"))
     }
 
     @Test

@@ -5,9 +5,18 @@ import com.xzq.appstore.data.model.AppPlatform
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class AppCatalogJsonParserTest {
+
+    @Test
+    fun `parse rejects missing null or incorrectly typed apps while allowing explicit empty catalog`() {
+        listOf("{}", "{\"error\":\"temporary\"}", "{\"apps\":null}", "{\"apps\":{}}", "{\"apps\":\"[]\"}").forEach { body ->
+            assertThrows(IllegalArgumentException::class.java) { AppCatalogJsonParser.parse(body) }
+        }
+        assertEquals(emptyList<RemoteCatalogItem>(), AppCatalogJsonParser.parse("{\"apps\":[]}"))
+    }
 
     @Test
     fun `parseResponse 会解析目录字段与搜索关键词`() {

@@ -11,6 +11,10 @@ data class AppCatalogCacheMetadata(
     val eTag: String? = null,
     /** 上次成功目录请求返回的 Last-Modified。 */
     val lastModified: String? = null,
+    /** 目录地址与实际配置请求头的摘要；不保存地址、灰度值或凭据原文。 */
+    val requestFingerprint: String? = null,
+    /** 缓存正文摘要，防止正文与校验信息分开写入后错配。 */
+    val bodySha256: String? = null,
 )
 
 /**
@@ -30,6 +34,8 @@ object AppCatalogCacheMetadataStore {
         return AppCatalogCacheMetadata(
             eTag = json.optString(KEY_ETAG).takeIf { it.isNotBlank() },
             lastModified = json.optString(KEY_LAST_MODIFIED).takeIf { it.isNotBlank() },
+            requestFingerprint = json.optString(KEY_REQUEST_FINGERPRINT).takeIf { it.isNotBlank() },
+            bodySha256 = json.optString(KEY_BODY_SHA256).takeIf { it.isNotBlank() },
         )
     }
 
@@ -39,10 +45,14 @@ object AppCatalogCacheMetadataStore {
         val json = JSONObject().apply {
             put(KEY_ETAG, metadata.eTag)
             put(KEY_LAST_MODIFIED, metadata.lastModified)
+            put(KEY_REQUEST_FINGERPRINT, metadata.requestFingerprint)
+            put(KEY_BODY_SHA256, metadata.bodySha256)
         }
         file.writeText(json.toString(), Charsets.UTF_8)
     }
 
     private const val KEY_ETAG = "etag"
     private const val KEY_LAST_MODIFIED = "lastModified"
+    private const val KEY_REQUEST_FINGERPRINT = "requestFingerprint"
+    private const val KEY_BODY_SHA256 = "bodySha256"
 }

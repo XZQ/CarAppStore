@@ -70,7 +70,9 @@ class AppCatalogSourceTest {
             requestHeaders = emptyMap(),
             httpClient = FailingHttpClient(),
             cacheFile = cacheFile,
-            cacheMetadataFile = File(workDir, "catalog.meta.json"),
+            cacheMetadataFile = File(workDir, "catalog.meta.json").apply {
+                AppCatalogCacheMetadataStore.write(this, metadataFor(TEST_CACHE_RESPONSE))
+            },
             fallbackSource = FakeCatalogSource(listOf(FALLBACK_ITEM)),
             logger = QuietLogger(),
         )
@@ -109,7 +111,7 @@ class AppCatalogSourceTest {
             writeText(TEST_CACHE_RESPONSE, Charsets.UTF_8)
         }
         val cacheMetadataFile = File(workDir, "catalog.meta.json").apply {
-            AppCatalogCacheMetadataStore.write(this, AppCatalogCacheMetadata(eTag = "etag-v1", lastModified = "Fri, 11 Apr 2026 09:00:00 GMT"))
+            AppCatalogCacheMetadataStore.write(this, metadataFor(TEST_CACHE_RESPONSE, mapOf("X-Client-Channel" to "carappstore-test")))
         }
         val httpClient = RecordingHttpClient(AppCatalogHttpResponse(statusCode = 304, notModified = true))
         val source = ResilientAppCatalogSource(
@@ -211,5 +213,12 @@ class AppCatalogSourceTest {
                 upgradeInfo = UpgradeInfo(appId = appId, latestVersion = "1.0.1", apkUrl = "", hasUpgrade = true),
             )
         }
+
+        fun metadataFor(body: String, headers: Map<String, String> = emptyMap()): AppCatalogCacheMetadata = AppCatalogCacheMetadata(
+            eTag = "etag-v1",
+            lastModified = "Fri, 11 Apr 2026 09:00:00 GMT",
+            requestFingerprint = AppCatalogCacheIdentity.requestFingerprint(AppCatalogHttpRequest("https://example.com/catalog.json", headers)),
+            bodySha256 = AppCatalogCacheIdentity.bodySha256(body),
+        )
     }
 }

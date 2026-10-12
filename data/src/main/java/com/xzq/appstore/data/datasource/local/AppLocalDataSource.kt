@@ -166,10 +166,11 @@ class AppLocalDataSource(
     /** 读取并消费 staged upgrade 版本号。 */
     fun consumeStagedUpgradeVersion(appId: String): String? = legacyStoreLock.withLock {
         val facadeKey = LocalStoreKeys.stagedUpgrade(appId)
-        val value = localStoreFacade.getSetting(facadeKey)?.value ?: stagedUpgradeVersions.remove(appId)
+        val facadeValue = localStoreFacade.getSetting(facadeKey)?.value
+        val legacyValue = stagedUpgradeVersions.remove(appId)
         localStoreFacade.removeSetting(facadeKey)
         persistLocked()
-        value
+        facadeValue ?: legacyValue
     }
 
     /** 只读取 staged upgrade 版本号，不执行消费。 */

@@ -17,7 +17,7 @@ object AppCatalogJsonParser {
     /** 解析指定文本内容为目录响应。 */
     fun parseResponse(rawText: String): AppCatalogResponse {
         val root = JSONObject(rawText)
-        val apps = root.optJSONArray("apps") ?: JSONArray()
+        val apps = requireNotNull(root.optJSONArray("apps")) { "目录 apps 必须是显式数组" }
         return AppCatalogResponse(
             apps = AppCatalogValidator.validate(List(apps.length()) { index -> parseItem(apps.getJSONObject(index)) }),
         )
