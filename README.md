@@ -111,10 +111,22 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 ## 环境要求
 
 - Android Studio 或命令行 Android Gradle 环境
-- JDK/JBR 17
-- Android Gradle Plugin 8.13.2
-- Kotlin 2.0.0
+- JDK/JBR 17（AGP 8.13.2 的最低要求）
+- Android SDK Platform 36、Build Tools 36.x、Platform Tools
+- Android Gradle Plugin 8.13.2 / Kotlin 2.0.0 / Gradle 8.14.3（由 wrapper 固定）
 - compileSdk 36，targetSdk 36，minSdk 26
+
+新机器接手先做环境自检（纯只读诊断，不安装工具链、不修改仓库文件）：
+
+```bash
+python tools/verification/check_build_env.py
+```
+
+脚本逐项检查 `java` 版本、`JAVA_HOME`、Android SDK 路径与 `platforms;android-36`、`local.properties` 和 Gradle wrapper，
+对缺失项给出具体修复命令；存在失败项时退出码为 1，加 `--json` 可输出机器可读结果。自检通过后再执行下面的构建门禁。
+
+SDK 路径可由 `ANDROID_HOME` / `ANDROID_SDK_ROOT` 提供，也可在仓库根创建 `local.properties` 写入 `sdk.dir=<SDK 绝对路径>`；
+该文件已在 `.gitignore` 中，不要提交。CI 使用环境变量，因此不需要 `local.properties`。
 
 ## 构建与测试
 

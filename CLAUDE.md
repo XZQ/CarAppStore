@@ -1,10 +1,11 @@
 # CarAppStore — 项目级规则
 
-> 全局约束见 `C:\Users\XZQ\.agents\AGENTS.md`（Android 全局开发规范）；`C:\Users\XZQ\.claude\CLAUDE.md` 仅引用该文件。
-> 本文档仅包含 CarAppStore 项目特有的约束，不与全局规范重复。
-> 优先级：用户要求 > 项目级 CLAUDE.md > 全局 AGENTS.md > 既有代码风格。
+> 全局 Android 通用编码规范为**可选参考**（例如工作环境中的 `~/.agents/AGENTS.md`）；它不是本仓库的构建或开发前置条件，缺失时一律以本文件和 `AGENTS.md` 为准。
+> 本文档仅包含 CarAppStore 项目特有的约束，不与可选的全局规范重复。
+> 优先级：用户要求 > 项目级 CLAUDE.md > `AGENTS.md` 与可选的全局规范 > 既有代码风格。
 > 项目背景与进度见 `README.md`，详细架构见 `docs/`。
 > 若文档与代码现状冲突，以代码现状为准，并明确指出差异。
+> 首次在新机器上构建前，先运行 `python tools/verification/check_build_env.py` 自检 JDK / Android SDK / `local.properties`。
 
 ## 产品定位
 
@@ -47,4 +48,4 @@
 
 ---
 
-*最后更新：2026-07-16*
+*最后更新：2026-11-04*
