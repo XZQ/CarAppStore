@@ -51,15 +51,25 @@ class DownloadExecutionControl {
         return { interruptHandlers.remove(handler) }
     }
 
-    /** 尝试设置停止原因，并主动触发已注册的中断回调。 */
+    /**
+     * 尝试设置停止原因，并主动触发已注册的中断回调。
+     *
+     * CANCELED 是最终态；PAUSED 允许被后续的取消请求升级为 CANCELED，
+     * 否则已暂停的任务无法被真正取消，收尾协程还会把状态覆盖回暂停。
+     */
     private fun requestStop(reason: DownloadStopReason): Boolean {
-        val updated = stopReasonRef.compareAndSet(null, reason)
-        if (updated) {
-            interruptHandlers.forEach { handler ->
-                runCatching { handler() }
+        while (true) {
+            val current = stopReasonRef.get()
+            if (current == DownloadStopReason.CANCELED || current == reason) {
+                return false
+            }
+            if (stopReasonRef.compareAndSet(current, reason)) {
+                interruptHandlers.forEach { handler ->
+                    runCatching { handler() }
+                }
+                return true
             }
         }
-        return updated
     }
 }
 

@@ -36,6 +36,69 @@ class RealFileDownloaderTest {
             assertEquals(observed.size, observed.toSet().size)
         }
     }
+
+    @Test
+    fun `携带鉴权头时同源重定向被跟随且逐跳重新携带凭证`() = runBlocking {
+        // 使用中性自定义头，避免 JDK HttpURLConnection 对 Authorization 的特殊处理影响断言。
+        TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt()), requestHeaders = mapOf("X-Test-Download-Proof" to "Bearer test-token")).use { fixture ->
+            fixture.server.redirectPathToLocation = "/demo.apk" to fixture.server.urlForPath("/final.apk")
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            assertTrue("expected download to complete after same-origin redirect, got $events", events.last() is DownloadEvent.Completed)
+            val authHeaders = fixture.server.receivedHeaderValues("X-Test-Download-Proof")
+            assertTrue("credential must be attached on the original request and every redirect hop", authHeaders.size >= 2)
+            assertTrue(authHeaders.all { it == "Bearer test-token" })
+        }
+    }
+
+    @Test
+    fun `跨 origin 重定向不会转发短期凭证`() = runBlocking {
+        TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt()), requestHeadersProvider = { url ->
+            if (url.contains("127.0.0.1")) {
+                mapOf("X-Test-Scoped-Token" to "Bearer scoped-token")
+            } else {
+                throw IOException("Request origin is not authorized")
+            }
+        }).use { fixture ->
+            fixture.server.redirectPathToLocation = "/demo.apk" to "http://10.255.255.1:1/evil.apk"
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            val failure = events.last() as DownloadEvent.Failed
+            assertEquals(DownloadFailureCode.NETWORK_INTERRUPTED, failure.code)
+            assertTrue("cross-origin redirect must fail instead of forwarding credentials, got ${failure.message}",
+                failure.message.contains("not authorized"))
+        }
+    }
+
+    @Test
+    fun `重定向次数超过上限时失败而不是死循环`() = runBlocking {
+        TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt()), requestHeaders = mapOf("X-Test-Download-Proof" to "Bearer test-token")).use { fixture ->
+            fixture.server.redirectPathToLocation = "/demo.apk" to fixture.server.url
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            val failure = events.last() as DownloadEvent.Failed
+            assertEquals(DownloadFailureCode.NETWORK_INTERRUPTED, failure.code)
+            assertTrue(failure.message.contains("Too many redirects"))
+        }
+    }
+
+    @Test
+    fun `分片写盘失败归类为 STORAGE_IO 而不是网络错误`() = runBlocking {
+        // 通过写前钩子注入磁盘故障：预置目录会被 preparePlannedSegments 的 clearSegments 清掉，
+        // 无法稳定复现，因此使用与 beforeMergeHook 同风格的可控注入点。
+        TestFixture(
+            0, 0, ByteArray(TEST_TOTAL_BYTES.toInt()),
+            supportRangeHeader = false,
+            beforeSegmentWriteHook = { throw IOException("simulated disk write failure") },
+        ).use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            val failure = events.last() as? DownloadEvent.Failed
+            assertEquals("expected STORAGE_IO but got $events", DownloadFailureCode.STORAGE_IO, failure?.code)
+        }
+    }
+
+
     @Test
     fun `insufficient space rejects known package before any body transfer`() = runBlocking {
         TestFixture(0, 0, ByteArray(64 * 1024), availableSpace = { com.xzq.appstore.core.policy.StorageBudget.RESERVE_BYTES + 128 * 1024 - 1 }).use { fixture ->
@@ -658,6 +721,8 @@ class RealFileDownloaderTest {
         headStatusCode: Int = 200,
         rangeStatusCode: Int? = null,
         getETagProvider: () -> String? = { headETag },
+        /** 注入分片写盘失败，用于验证磁盘 IO 与网络错误的分类边界。 */
+        beforeSegmentWriteHook: (() -> Unit)? = null,
     ) : AutoCloseable {
         /** 测试工作目录。 */
         private val workDir = Files.createTempDirectory("real-file-downloader-test").toFile()
@@ -702,6 +767,7 @@ class RealFileDownloaderTest {
             runningEventIntervalMs = runningEventIntervalMs,
             availableSpace = availableSpace,
             requestHeadersProvider = requestHeadersProvider,
+            beforeSegmentWriteHook = beforeSegmentWriteHook,
         )
 
         /** 当前测试下载请求。 */
@@ -803,6 +869,9 @@ class RealFileDownloaderTest {
         /** 当前服务地址。 */
         val url: String = "http://127.0.0.1:${serverSocket.localPort}/demo.apk"
 
+        /** 非空时：命中指定路径的请求会以 302 重定向到目标地址，用于验证手动跟随逻辑。 */
+        var redirectPathToLocation: Pair<String, String>? = null
+
         /** 服务端收到的每组请求头。 */
         private val receivedRequestHeaders = Collections.synchronizedList(mutableListOf<Map<String, String>>())
 
@@ -816,6 +885,9 @@ class RealFileDownloaderTest {
             acceptThread.join(1_000L)
         }
 
+        /** 按端口构造同源 URL。 */
+        fun urlForPath(path: String): String = "http://127.0.0.1:${serverSocket.localPort}$path"
+
         /** 统一处理 HEAD 和 GET 请求。 */
         private fun handle(socket: Socket) {
             socket.use { client ->
@@ -823,6 +895,16 @@ class RealFileDownloaderTest {
                 val requestLine = reader.readLine() ?: return
                 val headers = readHeaders(reader)
                 receivedRequestHeaders += headers.toMap()
+                val requestPath = requestLine.split(' ').getOrNull(1).orEmpty()
+                val redirectTarget = redirectPathToLocation?.takeIf { it.first == requestPath }?.second
+                if (redirectTarget != null) {
+                    writeHeaders(
+                        output = client.getOutputStream(),
+                        statusLine = "HTTP/1.1 302 Found",
+                        headers = mapOf("Location" to redirectTarget, "Content-Length" to "0"),
+                    )
+                    return
+                }
                 when (requestLine.substringBefore(' ').uppercase()) {
                     "HEAD" -> handleHead(client.getOutputStream())
                     "GET" -> handleGet(client.getOutputStream(), headers["Range"])

@@ -123,6 +123,71 @@ class VersionedJsonStoreTest {
     }
 
     @Test
+    fun `损坏的 JSON 文件会被隔离备份且读取回退到默认值`() {
+        val storeFile = createTempFile("versioned-json-broken.json")
+        val corruptedContent = """{"payload":"half-written"""
+        storeFile.writeText(corruptedContent)
+        val store = VersionedJsonStore(
+            storeFile = storeFile,
+            schemaVersion = 1,
+            defaultRootFactory = { JSONObject().put("value", "default") },
+            migration = { JSONObject() },
+        )
+
+        val result = store.read { it.optString("value") }
+
+        assertEquals("default", result)
+        val backupFile = File(storeFile.parentFile, storeFile.name + ".corrupted")
+        assertTrue("corrupted file must be quarantined as a sidecar backup", backupFile.isFile)
+        assertEquals(corruptedContent, backupFile.readText())
+        // 损坏现场被移走后，read 不得把默认空根回写到原文件覆盖现场。
+        assertTrue("original file must not be rewritten by a plain read", !storeFile.exists())
+    }
+
+    @Test
+    fun `损坏文件后的 update 写入新数据且保留备份`() {
+        val storeFile = createTempFile("versioned-json-broken-update.json")
+        storeFile.writeText("""{"counter":7,"truncated":""")
+        val store = VersionedJsonStore(
+            storeFile = storeFile,
+            schemaVersion = 1,
+            defaultRootFactory = { JSONObject().put("counter", 0) },
+            migration = { JSONObject() },
+        )
+
+        store.update { root ->
+            root.put("counter", root.optInt("counter") + 1)
+        }
+
+        val persisted = JSONObject(storeFile.readText())
+        assertEquals(1, persisted.optInt("counter"))
+        assertEquals(1, persisted.optInt("schemaVersion"))
+        val backupFile = File(storeFile.parentFile, storeFile.name + ".corrupted")
+        assertTrue(backupFile.isFile)
+        assertTrue(backupFile.readText().contains("truncated"))
+    }
+
+    @Test
+    fun `连续两次损坏只保留一代备份`() {
+        val storeFile = createTempFile("versioned-json-broken-twice.json")
+        val store = VersionedJsonStore(
+            storeFile = storeFile,
+            schemaVersion = 1,
+            defaultRootFactory = { JSONObject().put("value", "default") },
+            migration = { JSONObject() },
+        )
+        storeFile.writeText("""{"first":""")
+        store.read { it }
+        storeFile.writeText("""{"second":""")
+        val result = store.read { it.optString("value") }
+
+        assertEquals("default", result)
+        val backupFile = File(storeFile.parentFile, storeFile.name + ".corrupted")
+        assertTrue(backupFile.isFile)
+        assertTrue(backupFile.readText().contains("second"))
+    }
+
+    @Test
     fun `多次 update 保持 schemaVersion 不变`() {
         val storeFile = createTempFile("versioned-json-multi.json")
         val store = VersionedJsonStore(

@@ -2,6 +2,7 @@ package com.xzq.appstore.feature.downloadmanager
 
 import androidx.lifecycle.viewModelScope
 import com.xzq.appstore.common.base.BaseViewModel
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.DownloadCenterPreferencesUiState
 import com.xzq.appstore.data.model.DownloadTaskViewData
 import com.xzq.appstore.data.model.InstallTaskViewData
@@ -43,6 +44,8 @@ class DownloadManagerViewModel(
     private val upgradeManager: UpgradeManager,
     /** 策略设置入口。 */
     private val policyCenter: PolicyCenter,
+    /** 用户点击行为打点入口；生产环境注入容器级 FileEventTracker。 */
+    private val eventTracker: EventTracker = EventTracker(),
     /** 聚合任务数据的后台调度器；保留注入点以便单元测试与生产行为一致。 */
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : BaseViewModel<DownloadManagerUiState>(DownloadManagerUiState()) {
@@ -62,6 +65,7 @@ class DownloadManagerViewModel(
         downloadManager = downloadManager,
         installManager = installManager,
         upgradeManager = upgradeManager,
+        tracker = eventTracker,
         ioDispatcher = ioDispatcher,
     )
 

@@ -48,6 +48,8 @@ class RealFileDownloader(
     private val logger: AppLogger = AppLogger(),
     /** 每次 HEAD/GET/Range 请求读取最新的短期凭证。 */
     private val requestHeadersProvider: (String) -> Map<String, String> = { emptyMap() },
+    /** 分片写盘前测试钩子，用于注入磁盘写失败并验证错误归类；生产环境保持为空。 */
+    private val beforeSegmentWriteHook: (() -> Unit)? = null,
 ) : FileDownloader {
     override suspend fun clearTaskCache(taskId: String) = withContext(Dispatchers.IO) {
         store.clearTask(taskId)
@@ -331,6 +333,10 @@ class RealFileDownloader(
         control: DownloadExecutionControl,
         onEvent: suspend (DownloadEvent) -> Unit,
     ) {
+        // 合并是整包级 IO，进入前先响应停止请求，避免已经收到暂停/取消还白写一遍完整文件。
+        if (emitStoppedIfRequested(request, control, onEvent, totalBytes)) {
+            return
+        }
         val finalFile = request.targetFile
         if (finalFile.exists()) finalFile.delete()
         if (!StorageBudget.fits(availableSpace(requireNotNull(finalFile.parentFile)), calculateAggregateDownloaded(request.taskId))) {
@@ -341,6 +347,9 @@ class RealFileDownloader(
         beforeMergeHook?.invoke(plannedSegments, finalFile)
         val mergeOk = DownloadFileHelper.mergeSegments(plannedSegments, finalFile)
         if (emitStoppedIfRequested(request, control, onEvent, totalBytes)) {
+            // 合并期间收到停止：删除未经长度与校验值验证的合并产物，避免被误认为可用 APK；
+            // 分片全部保留，恢复后无需重新下载即可重新合并。
+            finalFile.delete()
             return
         }
         if (!mergeOk) {
@@ -419,12 +428,22 @@ class RealFileDownloader(
         onProgress: suspend (speedBytesPerSec: Long) -> Unit,
     ): SegmentResult {
         val partFile = File(segment.tmpFilePath)
-        if (!partFile.exists()) partFile.createNewFile()
+        if (!partFile.exists()) {
+            try {
+                partFile.createNewFile()
+            } catch (createFailure: IOException) {
+                return handleSegmentError(SegmentWriteIOException(createFailure), 0L, partFile, request, segment, attempt, control)
+            }
+        }
 
         // 通过已有文件大小和历史记录计算续传起点。
         val expectedLength = if (segment.endByte >= segment.startByte) segment.endByte - segment.startByte + 1 else -1L
         if (!meta.supportsRange || (expectedLength > 0 && partFile.length() > expectedLength)) {
-            RandomAccessFile(partFile, "rw").use { it.setLength(0) }
+            try {
+                RandomAccessFile(partFile, "rw").use { it.setLength(0) }
+            } catch (truncateFailure: IOException) {
+                return handleSegmentError(SegmentWriteIOException(truncateFailure), 0L, partFile, request, segment, attempt, control)
+            }
         }
         val existingBytes = partFile.length()
         val resumeOffset = if (existingBytes > 0L) segment.startByte + existingBytes else segment.startByte
@@ -447,13 +466,19 @@ class RealFileDownloader(
             retryCount = attempt,
         )
 
-        // 根据分片起止字节发起 Range 请求。
-        val connection = openConnection(
-            request.url,
-            rangeStart = if (meta.supportsRange) resumeOffset else null,
-            rangeEnd = if (segment.endByte >= segment.startByte) segment.endByte else null,
-            ifRange = if (meta.supportsRange) rangeValidator(meta) else null,
-        )
+        // 根据分片起止字节发起 Range 请求。建连与重定向阶段的失败与传输阶段同等归类，
+        // 不能逃逸到编排层被误报为未知错误。
+        val connection = try {
+            openConnection(
+                request.url,
+                rangeStart = if (meta.supportsRange) resumeOffset else null,
+                rangeEnd = if (segment.endByte >= segment.startByte) segment.endByte else null,
+                ifRange = if (meta.supportsRange) rangeValidator(meta) else null,
+                shouldAbort = control::isStopRequested,
+            )
+        } catch (connectFailure: IOException) {
+            return handleSegmentError(connectFailure, existingBytes, partFile, request, segment, attempt, control)
+        }
         val removeInterrupt = control.registerInterrupt { connection.disconnect() }
 
         return try {
@@ -496,11 +521,17 @@ class RealFileDownloader(
             return SegmentResult(segment.segmentId, false, code = DownloadFailureCode.RANGE_NOT_SUPPORTED, message = DownloaderText.RANGE_RESPONSE_INVALID, attempts = attempt)
         }
 
-        // 从输入流写入分片文件，实时上报进度。
-        RandomAccessFile(partFile, "rw").use { out ->
-            if (existingBytes > 0L) out.seek(existingBytes) else out.setLength(0L)
+        // 从输入流写入分片文件，实时上报进度。打开与定位失败属于磁盘故障，不能误判为网络中断。
+        val out = try {
+            RandomAccessFile(partFile, "rw").also { raf ->
+                if (existingBytes > 0L) raf.seek(existingBytes) else raf.setLength(0L)
+            }
+        } catch (openFailure: IOException) {
+            throw SegmentWriteIOException(openFailure)
+        }
+        out.use { raf ->
             connection.inputStream.use { input ->
-                val writeResult = writeSegmentToFile(input, out, existingBytes, request, segment, attempt, control, onProgress)
+                val writeResult = writeSegmentToFile(input, raf, existingBytes, request, segment, attempt, control, onProgress)
                 if (writeResult != null) {
                     return writeResult
                 }
@@ -600,7 +631,13 @@ class RealFileDownloader(
                 }
                 bytesUntilSpaceCheck = StorageBudget.CHECK_INTERVAL_BYTES
             }
-            out.write(buffer, 0, read)
+            try {
+                beforeSegmentWriteHook?.invoke()
+                out.write(buffer, 0, read)
+            } catch (writeFailure: IOException) {
+                // 写盘失败（ENOSPC、只读文件系统等）必须与网络读失败区分归类。
+                throw SegmentWriteIOException(writeFailure)
+            }
             bytesUntilSpaceCheck -= read
             segmentDownloaded += read
             saveSegmentRecord(request, segment, segmentDownloaded, DownloaderText.STATUS_RUNNING, retryCount = attempt)
@@ -670,6 +707,20 @@ class RealFileDownloader(
                 )
             }
 
+            // 磁盘写失败单独归类：写满（ENOSPC）不可重试，其余磁盘故障按可重试 STORAGE_IO 上报，
+            // 避免把永久性磁盘问题当作网络抖动无限重试。
+            is SegmentWriteIOException -> {
+                val spaceExhausted = isSpaceExhausted(e)
+                saveSegmentRecord(request, segment, downloadedBytes, DownloaderText.STATUS_FAILED_IO, retryCount = attempt)
+                SegmentResult(
+                    segment.segmentId,
+                    false,
+                    code = if (spaceExhausted) DownloadFailureCode.STORAGE_INSUFFICIENT else DownloadFailureCode.STORAGE_IO,
+                    message = if (spaceExhausted) DownloaderText.FAILURE_STORAGE_INSUFFICIENT else e.message ?: DownloadFailureCode.STORAGE_IO.displayText,
+                    attempts = attempt,
+                )
+            }
+
             else -> {
                 saveSegmentRecord(request, segment, downloadedBytes, DownloaderText.STATUS_FAILED_IO, retryCount = attempt)
                 SegmentResult(
@@ -681,6 +732,15 @@ class RealFileDownloader(
                 )
             }
         }
+    }
+
+    /** 分片写盘失败专用异常，用于在统一异常出口区分磁盘故障与网络故障。 */
+    private class SegmentWriteIOException(cause: IOException) : IOException(cause.message, cause)
+
+    /** 通过异常消息链识别磁盘写满，区分需要用户清理空间的硬故障与可重试的瞬时 IO 错误。 */
+    private fun isSpaceExhausted(error: Throwable): Boolean {
+        val messages = generateSequence(error) { it.cause }.mapNotNull { it.message }.joinToString(" ")
+        return messages.contains("ENOSPC", ignoreCase = true) || messages.contains("No space left", ignoreCase = true)
     }
 
     /** 聚合所有分片的已下载字节数，用于计算任务级进度。优先读内存缓存，避免热路径磁盘 IO。 */
@@ -818,7 +878,7 @@ class RealFileDownloader(
 
     /** 通过 HEAD 请求探测远端文件元数据。 */
     private fun probeRemoteMeta(url: String, control: DownloadExecutionControl): DownloadRemoteMeta {
-        val headConnection = openConnection(url, head = true)
+        val headConnection = openConnection(url, head = true, shouldAbort = control::isStopRequested)
         val removeInterrupt = control.registerInterrupt { headConnection.disconnect() }
         return try {
             if (control.isStopRequested()) {
@@ -841,7 +901,7 @@ class RealFileDownloader(
 
     /** 不支持 HEAD 时仅请求一个字节，并在读取响应头后关闭连接，不把错误页当成包体元数据。 */
     private fun probeMetaUsingGet(url: String, control: DownloadExecutionControl): DownloadRemoteMeta {
-        val connection = openConnection(url, rangeStart = 0L, rangeEnd = 0L)
+        val connection = openConnection(url, rangeStart = 0L, rangeEnd = 0L, shouldAbort = control::isStopRequested)
         val removeInterrupt = control.registerInterrupt { connection.disconnect() }
         return try {
             if (control.isStopRequested()) throw IOException("download stopped before GET probe")
@@ -879,11 +939,96 @@ class RealFileDownloader(
 
     private class HttpProbeException(val failureCode: DownloadFailureCode, message: String) : IOException(message)
 
-    /** 按需构建 HTTP 连接，并在存在续传需求时补齐 Range 请求头。 */
-    private fun openConnection(url: String, head: Boolean = false, rangeStart: Long? = null, rangeEnd: Long? = null, ifRange: String? = null): HttpURLConnection {
-        val headers = requestHeaders + requestHeadersProvider(url)
+    /**
+     * 按需构建 HTTP 连接，并在存在续传需求时补齐 Range 请求头。
+     *
+     * 所有请求统一禁用 JDK 自动重定向、改为手动逐跳跟随，保证任意一跳都受跳数上限、
+     * Location 校验和停止请求约束：固定头只在同源跳发送，动态凭证每跳经
+     * [requestHeadersProvider] 重新计算并由提供器自行拒绝跨 origin，杜绝把凭证转发到
+     * 非预期主机；超过 [MAX_REDIRECT_FOLLOW_LIMIT] 次或收到非法 Location 时按失败处理。
+     */
+    private fun openConnection(
+        url: String,
+        head: Boolean = false,
+        rangeStart: Long? = null,
+        rangeEnd: Long? = null,
+        ifRange: String? = null,
+        shouldAbort: () -> Boolean = { false },
+    ): HttpURLConnection {
+        var currentUrl = url
+        var redirectsRemaining = MAX_REDIRECT_FOLLOW_LIMIT
+        while (true) {
+            if (shouldAbort()) {
+                throw IOException("download stopped during redirect")
+            }
+            val headers = resolveRequestHeaders(currentUrl, originalUrl = url)
+            val connection = openSingleConnection(currentUrl, headers, head, rangeStart, rangeEnd, ifRange)
+            // 所有请求统一手动跟随：即使本跳因跨 origin 而不再携带任何请求头，也必须
+            // 继续校验 Location、限制跳数并响应停止请求，不能退回 JDK 的自动跟随。
+            val statusCode = try {
+                connection.responseCode
+            } catch (failure: IOException) {
+                connection.disconnect()
+                throw failure
+            }
+            if (statusCode !in REDIRECT_STATUS_CODES) {
+                return connection
+            }
+            if (redirectsRemaining <= 0) {
+                connection.disconnect()
+                throw IOException("Too many redirects while downloading")
+            }
+            val location = connection.getHeaderField("Location")
+            val target = location?.let { rawLocation ->
+                runCatching { URL(URL(currentUrl), rawLocation) }.getOrNull()
+            }
+            connection.disconnect()
+            if (target == null || (!target.protocol.equals("http", ignoreCase = true) && !target.protocol.equals("https", ignoreCase = true))) {
+                throw IOException("Invalid redirect location: ${location.orEmpty()}")
+            }
+            redirectsRemaining--
+            currentUrl = target.toString()
+        }
+    }
+
+    /**
+     * 合并固定头与按 URL 动态计算的短期凭证头，并校验注入安全。
+     *
+     * 固定头只随与原始请求同源的跳发送；动态凭证由提供器按目标 URL 自行判断是否下发。
+     */
+    private fun resolveRequestHeaders(url: String, originalUrl: String): Map<String, String> {
+        val staticHeaders = if (sameOrigin(url, originalUrl)) requestHeaders else emptyMap()
+        val headers = staticHeaders + requestHeadersProvider(url)
         require(headers.keys.all(HTTP_HEADER_NAME_PATTERN::matches) &&
             headers.values.none { it.contains('\r') || it.contains('\n') }) { "Invalid runtime request headers" }
+        return headers
+    }
+
+    /** 判断两个 URL 是否同源（协议、主机、端口一致）。 */
+    private fun sameOrigin(first: String, second: String): Boolean {
+        val firstUrl = runCatching { URL(first) }.getOrNull() ?: return false
+        val secondUrl = runCatching { URL(second) }.getOrNull() ?: return false
+        return firstUrl.protocol.equals(secondUrl.protocol, ignoreCase = true) &&
+            firstUrl.host.equals(secondUrl.host, ignoreCase = true) &&
+            effectivePort(firstUrl) == effectivePort(secondUrl)
+    }
+
+    /** 未显式声明端口时按协议取默认端口。 */
+    private fun effectivePort(url: URL): Int = when {
+        url.port != -1 -> url.port
+        url.protocol.equals("https", ignoreCase = true) -> 443
+        else -> 80
+    }
+
+    /** 构建单次 HTTP 连接；禁用自动重定向，由外层 openConnection 统一手动逐跳跟随。 */
+    private fun openSingleConnection(
+        url: String,
+        headers: Map<String, String>,
+        head: Boolean,
+        rangeStart: Long?,
+        rangeEnd: Long?,
+        ifRange: String?,
+    ): HttpURLConnection {
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
@@ -899,8 +1044,9 @@ class RealFileDownloader(
             connection.setRequestProperty("Range", value)
             if (ifRange != null) connection.setRequestProperty("If-Range", ifRange)
         }
-        // 携带鉴权头时禁止自动重定向，避免认证信息被转发到非预期主机。
-        connection.instanceFollowRedirects = headers.isEmpty()
+        // 统一禁用 JDK 自动重定向，由 openConnection 逐跳校验并重新计算请求头，
+        // 避免认证信息被自动转发到非预期主机，也避免绕过跳数上限与停止检查。
+        connection.instanceFollowRedirects = false
         connection.doInput = true
         return connection
     }
@@ -948,6 +1094,12 @@ class RealFileDownloader(
 
         /** HTTP 416 Range Not Satisfiable，续传 offset 越界专用。 */
         const val HTTP_RANGE_NOT_SATISFIABLE = 416
+
+        /** 携带鉴权头时允许手动跟随的 3xx 响应码。 */
+        val REDIRECT_STATUS_CODES = setOf(301, 302, 303, 307, 308)
+
+        /** 携带鉴权头时单个请求最多跟随的重定向次数。 */
+        const val MAX_REDIRECT_FOLLOW_LIMIT = 5
 
         /** 速度计算基准毫秒数。 */
         const val SPEED_CALCULATION_BASE = 1000L

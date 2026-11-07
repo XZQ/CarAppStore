@@ -26,14 +26,35 @@ class DefaultStateCenter : StateCenter {
     /** 返回全部应用状态的聚合视图。 */
     override fun observeAll(): StateFlow<Map<String, AppState>> = allStates
 
-    /** 页面读取系统事实时只同步版本；任务终态由安装、下载和升级执行者更新。 */
+    /**
+     * 页面读取系统事实时同步版本与安装事实；进行中的任务终态仍由安装、下载和升级执行者更新。
+     *
+     * 系统事实（PackageManager 已安装）优先于遗留的失败记录：安装后校验失败但系统
+     * 实际已装好的应用必须收敛回 INSTALLED，否则页面会永久停留在“安装失败”。
+     */
     override fun syncInstalled(appId: String, versionName: String, versionCode: Long) {
         mutate(appId) {
-            it.copy(
-                installStatus = if (it.installStatus == InstallStatus.NOT_INSTALLED) InstallStatus.INSTALLED else it.installStatus,
-                installedVersion = versionName,
-                installedVersionCode = versionCode,
-            )
+            when (it.installStatus) {
+                InstallStatus.NOT_INSTALLED -> it.copy(
+                    installStatus = InstallStatus.INSTALLED,
+                    installedVersion = versionName,
+                    installedVersionCode = versionCode,
+                )
+                // 失败记录被系统事实推翻：收敛到已安装，并清理随失败遗留的错误，
+                // 避免状态文案继续展示一个已经不再成立的失败原因。
+                InstallStatus.FAILED -> it.copy(
+                    installStatus = InstallStatus.INSTALLED,
+                    installedVersion = versionName,
+                    installedVersionCode = versionCode,
+                    errorMessage = null,
+                    errorCode = null,
+                )
+                // WAITING / INSTALLING / PENDING_USER_ACTION / INSTALLED 只刷新版本事实。
+                else -> it.copy(
+                    installedVersion = versionName,
+                    installedVersionCode = versionCode,
+                )
+            }
         }
     }
 

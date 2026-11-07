@@ -12,7 +12,7 @@ interface StateCenter {
     /** 监听全部应用的状态快照。 */
     fun observeAll(): StateFlow<Map<String, AppState>>
 
-    /** 同步系统已安装版本事实，保留尚未结束的任务及其错误。 */
+    /** 同步系统已安装版本事实；保留进行中的任务，被事实推翻的遗留失败记录收敛为已安装。 */
     fun syncInstalled(appId: String, versionName: String, versionCode: Long = 0L)
 
     /** 应用权威卸载事实，查询期间发生的任务变化必须保留。 */

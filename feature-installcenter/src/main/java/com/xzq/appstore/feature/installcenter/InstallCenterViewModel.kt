@@ -3,6 +3,7 @@ package com.xzq.appstore.feature.installcenter
 import androidx.lifecycle.viewModelScope
 import com.xzq.appstore.common.base.BaseViewModel
 import com.xzq.appstore.core.installer.InstallSessionStore
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.InstallCenterControlsUiState
 import com.xzq.appstore.data.model.InstallSessionFilter
 import com.xzq.appstore.data.model.SessionBucket
@@ -36,6 +37,8 @@ class InstallCenterViewModel(
     private val upgradeManager: UpgradeManager,
     /** 安装会话存储，用于读取可重试会话。 */
     private val installSessionStore: InstallSessionStore,
+    /** 用户点击行为打点入口；生产环境注入容器级 FileEventTracker。 */
+    private val eventTracker: EventTracker = EventTracker(),
     /** 页面数据加载使用的调度器，测试时可注入 TestDispatcher。 */
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : BaseViewModel<InstallCenterUiState>(InstallCenterUiState()) {
@@ -49,7 +52,7 @@ class InstallCenterViewModel(
     private var selectedSessionFilter: InstallSessionFilter = InstallSessionFilter.ALL
 
     /** 安装中心单项任务主动作分发器。 */
-    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, stateCenter = stateCenter, installManager = installManager, upgradeManager = upgradeManager, ioDispatcher = ioDispatcher)
+    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, stateCenter = stateCenter, installManager = installManager, upgradeManager = upgradeManager, tracker = eventTracker, ioDispatcher = ioDispatcher)
 
     /** 初始化页面并开始观察安装状态变化。 */
     fun load() {

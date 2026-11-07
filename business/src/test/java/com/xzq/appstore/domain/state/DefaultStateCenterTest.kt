@@ -13,19 +13,43 @@ import org.junit.Test
 
 class DefaultStateCenterTest {
     @Test
-    fun `fact refresh preserves failed task and actionable error`() {
+    fun `fact refresh preserves failed upgrade and actionable error`() {
         val center = DefaultStateCenter()
-        center.updateInstall("app.test", InstallStatus.FAILED, errorMessage = "try again", errorCode = "SESSION_COMMIT_FAILED")
         center.updateUpgrade("app.test", UpgradeStatus.FAILED, errorMessage = "try again", errorCode = "SESSION_COMMIT_FAILED")
         center.syncInstalled("app.test", "1.0", 1L)
         center.syncUpgradeAvailability("app.test", true)
         center.syncUpgradeAvailability("app.test", false)
         val state = center.snapshot("app.test")
-        assertEquals(InstallStatus.FAILED, state.installStatus)
+        assertEquals(InstallStatus.INSTALLED, state.installStatus)
         assertEquals(UpgradeStatus.FAILED, state.upgradeStatus)
         assertEquals("try again", state.errorMessage)
         assertEquals("SESSION_COMMIT_FAILED", state.errorCode)
         assertEquals(1L, state.installedVersionCode)
+    }
+
+    @Test
+    fun `系统安装事实会把遗留的安装失败记录收敛为已安装`() {
+        val center = DefaultStateCenter()
+        center.updateInstall("app.test", InstallStatus.FAILED, errorMessage = "install failed", errorCode = "INSTALLED_PACKAGE_NOT_FOUND")
+        center.syncInstalled("app.test", "1.0", 1L)
+        val state = center.snapshot("app.test")
+        assertEquals(InstallStatus.INSTALLED, state.installStatus)
+        assertEquals("1.0", state.installedVersion)
+        assertEquals(1L, state.installedVersionCode)
+        assertNull(state.errorMessage)
+        assertNull(state.errorCode)
+        assertEquals(PrimaryAction.OPEN, state.primaryAction)
+    }
+
+    @Test
+    fun `syncInstalled 不会打断进行中的安装任务`() {
+        val center = DefaultStateCenter()
+        center.updateInstall("app.test", InstallStatus.INSTALLING)
+        center.syncInstalled("app.test", "1.0", 1L)
+        val state = center.snapshot("app.test")
+        assertEquals(InstallStatus.INSTALLING, state.installStatus)
+        assertEquals(1L, state.installedVersionCode)
+        assertEquals(PrimaryAction.DISABLED, state.primaryAction)
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.xzq.appstore.feature.downloadmanager
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.download.DownloadManager
 import com.xzq.appstore.domain.install.InstallManager
@@ -22,10 +23,12 @@ class DownloadManagerViewModelFactory(
     private val upgradeManager: UpgradeManager,
     /** 提供策略设置与切换能力。 */
     private val policyCenter: PolicyCenter,
+    /** 用户点击行为打点入口。 */
+    private val eventTracker: EventTracker,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     /** 创建下载中心 ViewModel。 */
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return DownloadManagerViewModel(appManager, stateCenter, downloadManager, installManager, upgradeManager, policyCenter) as T
+        return DownloadManagerViewModel(appManager, stateCenter, downloadManager, installManager, upgradeManager, policyCenter, eventTracker) as T
     }
 }

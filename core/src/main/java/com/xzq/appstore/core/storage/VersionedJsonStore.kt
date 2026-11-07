@@ -4,9 +4,11 @@ import org.json.JSONObject
 import org.json.JSONTokener
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.channels.FileChannel
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -92,7 +94,35 @@ class VersionedJsonStore(
         if (rawText.isBlank()) {
             return null
         }
-        return runCatching { JSONTokener(rawText).nextValue() }.getOrNull()
+        return try {
+            JSONTokener(rawText).nextValue()
+        } catch (failure: Exception) {
+            // 解析失败说明文件已损坏（半写、断电或外部篡改）：先把损坏现场隔离备份，
+            // 再按空数据处理，避免后续 update 把默认空根直接覆盖掉唯一可诊断的现场。
+            quarantineCorruptedFileLocked()
+            null
+        }
+    }
+
+    /**
+     * 把损坏的 JSON 文件改名为侧车备份，最多保留一代。
+     *
+     * 备份失败不阻断读取：原文件内容本身已不可用，后续原子写会替换它。
+     */
+    private fun quarantineCorruptedFileLocked() {
+        val backupFile = File(storeFile.parentFile, storeFile.name + CORRUPTED_FILE_SUFFIX)
+        val moved = runCatching {
+            Files.move(storeFile.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            true
+        }.getOrDefault(false)
+        if (!moved) {
+            // 跨设备 rename 或文件被占用时，至少先复制现场再移除主文件，
+            // 避免主文件持续损坏导致每次读取都重复隔离，或被后续写入覆盖掉唯一现场。
+            runCatching {
+                storeFile.copyTo(backupFile, overwrite = true)
+                storeFile.delete()
+            }
+        }
     }
 
     /** 创建带 schemaVersion 的默认根节点。 */
@@ -103,8 +133,9 @@ class VersionedJsonStore(
     /**
      * 通过临时文件原子覆盖写入方式持久化根节点。
      *
-     * 写流程：写 temp → fsync（保证内容落盘）→ Files.move(ATOMIC_MOVE) → fsync 父目录。
-     * 这样即使中途断电，正式文件要么是上一次完整内容，要么是新内容，不会出现半写状态。
+     * 写流程：写 temp → fsync（保证内容落盘）→ 同目录 rename → 尽力 fsync 父目录。
+     * 临时文件与目标文件同目录，rename 在同一文件系统内完成；即使中途断电，
+     * 正式文件要么是上一次完整内容，要么是新内容，不会出现半写状态。
      */
     private fun persistLocked(root: JSONObject) {
         storeFile.parentFile?.mkdirs()
@@ -118,18 +149,22 @@ class VersionedJsonStore(
             fos.flush()
             runCatching { fos.fd.sync() }
         }
-        // 优先走 Files.move(ATOMIC_MOVE)；失败再回退到 copyTo+delete。
+        // 优先走 Files.move(ATOMIC_MOVE)；部分文件系统不支持原子替换时回退到同目录 rename，
+        // POSIX rename / Windows MoveFileEx 在同卷内依然原子，绝不退化为 copy+delete。
         val moved = runCatching {
             Files.move(tempFile.toPath(), storeFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
             true
         }.getOrElse { false }
         if (!moved) {
-            tempFile.copyTo(storeFile, overwrite = true)
-            tempFile.delete()
+            Files.move(tempFile.toPath(), storeFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
         // 父目录 fsync，确保目录项已落盘，避免 rename 在断电后被回滚。
+        // FileOutputStream 打开目录在 Android/Linux 会抛 EISDIR，必须用只读 FileChannel；
+        // Windows 不支持目录 fsync，失败时保持尽力而为。
         runCatching {
-            FileOutputStream(storeFile.parentFile).use { fos -> fos.fd.sync() }
+            FileChannel.open(storeFile.parentFile.toPath(), StandardOpenOption.READ).use { channel ->
+                channel.force(true)
+            }
         }
     }
 
@@ -145,6 +180,9 @@ class VersionedJsonStore(
 
         /** 临时文件后缀。 */
         const val TEMP_FILE_SUFFIX = ".tmp"
+
+        /** 损坏 JSON 现场备份的文件后缀，最多保留一代。 */
+        const val CORRUPTED_FILE_SUFFIX = ".corrupted"
 
         /** 返回指定文件在当前进程内共享的读写锁。 */
         fun sharedFileLock(storeFile: File): ReentrantLock {

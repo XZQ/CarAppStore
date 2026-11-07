@@ -22,6 +22,7 @@ import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.policy.PolicyResult
 import com.xzq.appstore.domain.state.DefaultStateCenter
 import com.xzq.appstore.domain.state.DownloadStatus
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -228,6 +229,27 @@ class DefaultDownloadManagerTest {
 
         // 5 个相同进度的 Running 事件在节流窗口内只触发一次 RUNNING 态落盘。
         assertEquals(1, harness.repository.runningPersistCount.get())
+    }
+
+    @Test
+    fun `pause 后 cancel 会升级停止原因并最终落盘为已取消`() = runBlocking {
+        val harness = TestHarness()
+        val gate = CompletableDeferred<Unit>()
+        harness.downloader.stopEmissionGate = gate
+        harness.manager.startDownload(TEST_APP_ID)
+        assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+
+        // 先暂停并在下载器真正观察到暂停后立刻取消；取消必须把停止原因升级为 CANCELED，
+        // 否则任务收尾会把持久化记录和页面状态覆盖回 PAUSED。
+        harness.manager.pauseDownload(TEST_APP_ID)
+        assertTrue(harness.downloader.firstStopSeenLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        harness.manager.cancelDownload(TEST_APP_ID)
+        gate.complete(Unit)
+
+        waitUntil { harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED }
+        assertEquals(DownloadStatus.CANCELED, harness.stateCenter.snapshot(TEST_APP_ID).downloadStatus)
+        assertTrue(harness.downloader.clearedTaskIds.contains("download-$TEST_APP_ID"))
+        harness.manager.close()
     }
 
     @Test
@@ -595,6 +617,12 @@ class DefaultDownloadManagerTest {
         /** 首次进入下载流程时发出的信号。 */
         val startedLatch = CountDownLatch(1)
 
+        /** 首次观察到停止请求时发出的信号，用于构造暂停后取消的竞态窗口。 */
+        val firstStopSeenLatch = CountDownLatch(1)
+
+        /** 非空时：观察到停止请求后先等待该门闩，再以当时的最新停止原因发射 Stopped。 */
+        var stopEmissionGate: CompletableDeferred<Unit>? = null
+
         override suspend fun download(request: DownloadRequest, control: DownloadExecutionControl, onEvent: suspend (DownloadEvent) -> Unit) {
             startCount.incrementAndGet()
             startedLatch.countDown()
@@ -617,7 +645,10 @@ class DefaultDownloadManagerTest {
             while (true) {
                 val stopReason = control.currentStopReason()
                 if (stopReason != null) {
-                    onEvent(DownloadEvent.Stopped(reason = stopReason, downloadedBytes = resumedBytes, totalBytes = TEST_TOTAL_BYTES))
+                    firstStopSeenLatch.countDown()
+                    stopEmissionGate?.await()
+                    // 发射时以最新停止原因为准：暂停可以被后续取消请求升级。
+                    onEvent(DownloadEvent.Stopped(reason = control.currentStopReason() ?: stopReason, downloadedBytes = resumedBytes, totalBytes = TEST_TOTAL_BYTES))
                     return
                 }
                 delay(POLL_DELAY_MS)

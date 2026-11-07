@@ -3,6 +3,7 @@ package com.xzq.appstore.feature.installcenter
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.xzq.appstore.core.installer.InstallSessionStore
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.domain.appmanager.AppManager
 import com.xzq.appstore.domain.install.InstallManager
 import com.xzq.appstore.domain.state.StateCenter
@@ -19,10 +20,12 @@ class InstallCenterViewModelFactory(
     private val upgradeManager: UpgradeManager,
     /** 提供安装会话列表与恢复信息。 */
     private val installSessionStore: InstallSessionStore,
+    /** 用户点击行为打点入口。 */
+    private val eventTracker: EventTracker,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     /** 创建安装中心 ViewModel。 */
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return InstallCenterViewModel(appManager, stateCenter, installManager, upgradeManager, installSessionStore) as T
+        return InstallCenterViewModel(appManager, stateCenter, installManager, upgradeManager, installSessionStore, eventTracker) as T
     }
 }

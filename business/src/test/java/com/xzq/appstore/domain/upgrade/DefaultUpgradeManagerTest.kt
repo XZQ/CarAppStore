@@ -45,6 +45,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -350,6 +351,41 @@ class DefaultUpgradeManagerTest {
 
         assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot("app.a").installStatus)
         assertEquals(InstallStatus.INSTALLED, stateCenter.snapshot("app.b").installStatus)
+    }
+
+    @Test
+    fun `startBatchUpgrade 遇到执行中的同应用任务会跳过并继续后续应用`() = runBlocking {
+        stateCenter.syncInstalled("app.a", "1.0.0", 1L)
+        stateCenter.syncInstalled("app.b", "1.0.0", 1L)
+        repository.addInstalledApp("app.a", "App A", "1.0.0")
+        repository.addInstalledApp("app.b", "App B", "1.0.0")
+        val enteredDownloadA = CompletableDeferred<Unit>()
+        val finishDownloadA = CompletableDeferred<Unit>()
+        val manager = createManager(fileDownloader = object : FileDownloader {
+            override suspend fun download(request: DownloadRequest, control: DownloadExecutionControl, onEvent: suspend (DownloadEvent) -> Unit) {
+                if (request.appId == "app.a") {
+                    enteredDownloadA.complete(Unit)
+                    finishDownloadA.await()
+                }
+                request.targetFile.apply { parentFile?.mkdirs(); writeBytes(ByteArray(1024)) }
+                onEvent(DownloadEvent.MetaReady(DownloadRemoteMeta(contentLength = 1024L, supportsRange = false)))
+                onEvent(DownloadEvent.Running(1024L, 1024L, 128L))
+                onEvent(DownloadEvent.Completed(request.targetFile, 1024L))
+            }
+        }, pollIntervalMs = 1L)
+        val singleUpgrade = launch { manager.startUpgrade("app.a") }
+        withTimeout(5_000L) { enteredDownloadA.await() }
+
+        val result = manager.startBatchUpgrade(listOf("app.a", "app.b"))
+
+        assertEquals(listOf("app.b"), result.succeeded)
+        assertEquals(BusinessText.STATUS_UPGRADING, result.skipped["app.a"])
+        assertTrue(result.failed.isEmpty())
+        assertEquals(UpgradeStatus.NONE, stateCenter.snapshot("app.b").upgradeStatus)
+
+        finishDownloadA.complete(Unit)
+        withTimeout(5_000L) { singleUpgrade.join() }
+        assertEquals(UpgradeStatus.NONE, stateCenter.snapshot("app.a").upgradeStatus)
     }
 
     @Test

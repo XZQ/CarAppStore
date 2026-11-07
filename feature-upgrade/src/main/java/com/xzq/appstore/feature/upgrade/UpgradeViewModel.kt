@@ -2,6 +2,7 @@ package com.xzq.appstore.feature.upgrade
 
 import androidx.lifecycle.viewModelScope
 import com.xzq.appstore.common.base.BaseViewModel
+import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.data.model.TaskCenterFilter
 import com.xzq.appstore.data.model.UpgradeCenterControlsUiState
 import com.xzq.appstore.data.model.UpgradeTaskViewData
@@ -29,6 +30,8 @@ class UpgradeViewModel(
     private val stateCenter: StateCenter,
     /** 升级业务入口。 */
     private val upgradeManager: UpgradeManager,
+    /** 用户点击行为打点入口；生产环境注入容器级 FileEventTracker。 */
+    private val eventTracker: EventTracker = EventTracker(),
     /** 页面数据加载使用的调度器，测试时可注入 TestDispatcher。 */
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : BaseViewModel<UpgradeUiState>(UpgradeUiState()) {
@@ -39,7 +42,7 @@ class UpgradeViewModel(
     private var selectedFilter: TaskCenterFilter = TaskCenterFilter.ALL
 
     /** 升级中心单项任务主动作分发器。 */
-    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, stateCenter = stateCenter, upgradeManager = upgradeManager, ioDispatcher = ioDispatcher)
+    private val primaryActionExecutor = AppPrimaryActionExecutor(appManager = appManager, stateCenter = stateCenter, upgradeManager = upgradeManager, tracker = eventTracker, ioDispatcher = ioDispatcher)
 
     /** 初始化升级中心并开始监听状态变化。 */
     fun load() {

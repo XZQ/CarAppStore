@@ -26,7 +26,7 @@ class UpgradeFragment : BaseTaskCenterFragment() {
 
     /** 升级中心 ViewModel。 */
     private val viewModel: UpgradeViewModel by viewModels {
-        UpgradeViewModelFactory(appServices.appManager, appServices.stateCenter, appServices.upgradeManager)
+        UpgradeViewModelFactory(appServices.appManager, appServices.stateCenter, appServices.upgradeManager, appServices.eventTracker)
     }
 
     /** 升级任务列表适配器。 */

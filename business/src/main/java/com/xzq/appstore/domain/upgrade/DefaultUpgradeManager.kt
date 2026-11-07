@@ -98,7 +98,12 @@ class DefaultUpgradeManager(
                 skipped[appId] = reason
                 return@startBatchUpgrade UpgradeBatchResult(succeeded = succeeded, failed = failed, skipped = skipped)
             }
-            startUpgrade(appId)
+            // 同应用已有单任务升级在执行时跳过该应用并继续后续应用；
+            // 不能把「执行中去重」误判为失败而中断整批。
+            if (!startUpgradeExclusive(appId)) {
+                skipped[appId] = BusinessText.STATUS_UPGRADING
+                continue
+            }
             val state = stateCenter.snapshot(appId)
             if (state.upgradeStatus == UpgradeStatus.NONE) {
                 succeeded.add(appId)
@@ -116,9 +121,18 @@ class DefaultUpgradeManager(
      * 当前实现本质上是一个编排器：先下载，再安装，并通过轮询状态中心等待阶段完成。
      */
     override suspend fun startUpgrade(appId: String) {
+        startUpgradeExclusive(appId)
+    }
+
+    /**
+     * 获取同应用升级互斥锁后执行升级编排。
+     *
+     * @return false 表示该应用已有升级任务在执行，本次调用被去重忽略
+     */
+    private suspend fun startUpgradeExclusive(appId: String): Boolean {
         require(appId.isNotBlank()) { "appId 不能为空" }
         val lock = upgradeLocks.computeIfAbsent(appId) { Mutex() }
-        if (!lock.tryLock()) return
+        if (!lock.tryLock()) return false
         var targetVersionCode = 0L
         try {
             startUpgradeInternal(appId) { targetVersionCode = it }
@@ -133,6 +147,7 @@ class DefaultUpgradeManager(
         } finally {
             lock.unlock()
         }
+        return true
     }
 
     /** 中断或异常不得覆盖已经确认的目标版本安装事实。 */
