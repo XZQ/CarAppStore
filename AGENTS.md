@@ -33,7 +33,7 @@
 - 构建前先运行 `python tools/verification/check_build_env.py` 自检 JDK、Android SDK 与 `local.properties`；
   该脚本只做诊断，不安装工具链，也不修改仓库文件。
 - 若自检报缺失，按脚本给出的修复建议配置 JDK 21、Android SDK Platform 36 和 `local.properties` 后再运行 `gradlew`。
-- 验证口径以 `docs/36` 和对应提交 SHA 的 CI 产物为准；不要在文档里重复硬编码测试数量，避免再次漂移。
+- 验证口径以 `docs/36`–`docs/38` 和对应提交 SHA 的 CI 产物为准；不要在文档里重复硬编码测试数量，避免再次漂移。
 
 ## 产品定位硬约束
 
