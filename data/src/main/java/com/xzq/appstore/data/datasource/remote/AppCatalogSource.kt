@@ -7,12 +7,40 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/** 目录数据的实际来源，供上层判断结果是否可信、能否长期缓存。 */
+enum class AppCatalogOrigin {
+    /** 本次请求从远端成功获取（含 304 复用本地缓存）。 */
+    NETWORK,
+
+    /** 远端不可用，复用磁盘缓存。 */
+    DISK_CACHE,
+
+    /** 远端与磁盘缓存都不可用，退回安装包内置目录。 */
+    RESOURCE,
+}
+
+/** 目录加载结果：数据本身 + 来源，来源用于区分「权威数据」与「降级兜底」。 */
+data class AppCatalogLoadResult(
+    /** 目录条目。 */
+    val items: List<RemoteCatalogItem>,
+    /** 数据来源。 */
+    val origin: AppCatalogOrigin,
+)
+
 /**
  * AppCatalogSource 定义远端商店目录的统一读取入口。
  */
 interface AppCatalogSource {
     /** 加载当前可用的商店目录。 */
     suspend fun load(): List<RemoteCatalogItem>
+
+    /**
+     * 加载目录并附带来源信息。
+     *
+     * 默认实现把结果视为网络来源，仅用于只读兜底源；主链路实现必须覆盖本方法，
+     * 否则降级数据会被当成权威数据缓存。
+     */
+    suspend fun loadWithOrigin(): AppCatalogLoadResult = AppCatalogLoadResult(load(), AppCatalogOrigin.NETWORK)
 }
 
 /**
@@ -51,13 +79,26 @@ class ResilientAppCatalogSource(
     /** 日志入口。 */
     private val logger: AppLogger = AppLogger(),
 ) : AppCatalogSource {
-    /** 加载商店目录。 */
-    override suspend fun load(): List<RemoteCatalogItem> {
+    /** 加载商店目录，保留旧口径的便捷入口。 */
+    override suspend fun load(): List<RemoteCatalogItem> = loadWithOrigin().items
+
+    /** 加载商店目录并标注来源：HTTP -> 磁盘缓存 -> 内置资源。 */
+    override suspend fun loadWithOrigin(): AppCatalogLoadResult {
         val request = createRequest()
         val fingerprint = AppCatalogCacheIdentity.requestFingerprint(request)
         val cached = loadFromCache(fingerprint)
-        return loadFromHttp(request, fingerprint, cached) ?: cached?.catalog ?: fallbackSource.load()
+        loadFromHttp(request, fingerprint, cached)?.let { return AppCatalogLoadResult(it, AppCatalogOrigin.NETWORK) }
+        cached?.let { return AppCatalogLoadResult(it.catalog, AppCatalogOrigin.DISK_CACHE) }
+        return AppCatalogLoadResult(fallbackSource.load(), AppCatalogOrigin.RESOURCE)
     }
+
+    /**
+     * 当前请求维度摘要（接口地址 + 请求头，含灰度分组）。
+     *
+     * 上游内存缓存以该值作为键：灰度分组切换后必须立刻重新加载，
+     * 不能继续复用切换前的目录。
+     */
+    fun currentRequestFingerprint(): String = AppCatalogCacheIdentity.requestFingerprint(createRequest())
 
     /** 每次读取生效灰度配置，并用相同的请求维度判断缓存能否复用。 */
     private fun createRequest(): AppCatalogHttpRequest {

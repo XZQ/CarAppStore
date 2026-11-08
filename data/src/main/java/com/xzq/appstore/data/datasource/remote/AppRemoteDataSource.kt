@@ -35,7 +35,7 @@ class AppRemoteDataSource(
     private val catalogLoader = AppRemoteCatalogLoader(context)
 
     /** 商店目录数据源。 */
-    private val catalogSource: AppCatalogSource = ResilientAppCatalogSource(
+    private val catalogSource: ResilientAppCatalogSource = ResilientAppCatalogSource(
         loader = catalogLoader,
         endpointUrl = catalogEndpointUrl,
         requestHeaders = catalogRequestHeaders,
@@ -88,33 +88,70 @@ class AppRemoteDataSource(
      * 这些调用原本每次都会触发一次完整的目录加载（HTTP→缓存→资源 + 整份 JSON 解析）。
      * 引入 TTL 缓存后，同一个时间窗口内只加载一次目录，其余调用直接复用，
      * 首页 N 个应用从「1+N 次整目录加载」降为「1 次加载 + N 次内存查找」。
+     *
+     * 缓存键包含请求维度摘要：灰度分组切换后立即失效，不会把切换前的目录再发出去。
+     * TTL 按来源区分：只有远端权威数据享受完整 TTL，磁盘缓存 / 内置目录属于降级结果，
+     * 仅做短期合流（抵挡同一屏的并发调用），网络恢复后尽快回到远端。
      */
     private val catalogCacheLock = Mutex()
-    private var cachedVisibleCatalog: List<RemoteCatalogItem>? = null
-    private var cachedVisibleCatalogAtNanos: Long = 0L
+    private var cachedVisibleCatalog: VisibleCatalogCache? = null
 
     /** 加载当前生效的商店目录。 */
-    private suspend fun loadCatalog(): List<RemoteCatalogItem> = catalogSource.load()
-
     private suspend fun loadVisibleCatalog(): List<RemoteCatalogItem> = catalogCacheLock.withLock {
         val nowNanos = monotonicClockNanos()
-        val cached = cachedVisibleCatalog
-        val elapsedNanos = nowNanos - cachedVisibleCatalogAtNanos
-        if (cached != null && elapsedNanos >= 0L && elapsedNanos < CATALOG_CACHE_TTL_NANOS) {
-            return@withLock cached
-        }
-        val fresh = loadCatalog().filter { item ->
+        val fingerprint = catalogSource.currentRequestFingerprint()
+        cachedVisibleCatalog
+            ?.takeIf { it.fingerprint == fingerprint && it.isFresh(nowNanos) }
+            ?.let { return@withLock it.items }
+
+        val result = catalogSource.loadWithOrigin()
+        val fresh = result.items.filter { item ->
             val releaseId = item.appDetail.versionCode.takeIf { it > 0 }?.let { "code:$it" }
                 ?: "name:${item.appDetail.versionName}"
             item.governance.isVisible(item.appId, catalogChannel, installationId, releaseId)
         }
-        cachedVisibleCatalog = fresh
-        cachedVisibleCatalogAtNanos = nowNanos
+        cachedVisibleCatalog = VisibleCatalogCache(
+            items = fresh,
+            fingerprint = fingerprint,
+            origin = result.origin,
+            loadedAtNanos = nowNanos,
+        )
         fresh
     }
 
+    /** 一次目录加载在内存中的快照。 */
+    private data class VisibleCatalogCache(
+        /** 过滤后的可见目录。 */
+        val items: List<RemoteCatalogItem>,
+        /** 加载时的请求维度摘要（含灰度分组）。 */
+        val fingerprint: String,
+        /** 数据来源。 */
+        val origin: AppCatalogOrigin,
+        /** 加载时刻的单调时钟读数。 */
+        val loadedAtNanos: Long,
+    ) {
+        /** 单调时钟回退（elapsed < 0）时视为过期，强制重新加载。 */
+        fun isFresh(nowNanos: Long): Boolean {
+            val elapsedNanos = nowNanos - loadedAtNanos
+            return elapsedNanos >= 0L && elapsedNanos < ttlNanos()
+        }
+
+        private fun ttlNanos(): Long = when (origin) {
+            AppCatalogOrigin.NETWORK -> NETWORK_CACHE_TTL_NANOS
+            AppCatalogOrigin.DISK_CACHE, AppCatalogOrigin.RESOURCE -> DEGRADED_CACHE_TTL_NANOS
+        }
+    }
+
     private companion object {
-        /** 目录内存缓存有效期。弱网场景下 30s 的轻微延迟可接受，同时避免频繁全量重拉。 */
-        const val CATALOG_CACHE_TTL_NANOS = 30_000_000_000L
+        /** 远端目录的内存缓存有效期。弱网场景下 30s 的轻微延迟可接受，同时避免频繁全量重拉。 */
+        const val NETWORK_CACHE_TTL_NANOS = 30_000_000_000L
+
+        /**
+         * 降级目录（磁盘缓存 / 内置资源）只做短期合流。
+         *
+         * 取 3s：足以让同一屏的 N 次并发查询共用一次失败结果，又不会把「刚才断网」
+         * 的状态固定 30s，网络恢复后下一次调用就会重新请求远端。
+         */
+        const val DEGRADED_CACHE_TTL_NANOS = 3_000_000_000L
     }
 }
