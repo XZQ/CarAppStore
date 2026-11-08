@@ -1,8 +1,8 @@
 <p align="center">
   <h1 align="center">CarAppStore</h1>
   <p align="center">
-    <b>跨平台应用分发与管理 App · Android 客户端</b><br/>
-    面向手机、平板、桌面级大屏和可选车载形态复用应用目录、下载、安装、升级、策略与任务中心
+    <b>跨平台应用分发与管理 App · Android 客户端实现</b><br/>
+    应用目录 → 下载 → 安装 → 升级 → 状态与策略，一条主链路贯通手机、平板与桌面级大屏
   </p>
 </p>
 
@@ -16,158 +16,170 @@
 
 ## 简介
 
-CarAppStore 是一个跨平台应用分发与管理 App。当前仓库承载它的 Android/Kotlin 客户端实现，核心链路包括应用目录、首页推荐、搜索、详情、我的应用、下载、安装、升级、状态归约、策略门控、应用管理和任务中心。
+CarAppStore 是一个跨平台应用分发与管理 App 的 Android 客户端实现。它把**应用目录、下载、安装、升级、状态归约、策略门控**和**任务中心**串成一条完整闭环：后端下发目录，客户端按策略拉取并校验 APK，通过系统 `PackageInstaller` 完成安装，再由状态中心把下载 / 安装 / 升级的运行态归约成页面上的主按钮与状态文案。
 
-项目已经完成多终端 UI 壳层和主要页面开发，不再只是静态 Demo。当前工程可生成 Debug/Release APK，页面可跑通目录、状态中心、策略门控、任务中心和下载/安装/升级主链路；真实联网目录、APK 下载源和生产环境验收仍是下一步接入重点。
+仓库当前交付的是 Android / Kotlin 客户端。手机、平板、桌面级大屏共享同一组页面与业务状态；车载 OEM 车况、驻车 / 行车语义属于**可选平台适配**，不是产品定义，也不是通用版本的发布前提。
 
-产品定位与代码边界以 [docs/00-产品定位与平台边界.md](docs/00-产品定位与平台边界.md) 为准：Android 是当前实现平台，车载 OEM 能力是可选适配器，不是产品定义或通用版本的发布前提。
+产品边界与术语以 [docs/00-产品定位与平台边界.md](docs/00-产品定位与平台边界.md) 为准。
 
-## 当前同步基线
+## 界面设计参考
 
-- 当前主分支：`main`
-- 已同步远端：`origin/main`
-- 当前审查规划、逐项修复与本地验证记录见 [2026-10 深度审查与修复规划](docs/36-2026-10深度审查与修复规划.md)、[第二轮代码审查](docs/37-2026-11第二轮代码审查与修复.md) 与 [第三轮 JDK 21 + P2 收口](docs/38-2026-11第三轮JDK21与P2收口.md)。CI 执行 Debug / Release 单测、Lint 和 APK 构建，并从 XML 自动生成带提交 SHA 的验证摘要。
-- 每个提交的实际门禁结果以 GitHub Actions 对应 SHA 的运行和 `carappstore-verification-<SHA>` 产物为准；其中测试、Lint 与设备/生产验收分开记录。
-- 换机接手总览：[docs/29-换机接手与当前进度总览.md](docs/29-换机接手与当前进度总览.md)
+> 下列为界面设计稿，用于表达多终端布局意图；实际实现以仓库内 `layout/`、`layout-sw600dp/`、`layout-sw900dp-land/` 资源为准。
 
-实际最新状态请以 `git status --short --branch` 和 `git log --oneline -5` 为准。
-
-## 当前效果
-
-| 多终端 UI | 首页与应用卡片 |
+| 多终端壳层 | 首页与应用卡片 |
 | --- | --- |
 | <img src="docs/设计/01_多设备应用商店界面展示_3x高清.jpg" alt="多终端应用商店 UI" width="420"/> | <img src="docs/设计/05_抖音应用商店展示界面合集_3x高清.jpg" alt="应用商店首页与卡片" width="420"/> |
 
-| 下载管理 | 升级管理 |
+| 下载中心 | 升级中心 |
 | --- | --- |
 | <img src="docs/设计/06_下载管理界面设计合集_3x高清.jpg" alt="下载管理界面" width="420"/> | <img src="docs/设计/07_应用更新界面设计展示_3x高清.jpg" alt="应用升级界面" width="420"/> |
 
-完整设计参考见 [docs/设计](docs/设计)，多终端布局说明见 [docs/27-多端UI框架设计.md](docs/27-多端UI框架设计.md)。
+完整设计稿见 [docs/设计](docs/设计)，响应式布局规范见 [docs/设计/首页响应式设计规范.md](docs/设计/首页响应式设计规范.md)。
 
-## 架构图
+## 核心能力
 
-| 图 | 说明 |
+**目录与分发**
+- 远端目录 `HTTP → 磁盘缓存 → 内置 raw 资源` 三级回退，支持 ETag / Last-Modified 条件请求
+- 可见目录的内存缓存以「请求指纹（endpoint + headers，含灰度头）+ 数据来源」为键：远端结果 30s、降级结果 3s，指纹不匹配立即失效
+- Android 条目的信任元数据在**目录解析阶段**强制：必须提供正数 `versionCode` 与至少一个签名证书 SHA-256 摘要
+- 运营治理字段本地生效：灰度、黑白名单、隐藏 / 下架、回滚版本
+
+**下载**
+- 真实 HTTP 下载、Range 断点续传、分片下载、合并校验、暂停 / 取消、失败恢复
+- HEAD / GET / Range 请求统一携带运行时短期凭据，手动逐跳跟随重定向并按 origin 决定是否转发凭证
+- 写盘失败独立归类（`STORAGE_IO` / `STORAGE_INSUFFICIENT`），不与网络错误混用
+- 下载任务目录通过任务 ID 白名单 + canonical path containment 双层防护
+
+**安装**
+- `PackageInstaller.Session` 安装链路、用户确认页分发、安装会话持久化与会话冷启动对账
+- 创建 Session 前校验 APK 包名、`versionCode`、签名证书；安装成功后以 PackageManager 事实收口
+- 安装失败按类型归约：环境类（策略拦截）保留重试安装，产物不一致引导重新下载，平台 / 系统能力缺失直接置灰
+
+**升级**
+- 单个 / 批量升级检测与串行执行，目标版本号与执行权双重去重
+- 下载前、进入安装前、等待下载与等待安装四个节点复查策略，中途失效以 `POLICY_BLOCKED` 收敛并保留重试
+- staged 目标版本在成功与失败路径都会消费，失败不会污染下一次普通安装的版本比对
+
+**状态与策略**
+- `StateCenter` + `StateReducer` 统一归约下载 / 安装 / 升级运行态，输出页面主按钮与状态文案
+- `PolicyCenter` 统一处理 Wi-Fi、存储与按平台启用的附加策略，策略与平台能力解耦
+
+**多端 UI**
+- 首页、搜索、详情、我的应用、下载中心、安装中心、升级中心、开发者设置共 8 个页面
+- 手机、平板、桌面级大屏 / 横屏扩展窗口三套布局壳层，扩展窗口提供侧边导航与任务摘要栏
+
+**观测与安全**
+- 页面曝光、主动作点击、下载 / 安装 / 升级结果本地事件落盘；未被上报通道接收的事件进入有界队列（200 条）重试
+- 生产目录 / CDN / 认证 / 签名门禁由 `verifyProductionConfig` 与 `verify-production-readiness.ps1` 强制，密钥不进入仓库
+- Release 固定生产环境并使用安全空目录回退，LOCAL_SIM 目录与调试能力仅在 Debug 生效
+
+## 技术栈
+
+| 类别 | 选型 |
 | --- | --- |
-| [项目模块架构图](docs/architecture-project-modules.svg) | `app / feature-* / business / data / core / common` 分层与依赖方向 |
-| [七个业务模块关系图](docs/architecture-business-modules.svg) | 下载、安装、升级、应用管理、状态中心、策略中心、Repository 的关系 |
-| [主链路流程图](docs/architecture-main-flow.svg) | 从页面事件到策略判断、状态更新、Repository 和 core 执行能力的闭环 |
+| 语言 | Kotlin 2.0.0 |
+| 构建 | Gradle 8.14.3 · Android Gradle Plugin 8.13.2 |
+| JDK | 21（`compileOptions` / `jvmTarget` / CI 基线一致） |
+| SDK | compileSdk 36 · targetSdk 36 · minSdk 26 |
+| 架构 | MVVM + 单向数据流，手动依赖装配（`AppContainer`） |
+| 导航 | `Activity + FragmentManager`（不引入 Navigation） |
+| 依赖注入 | 手动装配（不引入 Hilt / Dagger） |
+| 异步 | Coroutines + Flow |
+| 存储 | 自研 `VersionedJsonStore`（schema 版本 + 迁移 + 原子写 + 进程锁） |
+| CI | GitHub Actions（单测 / 编译 / Lint / Debug & Release APK / 产物归档） |
 
-PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-diagrams.md)。
+## 快速开始
 
-## 核心设计
+### 1. 环境要求
 
-- **MVVM + 单向数据流**：`View -> Event -> ViewModel -> State -> View`
-- **手动依赖装配**：使用 `AppContainer`，不引入 Hilt/Dagger
-- **固定页面导航**：使用 `Activity + FragmentManager`，不引入 Navigation
-- **业务边界清晰**：下载、安装、升级、应用管理、状态中心、策略中心、Repository 各自收口职责
-- **安全与可恢复性优先**：策略门控、任务恢复、失败可见性和系统边界治理优先于运营功能
-- **跨平台核心、平台能力适配**：业务边界和状态语义保持通用，Android 系统能力与可选 OEM 能力收口在桥接层
-- **多终端 UI 适配**：手机、平板和桌面级大屏/横屏窗口共享同一组页面和业务状态，车载横屏按需复用扩展布局
-
-## 模块一览
-
-| 模块 | 职责 |
-| --- | --- |
-| `app` | Application、MainActivity、Fragment 导航、AppContainer 依赖装配和系统桥接 |
-| `common` | 基类、共享 UI、导航接口、通用结果类型和共享资源 |
-| `core` | 真实文件下载器、系统安装会话、JSON 存储、日志与打点基础能力 |
-| `data` | Repository、远端目录、本地结构化存储、系统数据源和模型映射 |
-| `business` | 七个业务域的流程编排、策略拦截、状态归约和页面聚合 |
-| `feature-*` | 首页、详情、搜索、我的应用、下载中心、安装中心、升级中心、开发者设置 |
-
-## 已具备能力
-
-- HTTP 下载、Range 断点续传、分片下载、合并校验、暂停/取消和失败恢复；运行态事件与任务记录落盘按时间节流，任务中心统计快照与页面刷新统一周期限频，避免高频进度触发全量重算且保证持续下载期间及时刷新
-- `PackageInstaller.Session` 安装链路、用户确认页分发、安装会话持久化
-- `VersionedJsonStore` 统一 JSON 存储，支持 schema 版本、迁移、并发写锁和原子写
-- 远端目录 `HTTP -> 本地缓存 -> 资源目录` 回退链路，支持 ETag / Last-Modified 条件请求
-- `DefaultStateCenter` 统一维护下载、安装、升级运行态，并推导页面主按钮和状态文案
-- `DefaultPolicyCenter` 统一处理 Wi-Fi、存储和按平台启用的附加策略；驻车/车况属于可选车载策略
-- 首页、搜索、详情、我的应用、下载中心、安装中心、升级中心和开发者设置页面
-- 手机、平板、桌面级大屏/横屏响应式壳层，扩展窗口提供侧边导航和任务摘要栏
-- 应用图标、详情头图和详情截图加载能力，支持 `asset://`、`file://`、`http(s)://`，失败时回退文本兜底
-- 本地事件打点落盘、生产目录/CDN/认证/签名门禁、Release 签名环境变量入口和设备证据采集脚本
-- 目录运营治理字段：灰度、黑白名单、隐藏/下架和回滚版本本地过滤
-- APK 安装前包名、`versionCode`、签名证书 SHA-256 校验，以及安装后 PackageManager 事实核对
-- 目录 `appId` / `packageName` 白名单、重复项拒绝和下载任务 canonical path containment
-- Release 固定生产环境并使用安全空目录回退，LOCAL_SIM 目录与 Mock 能力仅在 Debug 生效
-- `VersionedJsonStore` 同文件跨实例共享锁，冷启动会对账 PackageInstaller Session 与已安装事实
-- GitHub Actions 已定义 JDK 21 单测、编译、Lint、Debug/Release APK 验证和产物归档
-
-## 外部接入状态
-
-仓库内已经预留生产接入点。通用 Android 发布基线和可选平台专项必须分开验收：
-
-| 接入项 | 当前状态 |
-| --- | --- |
-| 远端目录 API | 客户端链路、缓存回退、鉴权头、HTTPS/签名门禁和 Gradle/环境变量注入已完成；真实服务仍须提供 APK `versionCode`、`signerCertificateSha256` 并完成联调 |
-| APK 联网下载源 | 下载器支持运行时短期凭证与签名 URL，覆盖 HEAD/GET/Range、断点续传、checksum 和安装前身份校验；令牌签发/刷新、真实 CDN、包体和灰度策略仍须外部接入，详见 [鉴权接入](docs/35-运行时短期鉴权接入.md) |
-| Android 设备安装行为 | 已接 Android `PackageInstaller`，并在创建会话前检查“允许安装未知应用”权限；不同 Android 版本和 ROM 的确认页、回调码及权限行为仍需设备矩阵验证 |
-| 通用平台策略解耦 | 已完成：只有 OEM 车况动作和驻车字段配置完整时才启用车载驻车安装限制；普通手机、平板和大屏不依赖车况信号 |
-| 应用平台能力 | 目录已支持 `supportedPlatforms`，客户端显式维护 `currentPlatform`；Android 客户端会禁用并在下载、安装、升级业务层拒绝其他平台安装包 |
-| 可选车载平台适配 | 已定义 `VehicleStateSignalProvider` 并支持广播型 OEM 接入；只有发行目标包含车载设备时才需要接真实协议并执行驻车/行车专项验收 |
-| 运营观测 | 本地事件落盘已接入；上传服务、告警看板和隐私合规字段需要接生产平台 |
-
-## 环境要求
-
-- Android Studio 或命令行 Android Gradle 环境
-- JDK/JBR 21（本工程 `compileOptions` / `jvmTarget` 与 CI 基线均为 21）
+- JDK / JBR **21**（Android Studio 自带 JBR 若是 25 需单独准备 21，Gradle 8.14 不支持 25）
 - Android SDK Platform 36、Build Tools 36.x、Platform Tools
-- Android Gradle Plugin 8.13.2 / Kotlin 2.0.0 / Gradle 8.14.3（由 wrapper 固定）
-- compileSdk 36，targetSdk 36，minSdk 26
+- Python 3.10+（仅用于仓库自带的 `tools/` 脚本）
 
-新机器接手先做环境自检（纯只读诊断，不安装工具链、不修改仓库文件）：
+### 2. 环境自检
 
 ```bash
 python tools/verification/check_build_env.py
 ```
 
-脚本逐项检查 `java` 版本、`JAVA_HOME`、Android SDK 路径与 `platforms;android-36`、`local.properties` 和 Gradle wrapper，
-对缺失项给出具体修复命令；存在失败项时退出码为 1，加 `--json` 可输出机器可读结果。自检通过后再执行下面的构建门禁。
+纯只读诊断，不安装工具链、不修改仓库文件。逐项检查 `java` 版本、`JAVA_HOME`、SDK 路径与 `platforms;android-36`、`local.properties` 和 Gradle wrapper；存在失败项时退出码为 1，`--json` 可输出机器可读结果。
 
-SDK 路径可由 `ANDROID_HOME` / `ANDROID_SDK_ROOT` 提供，也可在仓库根创建 `local.properties` 写入 `sdk.dir=<SDK 绝对路径>`；
-该文件已在 `.gitignore` 中，不要提交。CI 使用环境变量，因此不需要 `local.properties`。
+SDK 路径可由 `ANDROID_HOME` / `ANDROID_SDK_ROOT` 提供，也可在仓库根目录的 `local.properties` 写 `sdk.dir=<SDK 绝对路径>`（该文件已在 `.gitignore` 中，不要提交；CI 用环境变量，不需要它）。
 
-## 构建与测试
-
-Windows PowerShell:
-
-```powershell
-$env:JAVA_HOME="<your-jdk-17-path>"
-.\gradlew.bat testDebugUnitTest testReleaseUnitTest --no-daemon
-.\gradlew.bat compileDebugKotlin --no-daemon
-.\gradlew.bat :app:assembleDebug --no-daemon
-.\gradlew.bat lintDebug lintRelease --no-daemon
-.\gradlew.bat :app:assembleRelease --no-daemon
-```
-
-macOS / Linux / Git Bash:
+### 3. 克隆与构建
 
 ```bash
-./gradlew testDebugUnitTest testReleaseUnitTest --no-daemon
-./gradlew compileDebugKotlin --no-daemon
-./gradlew :app:assembleDebug --no-daemon
-./gradlew lintDebug lintRelease --no-daemon
-./gradlew :app:assembleRelease --no-daemon
+git clone https://github.com/XZQ/CarAppStore.git
+cd CarAppStore
 ```
 
-`:app:assembleRelease` 只用于常规工程验证，未提供签名参数时允许生成未签名产物。生产发布必须先按 [生产发布配置与设备验证基线](docs/33-生产发布配置与设备验证基线.md) 准备非仓库密钥，再执行：
+Windows PowerShell：
+
+```powershell
+$env:JAVA_HOME="<your-jdk-21-path>"
+.\gradlew.bat assembleDebug --no-daemon
+.\gradlew.bat testDebugUnitTest testReleaseUnitTest --no-daemon
+.\gradlew.bat lintDebug lintRelease --no-daemon
+```
+
+macOS / Linux / Git Bash：
+
+```bash
+./gradlew assembleDebug --no-daemon
+./gradlew testDebugUnitTest testReleaseUnitTest --no-daemon
+./gradlew lintDebug lintRelease --no-daemon
+```
+
+产物：`app/build/outputs/apk/debug/app-debug.apk`；`:app:assembleRelease` 在未提供签名参数时只生成未签名产物，仅用于常规工程验证。
+
+### 4. 本地模拟跑通主链路
+
+```bash
+python tools/local-sim/generate_catalog.py
+python tools/local-sim/serve.py     # 监听 0.0.0.0:8080，支持 Range
+```
+
+在 App 的「开发者设置」中切到 **LOCAL_SIM** 环境（App 会重启重建依赖容器），即可用模拟器 `10.0.2.2:8080` 访问本地目录与 APK，验证「浏览 → 详情 → 下载 → 暂停续传 → 安装」。完整步骤见 [docs/32-本地验证指南.md](docs/32-本地验证指南.md)。
+
+### 5. 生产构建
 
 ```powershell
 .\tools\production\verify-production-readiness.ps1
 ```
 
-该入口会校验生产目录/CDN 的 HTTPS 地址、目录与 CDN 认证模式、keystore/alias/password，并构建和验证签名 Release APK；配置值和密钥不会写入 Git。
+校验生产目录 / CDN 的 HTTPS 地址、目录与 CDN 认证模式、keystore / alias / password，并构建验证签名 Release APK。配置值与密钥来自安全环境注入，不写入 Git。详见 [docs/33-生产发布配置与设备验证基线.md](docs/33-生产发布配置与设备验证基线.md)。
+
+## 架构
+
+<img src="docs/architecture-project-modules.svg" alt="项目模块架构" width="720"/>
+
+| 层次 | 模块 | 职责 |
+| --- | --- | --- |
+| 壳层 | `app` | Application、MainActivity、Fragment 导航、`AppContainer` 装配与系统桥接 |
+| 特性 | `feature-*` | 8 个业务页面的 UI 与 ViewModel |
+| 业务 | `business` | 下载 / 安装 / 升级 / 应用管理 / 状态中心 / 策略中心 / Repository 七大业务域编排 |
+| 数据 | `data` | Repository、远端目录、本地结构化存储、系统数据源、模型映射 |
+| 基础 | `core` `common` | 下载器、安装器、JSON 存储、日志打点；基类、共享 UI 与资源 |
+
+关键设计决策：
+
+- **MVVM + 单向数据流**：页面只订阅状态、只抛事件，不直接调用业务实现
+- **手动依赖装配**：`AppContainer` 统一装配，不引入 Hilt / Dagger
+- **固定页面导航**：`Activity + FragmentManager`，不引入 Navigation
+- **业务边界不可破坏**：跨模块调用只走公开接口，`app` 模块不重新业务化
+- **安全优先**：策略门控、APK 身份校验、失败可见性优先于运营功能
+
+更多架构说明见 [docs/01-架构总览.md](docs/01-架构总览.md)、[docs/03-七个业务模块详解.md](docs/03-七个业务模块详解.md)、[docs/16-整体业务主链路总流程.md](docs/16-整体业务主链路总流程.md)。
 
 ## 项目结构
 
 ```text
 CarAppStore/
-├── app/                        # 壳层：AppContainer、MainActivity
-├── common/                     # 基类、通用 UI、共享资源
-├── core/                       # 下载器、安装器、存储等基础能力
-├── data/                       # Repository、DataSource、本地存储和模型
-├── business/                   # 下载/安装/升级/应用管理/状态/策略等业务层
+├── app/                        # 壳层：AppContainer、MainActivity、Fragment 导航
+├── common/                     # 基类、共享 UI、导航接口、通用结果类型
+├── core/                       # 下载器、安装器、JSON 存储、日志与打点
+├── data/                       # Repository、DataSource、本地存储、模型映射
+├── business/                   # 七大业务域：download/install/upgrade/appmanager/state/policy/repository
 ├── feature-home/               # 首页
 ├── feature-detail/             # 详情页
 ├── feature-myapp/              # 我的应用
@@ -176,30 +188,49 @@ CarAppStore/
 ├── feature-installcenter/      # 安装中心
 ├── feature-upgrade/            # 升级中心
 ├── feature-debug/              # 开发者设置
-├── docs/                       # 架构、流程、联调和验收文档
-├── AGENTS.md                   # Codex 说明
-├── CLAUDE.md                   # 项目编码规范
+├── docs/                       # 架构、流程、联调与验收文档
+├── tools/                      # 环境自检、本地模拟、生产门禁、设备证据采集
+├── AGENTS.md                   # Agent 接手规则
+├── CLAUDE.md                   # 项目级编码边界
 ├── build.gradle.kts            # 根构建文件
 └── settings.gradle.kts         # 模块声明
 ```
 
-## 推荐阅读
+## 文档
 
-| 文档 | 说明 |
+| 分类 | 文档 |
 | --- | --- |
-| [产品定位与平台边界](docs/00-产品定位与平台边界.md) | 跨平台产品定义、当前 Android 实现和可选车载适配边界 |
-| [换机接手与当前进度总览](docs/29-换机接手与当前进度总览.md) | 换电脑、重新 clone、交给新 Agent 时先确认的同步基线 |
-| [当前项目状态与接手指南](docs/21-当前项目状态与接手指南.md) | 当前阶段、测试覆盖、风险和接手顺序 |
-| [生产发布配置与设备验证基线](docs/33-生产发布配置与设备验证基线.md) | 生产端点、认证、签名门禁与 Android 设备矩阵证据规则 |
-| [架构总览](docs/01-架构总览.md) | 整体分层与依赖方向 |
-| [七个业务模块详解](docs/03-七个业务模块详解.md) | 业务模块边界和职责 |
-| [整体业务主链路总流程](docs/16-整体业务主链路总流程.md) | 下载、安装、升级主链路流程 |
-| [远端目录与可选平台信号接入约定](docs/23-远端目录与车况信号接入约定.md) | 后端和可选 OEM 适配约定 |
-| [Android 设备矩阵回归测试清单](docs/25-真机回归测试清单.md) | 手机、平板、桌面级大屏和可选车载设备验证清单 |
-| [后端与平台适配器验收标准](docs/26-后端与OEM验收标准.md) | 通用对接与可选 OEM 专项验收标准 |
-| [跨平台 UI 与多终端框架设计](docs/27-多端UI框架设计.md) | 手机、平板、桌面级大屏和可选车载形态的 UI 适配顺序 |
-| [商用化剩余事项](docs/28-商用化剩余事项.md) | 已补齐能力、外部配置入口和下一步验收顺序 |
+| 入门 | [产品定位与平台边界](docs/00-产品定位与平台边界.md) · [换机接手与当前进度总览](docs/29-换机接手与当前进度总览.md) · [当前项目状态与接手指南](docs/21-当前项目状态与接手指南.md) |
+| 架构 | [架构总览](docs/01-架构总览.md) · [七个业务模块详解](docs/03-七个业务模块详解.md) · [整体业务主链路总流程](docs/16-整体业务主链路总流程.md) · [接口说明](docs/07-接口说明.md) |
+| 模块 | [下载](docs/09-下载模块架构与流程.md) · [安装](docs/10-安装模块架构与流程.md) · [升级](docs/11-升级模块架构与流程.md) · [状态中心](docs/12-状态中心架构与流程.md) · [策略中心](docs/13-策略中心架构与流程.md) · [Repository](docs/15-Repository架构与流程.md) |
+| 联调验收 | [远端目录接入约定](docs/23-远端目录与车况信号接入约定.md) · [联调执行清单](docs/24-后端与OEM联调执行清单.md) · [真机回归清单](docs/25-真机回归测试清单.md) · [验收标准](docs/26-后端与OEM验收标准.md) · [生产发布基线](docs/33-生产发布配置与设备验证基线.md) |
+| 设计与商用 | [跨平台 UI 框架设计](docs/27-多端UI框架设计.md) · [商用化剩余事项](docs/28-商用化剩余事项.md) · [运行时短期鉴权接入](docs/35-运行时短期鉴权接入.md) |
+| 审查记录 | [2026-10 深度审查](docs/36-2026-10深度审查与修复规划.md) · [2026-11 第二轮](docs/37-2026-11第二轮代码审查与修复.md) · [2026-11 第三轮 JDK 21 与 P2 收口](docs/38-2026-11第三轮JDK21与P2收口.md) |
 
-## 发布说明
+完整索引见 [docs/README.md](docs/README.md)。
 
-本仓库已经具备跨平台应用分发产品的 Android 主体 UI、工程分层、下载/安装/升级主链路、`supportedPlatforms/currentPlatform` 分流、本地事件源、APK 身份校验、Release 环境隔离、生产配置/签名门禁、安装会话冷启动对账和 CI 工作流。下一步通用主线是把真实生产目录、APK CDN、认证凭据和正式签名从安全环境注入，接入埋点上传并完成 Android 设备矩阵回归；OEM 车况和车载 ROM 验收只在车载发行目标中执行。
+## 项目状态与外部依赖
+
+客户端侧能力已经闭环，以下事项需要真实外部资源或目标设备才能完成，仓库内已预留接入点：
+
+| 事项 | 归属 | 解锁条件 |
+| --- | --- | --- |
+| 真实远端目录 API（含 `versionCode`、签名摘要、灰度头、错误码） | 外部服务 | 后端提供正式地址与元数据并完成联调 |
+| APK CDN 与运行时令牌签发 / 刷新 | 外部服务 | 提供登录会话与令牌协议 |
+| 正式签名（keystore / alias / 密码） | 安全环境 | 从非仓库密钥环境注入 4 个签名变量 |
+| Android 设备矩阵回归 | 真机 / QA | 覆盖安装确认页、取消、进程重建等设备证据 |
+| 埋点上传与失败归因看板 | 外部平台 | 上传接口、隐私字段与告警验收 |
+| 可选车载 OEM 车况信号 | 按发行目标 | 仅当发行目标包含车载设备时接真实协议 |
+
+完整顺序与阻塞归属见 [docs/29 §5](docs/29-换机接手与当前进度总览.md) 与 [docs/28-商用化剩余事项.md](docs/28-商用化剩余事项.md)。
+
+## 开发约定
+
+- 提交与改动前先读 [AGENTS.md](AGENTS.md)（Agent 接手规则与硬约束）与 [CLAUDE.md](CLAUDE.md)（项目级编码边界）
+- 业务域边界、依赖装配方式与导航方式不可擅自更改
+- 每个提交的门禁结果以 GitHub Actions 对应 SHA 的 `carappstore-verification-<SHA>` 产物为准
+- 最新进度以 `git status --short --branch` 和 `git log --oneline -5` 为准
+
+## 许可证
+
+本仓库暂未附带 `LICENSE` 文件，当前仅用于内部开发与联调。分发或对外使用前请先明确授权条款。
