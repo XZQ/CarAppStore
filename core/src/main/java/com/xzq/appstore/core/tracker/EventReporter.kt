@@ -18,7 +18,8 @@ interface EventReporter {
     /**
      * 上报一批事件。
      *
-     * @return true 表示至少成功入队 / 已交给上传通道；false 表示本次上报失败，调用方可保留事件用于下次重试
+     * @return true 表示至少成功入队 / 已交给上传通道；false 表示本次上报失败，
+     *         调用方会保留事件并在下一次上报时重试（有界队列，长时间失败时丢弃最旧事件）
      */
     fun report(events: List<TrackedEvent>): Boolean
 }

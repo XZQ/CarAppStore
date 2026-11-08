@@ -91,6 +91,42 @@ class EventReporterTest {
     }
 
     @Test
+    fun `被拒绝的事件会随下一次上报重试`() {
+        val file = Files.createTempDirectory("event-tracker").toFile().resolve("events.tsv")
+        val batches = mutableListOf<List<TrackedEvent>>()
+        var accept = false
+        val reporter = object : EventReporter {
+            override fun report(events: List<TrackedEvent>): Boolean {
+                batches += events.toList()
+                return accept
+            }
+        }
+        val tracker = FileEventTracker(file, reporter, clock = { 1_000L }, writeScope = CoroutineScope(Dispatchers.Unconfined))
+
+        tracker.track("first_event")
+        assertEquals(1, tracker.pendingEventCount())
+
+        accept = true
+        tracker.track("second_event")
+
+        assertEquals(listOf("first_event", "second_event"), batches.last().map { it.payload })
+        assertEquals(0, tracker.pendingEventCount())
+    }
+
+    @Test
+    fun `待重试队列有上限并丢弃最旧事件`() {
+        val file = Files.createTempDirectory("event-tracker").toFile().resolve("events.tsv")
+        val reporter = object : EventReporter {
+            override fun report(events: List<TrackedEvent>): Boolean = false
+        }
+        val tracker = FileEventTracker(file, reporter, clock = { 1_000L }, writeScope = CoroutineScope(Dispatchers.Unconfined))
+
+        repeat(205) { index -> tracker.track("event_$index") }
+
+        assertEquals("长时间上报失败时内存必须有界", 200, tracker.pendingEventCount())
+    }
+
+    @Test
     fun `FileEventTracker warns when reporter rejects event batch`() {
         val file = Files.createTempDirectory("event-tracker").toFile().resolve("events.tsv")
         val warnings = mutableListOf<String>()
