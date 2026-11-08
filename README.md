@@ -205,7 +205,7 @@ CarAppStore/
 | 模块 | [下载](docs/09-下载模块架构与流程.md) · [安装](docs/10-安装模块架构与流程.md) · [升级](docs/11-升级模块架构与流程.md) · [状态中心](docs/12-状态中心架构与流程.md) · [策略中心](docs/13-策略中心架构与流程.md) · [Repository](docs/15-Repository架构与流程.md) |
 | 联调验收 | [远端目录接入约定](docs/23-远端目录与车况信号接入约定.md) · [联调执行清单](docs/24-后端与OEM联调执行清单.md) · [真机回归清单](docs/25-真机回归测试清单.md) · [验收标准](docs/26-后端与OEM验收标准.md) · [生产发布基线](docs/33-生产发布配置与设备验证基线.md) |
 | 设计与商用 | [跨平台 UI 框架设计](docs/27-多端UI框架设计.md) · [商用化剩余事项](docs/28-商用化剩余事项.md) · [运行时短期鉴权接入](docs/35-运行时短期鉴权接入.md) |
-| 审查记录 | [2026-10 深度审查](docs/36-2026-10深度审查与修复规划.md) · [2026-11 第二轮](docs/37-2026-11第二轮代码审查与修复.md) · [2026-11 第三轮 JDK 21 与 P2 收口](docs/38-2026-11第三轮JDK21与P2收口.md) |
+| 审查记录 | [2026-10 深度审查](docs/36-2026-10深度审查与修复规划.md) · [2026-11 第二轮](docs/37-2026-11第二轮代码审查与修复.md) · [2026-11 第三轮 JDK 21 与 P2 收口](docs/38-2026-11第三轮JDK21与P2收口.md) · [2026-11 CI 红灯排查与下载器回归修复](docs/39-2026-11CI红灯排查与下载器回归修复.md) |
 
 完整索引见 [docs/README.md](docs/README.md)。
 
@@ -228,7 +228,7 @@ CarAppStore/
 
 - 提交与改动前先读 [AGENTS.md](AGENTS.md)（Agent 接手规则与硬约束）与 [CLAUDE.md](CLAUDE.md)（项目级编码边界）
 - 业务域边界、依赖装配方式与导航方式不可擅自更改
-- 每个提交的门禁结果以 GitHub Actions 对应 SHA 的 `carappstore-verification-<SHA>` 产物为准
+- 每个提交的门禁结果以 GitHub Actions 对应 SHA 的 `carappstore-verification-<SHA>` 产物为准；push 后请确认该 SHA 的 CI 结论
 - 最新进度以 `git status --short --branch` 和 `git log --oneline -5` 为准
 
 ## 许可证

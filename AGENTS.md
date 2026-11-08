@@ -33,7 +33,8 @@
 - 构建前先运行 `python tools/verification/check_build_env.py` 自检 JDK、Android SDK 与 `local.properties`；
   该脚本只做诊断，不安装工具链，也不修改仓库文件。
 - 若自检报缺失，按脚本给出的修复建议配置 JDK 21、Android SDK Platform 36 和 `local.properties` 后再运行 `gradlew`。
-- 验证口径以 `docs/36`–`docs/38` 和对应提交 SHA 的 CI 产物为准；不要在文档里重复硬编码测试数量，避免再次漂移。
+- 验证口径以 `docs/36`–`docs/39` 和对应提交 SHA 的 CI 产物为准；不要在文档里重复硬编码测试数量，避免再次漂移。
+- **push 之后必须核查 CI 结论**：用 GitHub Actions 公开接口确认该 SHA 的运行结果（`GET /repos/{owner}/{repo}/actions/runs?head_sha=<完整 SHA>`，无需权限即可读到结论），不要只看本地 `git status`。本地「能复现某个失败」也不等于「环境问题」——判定前先做对照实验（把代码回退到父提交看是否转绿）。
 
 ## 产品定位硬约束
 
