@@ -49,7 +49,7 @@ function Import-ProductionEnvironment {
     Write-Host "Loaded production configuration keys from $Path (values redacted)."
 }
 
-function Assert-Java17OrNewer {
+function Assert-Java21OrNewer {
     $previousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
@@ -60,11 +60,11 @@ function Assert-Java17OrNewer {
         $ErrorActionPreference = $previousErrorActionPreference
     }
     if ($javaExitCode -ne 0) {
-        throw 'Java is unavailable. Configure JAVA_HOME to JDK 17 or newer.'
+        throw 'Java is unavailable. Configure JAVA_HOME to JDK 21 or newer.'
     }
     $match = [regex]::Match($versionOutput, 'version\s+"(?<major>\d+)')
-    if (-not $match.Success -or [int]$match.Groups['major'].Value -lt 17) {
-        throw 'Production build requires JDK 17 or newer. Configure JAVA_HOME before running this script.'
+    if (-not $match.Success -or [int]$match.Groups['major'].Value -lt 21) {
+        throw 'Production build requires JDK 21 or newer. Configure JAVA_HOME before running this script.'
     }
 }
 
@@ -101,7 +101,7 @@ function Find-ApkSigner {
 Push-Location $repoRoot
 try {
     Import-ProductionEnvironment -Path $EnvironmentFile
-    Assert-Java17OrNewer
+    Assert-Java21OrNewer
     & (Join-Path $repoRoot 'gradlew.bat') assembleProductionRelease --no-daemon --stacktrace
     if ($LASTEXITCODE -ne 0) {
         throw "Production Gradle build failed with exit code $LASTEXITCODE."

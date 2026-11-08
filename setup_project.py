@@ -1,4 +1,6 @@
 from pathlib import Path
+# 历史初始化脚手架：一次性生成初始工程骨架，路径需按本机实际情况修改后使用。
+# 模板里的 Java 基线已与当前工程对齐为 JDK 21（与 tools/verification/check_build_env.py 一致）。
 root = Path('/mnt/data/CarAppStore')
 files = {}
 
@@ -131,12 +133,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "21"
     }
 
     buildFeatures {

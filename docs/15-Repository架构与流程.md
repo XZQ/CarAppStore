@@ -158,6 +158,8 @@ sequenceDiagram
 - 提供首页应用列表、应用详情、升级信息
 - 通过远端目录、条件请求缓存、本地缓存和 raw 资源回退提供目录数据
 - 解析 `versionCode` 和 `signerCertificateSha256`，并通过 `AppCatalogValidator` 校验标识、版本、签名格式及重复项
+- 目录信任元数据由 `AppCatalogTrustPolicy` 控制：生产 / 测试 / 开发环境用 `STRICT`（Android 条目必须有正数 `versionCode` 与至少一个签名摘要），仅 Debug+LOCAL_SIM 用 `RELAXED`
+- 可见目录的内存缓存以「请求指纹（endpoint + headers，含灰度头）+ 数据来源」为键：远端结果缓存 30s，磁盘缓存 / 内置资源降级结果只缓存 3s，指纹不匹配立即失效
 - 任一目录条目非法时拒绝整份来源，让 `ResilientAppCatalogSource` 继续走缓存或 raw 回退，避免产生不完整目录
 - 默认配置仍是示例地址和内置目录，待外部后端替换为真实 API
 

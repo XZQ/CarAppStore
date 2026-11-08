@@ -132,3 +132,5 @@ Android 兼容策略：
 - LOCAL_SIM 只放宽缺失元数据，不放宽实际不匹配。
 - 安装成功状态来自 PackageManager 的实际包名和版本。
 - 相关单测、全量单测、Lint、Debug 和 Release 构建全部通过。
+
+> 实现现状（2026-11 补充）：`versionCode` / 签名摘要的强校验已前移到目录解析阶段（`AppCatalogTrustPolicy.STRICT`），缺项会让整份目录来源被判不可信并回退到磁盘缓存 / raw；校验只作用于 `supportedPlatforms` 含 ANDROID 的条目，同时下发其他平台条目不受影响。详见 [2026-11 第三轮 JDK21 与 P2 收口](../../38-2026-11第三轮JDK21与P2收口.md)。
