@@ -100,6 +100,20 @@ class RealFileDownloaderTest {
 
 
     @Test
+    fun `HEAD 探测后不会遗留只握手不发送请求的连接`() = runBlocking {
+        TestFixture(0, 0, ByteArray(TEST_TOTAL_BYTES.toInt())).use { fixture ->
+            val events = mutableListOf<DownloadEvent>()
+            fixture.downloader.download(fixture.request, DownloadExecutionControl()) { events += it }
+            assertTrue(events.last().toString(), events.last() is DownloadEvent.Completed)
+            // 每条被接受的连接都必须承载恰好一个请求：HEAD 探测之后若留下「只握手、不发请求头」
+            // 的悬空连接，单线程 accept 的服务端会被它永久占住，后续分片 GET 只能等到读超时。
+            val accepted = fixture.server.acceptedSocketCount()
+            assertTrue("expected HEAD plus at least one GET but was $accepted", accepted >= 2)
+            assertEquals(fixture.server.receivedRequestCount(), accepted)
+        }
+    }
+
+    @Test
     fun `insufficient space rejects known package before any body transfer`() = runBlocking {
         TestFixture(0, 0, ByteArray(64 * 1024), availableSpace = { com.xzq.appstore.core.policy.StorageBudget.RESERVE_BYTES + 128 * 1024 - 1 }).use { fixture ->
             val events = mutableListOf<DownloadEvent>()
@@ -852,11 +866,15 @@ class RealFileDownloaderTest {
         /** 测试服务端监听 socket。 */
         private val serverSocket = ServerSocket(0)
 
+        /** 已接受的连接数；与请求数不一致说明存在「只握手、不发请求」的悬空连接。 */
+        private val acceptedSocketCount = java.util.concurrent.atomic.AtomicInteger(0)
+
         /** 后台接受连接的线程。 */
         private val acceptThread = Thread {
             while (!serverSocket.isClosed) {
                 try {
                     val socket = serverSocket.accept()
+                    acceptedSocketCount.incrementAndGet()
                     handle(socket)
                 } catch (_: IOException) {
                     if (serverSocket.isClosed) {
@@ -923,6 +941,12 @@ class RealFileDownloaderTest {
                 headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
             }
         }
+
+        /** 服务端已接受的连接数。 */
+        fun acceptedSocketCount(): Int = acceptedSocketCount.get()
+
+        /** 服务端实际读到的请求数。 */
+        fun receivedRequestCount(): Int = synchronized(receivedRequestHeaders) { receivedRequestHeaders.size }
 
         /** 模拟带延迟的元数据探测响应。 */
         private fun handleHead(output: OutputStream) {

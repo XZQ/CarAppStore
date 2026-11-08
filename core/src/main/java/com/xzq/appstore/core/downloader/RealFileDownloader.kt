@@ -474,7 +474,7 @@ class RealFileDownloader(
                 rangeStart = if (meta.supportsRange) resumeOffset else null,
                 rangeEnd = if (segment.endByte >= segment.startByte) segment.endByte else null,
                 ifRange = if (meta.supportsRange) rangeValidator(meta) else null,
-                shouldAbort = control::isStopRequested,
+                control = control,
             )
         } catch (connectFailure: IOException) {
             return handleSegmentError(connectFailure, existingBytes, partFile, request, segment, attempt, control)
@@ -878,15 +878,15 @@ class RealFileDownloader(
 
     /** 通过 HEAD 请求探测远端文件元数据。 */
     private fun probeRemoteMeta(url: String, control: DownloadExecutionControl): DownloadRemoteMeta {
-        val headConnection = openConnection(url, head = true, shouldAbort = control::isStopRequested)
+        // openConnection 已经完成建连并读完响应头，这里【不能】再调用 connect()：
+        // JDK 在响应已缓存（cachedResponse）时的 connect() 会另建一条「只握手、不发请求头」的连接，
+        // 服务端会在读请求行时永久阻塞。单线程 accept 的服务端会因此堵死后续所有请求，
+        // 表现为后续 GET 分片请求全部 readTimeout。
+        val headConnection = openConnection(url, head = true, control = control)
         val removeInterrupt = control.registerInterrupt { headConnection.disconnect() }
         return try {
             if (control.isStopRequested()) {
                 throw IOException("download stopped before probe connect")
-            }
-            headConnection.connect()
-            if (control.isStopRequested()) {
-                throw IOException("download stopped after probe connect")
             }
             when (headConnection.responseCode) {
                 HttpURLConnection.HTTP_OK -> readRemoteMeta(headConnection)
@@ -901,7 +901,7 @@ class RealFileDownloader(
 
     /** 不支持 HEAD 时仅请求一个字节，并在读取响应头后关闭连接，不把错误页当成包体元数据。 */
     private fun probeMetaUsingGet(url: String, control: DownloadExecutionControl): DownloadRemoteMeta {
-        val connection = openConnection(url, rangeStart = 0L, rangeEnd = 0L, shouldAbort = control::isStopRequested)
+        val connection = openConnection(url, rangeStart = 0L, rangeEnd = 0L, control = control)
         val removeInterrupt = control.registerInterrupt { connection.disconnect() }
         return try {
             if (control.isStopRequested()) throw IOException("download stopped before GET probe")
@@ -946,6 +946,10 @@ class RealFileDownloader(
      * Location 校验和停止请求约束：固定头只在同源跳发送，动态凭证每跳经
      * [requestHeadersProvider] 重新计算并由提供器自行拒绝跨 origin，杜绝把凭证转发到
      * 非预期主机；超过 [MAX_REDIRECT_FOLLOW_LIMIT] 次或收到非法 Location 时按失败处理。
+     *
+     * 返回的连接**已完成建连并读完响应头**，调用方直接使用 [HttpURLConnection.getResponseCode]
+     * 与 [HttpURLConnection.getInputStream] 即可；**不得再调用 [HttpURLConnection.connect]**——
+     * JDK 在响应已缓存时的 connect() 会另建一条只握手不发送请求的连接，占用服务端连接槽位。
      */
     private fun openConnection(
         url: String,
@@ -953,23 +957,26 @@ class RealFileDownloader(
         rangeStart: Long? = null,
         rangeEnd: Long? = null,
         ifRange: String? = null,
-        shouldAbort: () -> Boolean = { false },
+        control: DownloadExecutionControl? = null,
     ): HttpURLConnection {
         var currentUrl = url
         var redirectsRemaining = MAX_REDIRECT_FOLLOW_LIMIT
         while (true) {
-            if (shouldAbort()) {
+            if (control?.isStopRequested() == true) {
                 throw IOException("download stopped during redirect")
             }
             val headers = resolveRequestHeaders(currentUrl, originalUrl = url)
             val connection = openSingleConnection(currentUrl, headers, head, rangeStart, rangeEnd, ifRange)
-            // 所有请求统一手动跟随：即使本跳因跨 origin 而不再携带任何请求头，也必须
-            // 继续校验 Location、限制跳数并响应停止请求，不能退回 JDK 的自动跟随。
+            // 等待响应头期间同样要能被停止指令打断：readTimeout 最长可达十几秒，
+            // 期间没有中断钩子会让「收到取消」迟迟不生效。
+            val removeInterrupt = control?.registerInterrupt { connection.disconnect() }
             val statusCode = try {
                 connection.responseCode
             } catch (failure: IOException) {
                 connection.disconnect()
                 throw failure
+            } finally {
+                removeInterrupt?.invoke()
             }
             if (statusCode !in REDIRECT_STATUS_CODES) {
                 return connection
