@@ -220,11 +220,16 @@ class AppLocalDataSource(
         LocalStoreFallbackPolicy.preferFacadeList(facadeSegments, legacySegments)
     }
 
-    /** 清理所有已完成或已取消的下载任务。 */
+    /**
+     * 清理所有已完成或已取消的下载任务。
+     *
+     * 任务事实以 facade 为准，legacy 内存镜像只是历史兼容视图；只遍历 `downloadTasks`
+     * 会让只写入 facade 的任务永远清不掉（界面上「清理已完成」看起来没有反应）。
+     */
     fun clearCompletedDownloadTasks(): Int = legacyStoreLock.withLock {
-        val targets = downloadTasks.values.filter {
-            it.status == DownloadStatus.COMPLETED || it.status == DownloadStatus.CANCELED
-        }
+        val targets = (localStoreFacade.getAllDownloadTasks().map(DownloadTaskMapper::fromEntity) + downloadTasks.values)
+            .distinctBy { it.appId }
+            .filter { it.status == DownloadStatus.COMPLETED || it.status == DownloadStatus.CANCELED }
         targets.forEach { task ->
             // 已取消任务的 APK 不能再复用，需要顺带清理本地文件引用。
             if (task.status == DownloadStatus.CANCELED) {

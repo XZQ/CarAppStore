@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.ContextWrapper
 import androidx.test.core.app.ApplicationProvider
 import com.xzq.appstore.data.local.store.JsonBackedLocalStoreFacade
+import com.xzq.appstore.data.model.DownloadTaskRecord
+import com.xzq.appstore.domain.state.DownloadStatus
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -45,6 +47,35 @@ class AppLocalDataSourceTest {
         assertNull(persisted.consumeStagedUpgradeVersion("app.a"))
         assertNull(AppLocalDataSource(context, JsonBackedLocalStoreFacade(storeFile)).peekStagedUpgradeVersion("app.a"))
     }
+
+    @Test
+    fun `清理已完成任务时以 facade 中的真实记录为准`() {
+        val storeFile = File(context.filesDir, "structured_local_store.json")
+        val persisted = AppLocalDataSource(context, JsonBackedLocalStoreFacade(storeFile))
+        persisted.saveDownloadTask(task("app.done", DownloadStatus.COMPLETED))
+        persisted.saveDownloadTask(task("app.canceled", DownloadStatus.CANCELED))
+        persisted.saveDownloadTask(task("app.running", DownloadStatus.RUNNING))
+
+        // 重新打开后内存镜像为空，只有 facade 里还留着任务记录。
+        val reopened = AppLocalDataSource(context, JsonBackedLocalStoreFacade(storeFile))
+        assertEquals(2, reopened.clearCompletedDownloadTasks())
+
+        assertNull(reopened.getDownloadTask("app.done"))
+        assertNull(reopened.getDownloadTask("app.canceled"))
+        assertEquals(DownloadStatus.RUNNING, reopened.getDownloadTask("app.running")?.status)
+    }
+
+    private fun task(appId: String, status: DownloadStatus) = DownloadTaskRecord(
+        taskId = "task-$appId",
+        appId = appId,
+        status = status,
+        progress = if (status == DownloadStatus.COMPLETED) 100 else 0,
+        targetFilePath = File(context.filesDir, "$appId.apk").absolutePath,
+        downloadedBytes = 0L,
+        totalBytes = 0L,
+        createdAt = 0L,
+        updatedAt = 0L,
+    )
 
     @Test
     fun `distinct ids never alias and remain inside download directory`() {
