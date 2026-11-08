@@ -37,6 +37,46 @@ class VersionedJsonStoreTest {
     }
 
     @Test
+    fun `read 不会把更新 schema 的文件降级回写`() {
+        val storeFile = createTempFile("versioned-json-store-newer.json")
+        val newerBody = """{"schemaVersion":5,"payload":"from-newer-client"}"""
+        storeFile.writeText(newerBody)
+        val store = VersionedJsonStore(
+            storeFile = storeFile,
+            schemaVersion = 2,
+            defaultRootFactory = { JSONObject().put("payload", "default") },
+            migration = { error("降级读取不应执行旧版迁移") },
+        )
+
+        val root = store.read { it }
+
+        assertEquals("from-newer-client", root.optString("payload"))
+        assertEquals("更高版本写入的文件必须保持原样", newerBody, storeFile.readText())
+    }
+
+    @Test
+    fun `降级写入前保留更新 schema 的原始文件`() {
+        val storeFile = createTempFile("versioned-json-store-downgrade.json")
+        val newerBody = """{"schemaVersion":5,"payload":"from-newer-client","futureField":42}"""
+        storeFile.writeText(newerBody)
+        val store = VersionedJsonStore(
+            storeFile = storeFile,
+            schemaVersion = 2,
+            defaultRootFactory = { JSONObject() },
+            migration = { error("降级读取不应执行旧版迁移") },
+        )
+
+        store.update { root -> root.put("payload", "downgraded") }
+
+        val backup = File(storeFile.parentFile, storeFile.name + ".newer-schema")
+        assertTrue("降级写入前必须保留原始文件", backup.isFile)
+        assertEquals(newerBody, backup.readText())
+        val persisted = JSONObject(storeFile.readText())
+        assertEquals(2, persisted.optInt("schemaVersion"))
+        assertEquals("downgraded", persisted.optString("payload"))
+    }
+
+    @Test
     fun `update 会基于默认根节点写入内容`() {
         val storeFile = createTempFile("versioned-json-update.json")
         val store = VersionedJsonStore(

@@ -53,6 +53,11 @@ class VersionedJsonStore(
      */
     fun <T> update(block: (JSONObject) -> T): T = fileLock.withLock {
         val state = loadStateLocked()
+        // 降级写回前先留一份原始文件：旧版本无法理解的字段一旦被覆盖就永久丢失，
+        // 备份让重新安装新版本时仍有机会人工恢复。
+        if (state.fromNewerSchema) {
+            backupNewerSchemaFileLocked()
+        }
         val result = block(state.root)
         persistLocked(state.root)
         result
@@ -64,6 +69,8 @@ class VersionedJsonStore(
         val root: JSONObject,
         /** 是否需要在本次读取后立即回写。 */
         val shouldPersist: Boolean,
+        /** 磁盘上的 schema 是否比当前程序更新（即发生了版本回退）。 */
+        val fromNewerSchema: Boolean = false,
     )
 
     /** 在锁内加载并标准化当前根节点。 */
@@ -74,6 +81,12 @@ class VersionedJsonStore(
             else -> migration(rawValue)
         }
         val currentVersion = root.optInt(KEY_SCHEMA_VERSION, SCHEMA_VERSION_UNKNOWN)
+        if (currentVersion > schemaVersion) {
+            // 用户回退安装旧版本时会读到更高 schema 的文件。此时不能按「旧格式升级」处理：
+            // 迁移函数不了解新字段，回写会把它们连同 schemaVersion 一起永久降级。
+            // 本次读取按原样返回，且不触发任何自动回写。
+            return LoadState(root, shouldPersist = false, fromNewerSchema = true)
+        }
         // 版本不一致时统一走迁移逻辑，再补上最新 schemaVersion。
         val normalizedRoot = if (currentVersion == schemaVersion) {
             root
@@ -123,6 +136,19 @@ class VersionedJsonStore(
                 storeFile.delete()
             }
         }
+    }
+
+    /**
+     * 把更新 schema 的原始文件复制为侧车备份，只在首次降级写入前执行一次。
+     *
+     * 备份失败不阻断写入：此时继续保留主文件反而会让每次启动都重复尝试备份。
+     */
+    private fun backupNewerSchemaFileLocked() {
+        val backupFile = File(storeFile.parentFile, storeFile.name + NEWER_SCHEMA_FILE_SUFFIX)
+        if (backupFile.exists()) {
+            return
+        }
+        runCatching { storeFile.copyTo(backupFile, overwrite = false) }
     }
 
     /** 创建带 schemaVersion 的默认根节点。 */
@@ -183,6 +209,9 @@ class VersionedJsonStore(
 
         /** 损坏 JSON 现场备份的文件后缀，最多保留一代。 */
         const val CORRUPTED_FILE_SUFFIX = ".corrupted"
+
+        /** 版本回退（读到更高 schema）时保留的原始文件后缀，最多保留一代。 */
+        const val NEWER_SCHEMA_FILE_SUFFIX = ".newer-schema"
 
         /** 返回指定文件在当前进程内共享的读写锁。 */
         fun sharedFileLock(storeFile: File): ReentrantLock {
