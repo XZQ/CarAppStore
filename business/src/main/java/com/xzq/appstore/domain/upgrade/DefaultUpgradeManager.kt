@@ -206,11 +206,34 @@ class DefaultUpgradeManager(
                     return
                 }
 
+                DownloadAwaitResult.POLICY_BLOCKED -> {
+                    val reason = policyCenter.canDownload(appId).reason
+                    stateCenter.updateUpgrade(
+                        appId,
+                        UpgradeStatus.FAILED,
+                        errorMessage = BusinessText.upgradeRestricted(reason),
+                        errorCode = POLICY_BLOCKED_CODE,
+                    )
+                    return
+                }
+
                 null -> {
                     stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_DOWNLOAD_TIMEOUT)
                     return
                 }
             }
+        }
+
+        // 进入安装前重新校验策略：下载阶段可能持续数分钟，期间可能已开始行车或存储转低。
+        val installPolicy = policyCenter.canInstall(appId)
+        if (!installPolicy.allow) {
+            stateCenter.updateUpgrade(
+                appId,
+                UpgradeStatus.FAILED,
+                errorMessage = BusinessText.upgradeRestricted(installPolicy.reason),
+                errorCode = POLICY_BLOCKED_CODE,
+            )
+            return
         }
 
         // 第二阶段进入安装链路，等待最终安装结果决定升级是否成功。
@@ -222,6 +245,15 @@ class DefaultUpgradeManager(
             }
 
             InstallAwaitResult.FAILED -> stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_INSTALL_FAILED)
+            InstallAwaitResult.POLICY_BLOCKED -> {
+                val reason = policyCenter.canInstall(appId).reason
+                stateCenter.updateUpgrade(
+                    appId,
+                    UpgradeStatus.FAILED,
+                    errorMessage = BusinessText.upgradeRestricted(reason),
+                    errorCode = POLICY_BLOCKED_CODE,
+                )
+            }
             null -> stateCenter.updateUpgrade(appId, UpgradeStatus.FAILED, errorMessage = BusinessText.UPGRADE_INSTALL_TIMEOUT)
         }
     }
@@ -233,8 +265,18 @@ class DefaultUpgradeManager(
             when (stateCenter.snapshot(appId).downloadStatus) {
                 DownloadStatus.COMPLETED -> return@withTimeoutOrNull DownloadAwaitResult.COMPLETED
                 DownloadStatus.FAILED -> return@withTimeoutOrNull DownloadAwaitResult.FAILED
-                DownloadStatus.CANCELED, DownloadStatus.PAUSED -> return@withTimeoutOrNull DownloadAwaitResult.INTERRUPTED
-                else -> Unit
+                DownloadStatus.CANCELED -> return@withTimeoutOrNull DownloadAwaitResult.INTERRUPTED
+                // 下载管理器会在策略变化时暂停任务；被策略暂停时要带上原因收敛，
+                // 而不是笼统报「下载中断」，也不能一直等到 30 分钟超时。
+                DownloadStatus.PAUSED -> return@withTimeoutOrNull if (policyCenter.canDownload(appId).allow) {
+                    DownloadAwaitResult.INTERRUPTED
+                } else {
+                    DownloadAwaitResult.POLICY_BLOCKED
+                }
+
+                else -> if (!policyCenter.canDownload(appId).allow) {
+                    return@withTimeoutOrNull DownloadAwaitResult.POLICY_BLOCKED
+                }
             }
         }
         error("下载等待循环不应在未返回终态时结束")
@@ -256,6 +298,10 @@ class DefaultUpgradeManager(
                 }
                 InstallStatus.FAILED -> return@withTimeoutOrNull InstallAwaitResult.FAILED
                 else -> Unit
+            }
+            // 等待系统确认期间车况可能变化（例如开始行车）：及时收敛为策略拦截，而不是继续安装。
+            if (!policyCenter.canInstall(appId).allow) {
+                return@withTimeoutOrNull InstallAwaitResult.POLICY_BLOCKED
             }
         }
         error("安装等待循环不应在未返回终态时结束")
@@ -282,11 +328,13 @@ class DefaultUpgradeManager(
         }
     }
 
-    private enum class DownloadAwaitResult { COMPLETED, FAILED, INTERRUPTED }
+    private enum class DownloadAwaitResult { COMPLETED, FAILED, INTERRUPTED, POLICY_BLOCKED }
 
-    private enum class InstallAwaitResult { INSTALLED, FAILED }
+    private enum class InstallAwaitResult { INSTALLED, FAILED, POLICY_BLOCKED }
 
     private companion object {
+        /** 与安装链路共用同一失败码，便于 UI 用同一套文案区分策略拦截。 */
+        const val POLICY_BLOCKED_CODE = "POLICY_BLOCKED"
         const val POLL_INTERVAL_MS = 200L
         const val WAIT_TIMEOUT_MS = 30L * 60L * 1000L
     }

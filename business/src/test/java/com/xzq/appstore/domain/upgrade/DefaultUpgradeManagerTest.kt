@@ -78,6 +78,50 @@ class DefaultUpgradeManagerTest {
     }
 
     @Test
+    fun `下载阶段策略失效时升级立即收敛并带出原因`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
+        val enteredDownload = CompletableDeferred<Unit>()
+        val finishDownload = CompletableDeferred<Unit>()
+        val policyCenter = ToggleablePolicyCenter()
+        val manager = createManager(policyCenter = policyCenter, fileDownloader = object : FileDownloader {
+            override suspend fun download(request: DownloadRequest, control: DownloadExecutionControl, onEvent: suspend (DownloadEvent) -> Unit) {
+                onEvent(DownloadEvent.Running(0L, 1024L, 0L))
+                enteredDownload.complete(Unit)
+                finishDownload.await()
+                request.targetFile.writeBytes(ByteArray(1024))
+                onEvent(DownloadEvent.Completed(request.targetFile, 1024L))
+            }
+        }, pollIntervalMs = 1L)
+        val operation = launch { manager.startUpgrade(TEST_APP_ID) }
+        withTimeout(2_000L) { enteredDownload.await() }
+        policyCenter.downloadAllowed = false
+        withTimeout(2_000L) { operation.join() }
+        val state = stateCenter.snapshot(TEST_APP_ID)
+        assertEquals(UpgradeStatus.FAILED, state.upgradeStatus)
+        assertEquals("POLICY_BLOCKED", state.errorCode)
+        assertEquals(BusinessText.upgradeRestricted(PolicyResult(false, "行车中禁止下载").reason), state.errorMessage)
+        finishDownload.complete(Unit)
+        Unit
+    }
+
+    @Test
+    fun `下载完成后策略不再允许安装时不会启动安装器`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
+        var installCalls = 0
+        val policyCenter = ToggleablePolicyCenter().apply { installAllowed = false }
+        val manager = createManager(policyCenter = policyCenter, packageInstaller = object : PackageInstaller {
+            override suspend fun install(request: InstallRequest, onEvent: suspend (InstallEvent) -> Unit) {
+                installCalls++
+            }
+        }, pollIntervalMs = 1L)
+        manager.startUpgrade(TEST_APP_ID)
+        assertEquals(0, installCalls)
+        val state = stateCenter.snapshot(TEST_APP_ID)
+        assertEquals(UpgradeStatus.FAILED, state.upgradeStatus)
+        assertEquals("POLICY_BLOCKED", state.errorCode)
+    }
+
+    @Test
     fun `duplicate cached upgrade does not treat the old installed version as success`() = runBlocking {
         stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         repository.saveApk(TEST_APP_ID, File(workDir, "cached.apk").apply { writeBytes(byteArrayOf(1)) }.absolutePath)
@@ -539,6 +583,21 @@ class DefaultUpgradeManagerTest {
         override fun updateSettings(settings: PolicySettings) {
             settingsFlow.value = settings
         }
+    }
+
+    /** 运行中可切换放行结果的策略中心，用于模拟行车 / 低存储等环境变化。 */
+    private class ToggleablePolicyCenter : AllowAllPolicyCenter() {
+        @Volatile var downloadAllowed: Boolean = true
+        @Volatile var installAllowed: Boolean = true
+
+        override fun canDownload(appId: String) =
+            if (downloadAllowed) PolicyResult(true) else PolicyResult(false, "行车中禁止下载")
+
+        override fun canInstall(appId: String) =
+            if (installAllowed) PolicyResult(true) else PolicyResult(false, "请先驻车再安装")
+
+        override fun canUpgrade(appId: String, apkAlreadyDownloaded: Boolean) =
+            if (apkAlreadyDownloaded) canInstall(appId) else canDownload(appId)
     }
 
     private class OfflinePolicyCenter : AllowAllPolicyCenter() {
