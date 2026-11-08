@@ -26,6 +26,7 @@ import com.xzq.appstore.core.policy.VehicleStateSignalProvider
 import com.xzq.appstore.core.tracker.EventTracker
 import com.xzq.appstore.core.tracker.FileEventTracker
 import com.xzq.appstore.data.datasource.local.AppLocalDataSource
+import com.xzq.appstore.data.datasource.remote.AppCatalogTrustPolicy
 import com.xzq.appstore.data.datasource.remote.AppRemoteDataSource
 import com.xzq.appstore.data.datasource.remote.DownloadSourceCatalog
 import com.xzq.appstore.data.datasource.remote.HttpUrlConnectionAppCatalogHttpClient
@@ -125,6 +126,7 @@ class AppContainer(context: Context) : AppServices {
             httpClient = HttpUrlConnectionAppCatalogHttpClient(catalogCredentials::headersFor),
             catalogCacheFile = storagePaths.remoteCatalogCacheFile,
             catalogCacheMetadataFile = storagePaths.remoteCatalogCacheMetadataFile,
+            catalogTrustPolicy = catalogTrustPolicy,
         )
     }
 
@@ -240,10 +242,22 @@ class AppContainer(context: Context) : AppServices {
         SystemPackageInstallerSessionAdapter(appContext, installUserActionDispatcher)
     }
 
+    /** 仅 Debug+LOCAL_SIM 允许目录与 APK 缺少 versionCode / 签名摘要。 */
+    private val allowMissingTrustMetadata: Boolean by lazy {
+        BuildConfig.DEBUG && downloadEnvConfig.environment == DownloadEnvironment.LOCAL_SIM
+    }
+
+    /** 目录解析阶段就拒绝缺少 versionCode / 签名摘要的条目，避免用户点到安装才失败。 */
+    private val catalogTrustPolicy: AppCatalogTrustPolicy by lazy {
+        if (allowMissingTrustMetadata) AppCatalogTrustPolicy.RELAXED else AppCatalogTrustPolicy.STRICT
+    }
+
     /** 除 Debug+LOCAL_SIM 外，所有环境都必须提供 versionCode 与签名摘要。 */
     private val apkVerificationPolicy by lazy {
-        val allowMissingTrustMetadata = BuildConfig.DEBUG && downloadEnvConfig.environment == DownloadEnvironment.LOCAL_SIM
-        ApkVerificationPolicy(requireVersionCode = !allowMissingTrustMetadata, requireSignerCertificate = !allowMissingTrustMetadata)
+        ApkVerificationPolicy(
+            requireVersionCode = !allowMissingTrustMetadata,
+            requireSignerCertificate = !allowMissingTrustMetadata,
+        )
     }
 
     /** 安装执行器，当前优先走系统安装会话实现。 */

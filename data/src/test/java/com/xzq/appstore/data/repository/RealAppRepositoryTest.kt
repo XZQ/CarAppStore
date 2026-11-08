@@ -42,7 +42,9 @@ class RealAppRepositoryTest {
                   "appId": "test_app",
                   "packageName": "com.example.test",
                   "name": "测试应用",
-                  "versionName": "1.0.0"
+                  "versionName": "1.0.0",
+                  "versionCode": 1,
+                  "signerCertificateSha256": ["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"]
                 }
               ]
             }

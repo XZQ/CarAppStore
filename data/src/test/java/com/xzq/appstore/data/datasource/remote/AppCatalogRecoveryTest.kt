@@ -194,7 +194,8 @@ class AppCatalogRecoveryTest {
     private fun response(body: String = catalogJson("Remote")) = AppCatalogHttpResponse(statusCode = 200, body = body, eTag = "etag-v1")
 
     private fun catalogJson(name: String): String = """
-        {"apps":[{"appId":"test.app","packageName":"com.example.test","name":"$name","versionName":"1.0"}]}
+        {"apps":[{"appId":"test.app","packageName":"com.example.test","name":"$name","versionName":"1.0",
+        "versionCode":1,"signerCertificateSha256":["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"]}]}
     """.trimIndent()
 
     private companion object { const val ENDPOINT = "https://test.example.com/catalog" }

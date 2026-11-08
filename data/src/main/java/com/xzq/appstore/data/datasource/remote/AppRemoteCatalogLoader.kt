@@ -12,6 +12,8 @@ import com.xzq.appstore.data.model.UpgradeInfo
 class AppRemoteCatalogLoader(
     /** 用于读取 raw 目录资源的应用级上下文。 */
     context: Context,
+    /** 目录信任元数据策略；只有 Debug + LOCAL_SIM 使用宽松策略。 */
+    private val trustPolicy: AppCatalogTrustPolicy = AppCatalogTrustPolicy.STRICT,
 ) : AppCatalogLoader {
     /** 应用级上下文，避免持有页面级引用。 */
     private val appContext = context.applicationContext
@@ -23,7 +25,7 @@ class AppRemoteCatalogLoader(
     }
 
     /** 解析指定文本内容。 */
-    override fun parse(rawText: String): List<RemoteCatalogItem> = AppCatalogJsonParser.parse(rawText)
+    override fun parse(rawText: String): List<RemoteCatalogItem> = AppCatalogJsonParser.parse(rawText, trustPolicy)
 }
 
 /**

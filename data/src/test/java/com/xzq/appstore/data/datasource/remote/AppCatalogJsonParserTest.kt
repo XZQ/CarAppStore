@@ -151,6 +151,28 @@ class AppCatalogJsonParserTest {
         AppCatalogJsonParser.parseResponse(identityCatalog(signer = "not-a-sha256"))
     }
 
+    @Test
+    fun `严格策略拒绝缺少签名摘要的目录且宽松策略放行`() {
+        val withoutSigner = JSONObject(identityCatalog()).apply {
+            getJSONArray("apps").getJSONObject(0).remove("signerCertificateSha256")
+        }.toString()
+
+        assertThrows(IllegalArgumentException::class.java) { AppCatalogJsonParser.parse(withoutSigner) }
+        val relaxed = AppCatalogJsonParser.parse(withoutSigner, AppCatalogTrustPolicy.RELAXED)
+        assertEquals(emptyList<String>(), relaxed.single().appDetail.signerCertificateSha256)
+    }
+
+    @Test
+    fun `严格策略拒绝 versionCode 为零的目录且宽松策略放行`() {
+        val zeroVersion = JSONObject(identityCatalog()).apply {
+            getJSONArray("apps").getJSONObject(0).put("versionCode", 0)
+        }.toString()
+
+        assertThrows(IllegalArgumentException::class.java) { AppCatalogJsonParser.parse(zeroVersion) }
+        val relaxed = AppCatalogJsonParser.parse(zeroVersion, AppCatalogTrustPolicy.RELAXED)
+        assertEquals(0L, relaxed.single().appDetail.versionCode)
+    }
+
     private fun identityCatalog(
         appId: String = TEST_APP_ID,
         packageName: String = TEST_PACKAGE_NAME,
@@ -205,6 +227,8 @@ class AppCatalogJsonParserTest {
                   "name": "NIO Map",
                   "description": "车机地图导航",
                   "versionName": "2.1.0",
+                  "versionCode": 210,
+                  "signerCertificateSha256": ["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"],
                   "category": "地图导航",
                   "editorialTag": "通勤推荐",
                   "iconUrl": "asset://icons/nav_map.png",

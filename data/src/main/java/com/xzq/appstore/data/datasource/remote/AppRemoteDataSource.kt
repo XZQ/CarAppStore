@@ -26,13 +26,23 @@ class AppRemoteDataSource(
     catalogCacheMetadataFile: File? = null,
     /** 目录内存缓存使用的单调时钟；测试可注入以覆盖 TTL 边界。 */
     private val monotonicClockNanos: () -> Long = System::nanoTime,
+    /** 目录信任元数据策略；生产与测试环境严格，Debug + LOCAL_SIM 放宽。 */
+    catalogTrustPolicy: AppCatalogTrustPolicy = AppCatalogTrustPolicy.STRICT,
 ) {
     private val catalogChannel = catalogRequestHeaders["X-Client-Channel"].orEmpty()
     private val installationIdStore = CatalogInstallationIdStore(context.applicationContext.noBackupFilesDir)
     private val installationId by lazy { installationIdStore.getOrCreate() }
 
-    /** 远端目录读取器。 */
-    private val catalogLoader = AppRemoteCatalogLoader(context)
+    /** 远端目录读取器：远端目录必须提供完整的 versionCode 与签名摘要。 */
+    private val catalogLoader = AppRemoteCatalogLoader(context, catalogTrustPolicy)
+
+    /**
+     * 内置 raw 目录读取器。
+     *
+     * raw 目录随 APK 一起分发、由构建方维护，缺少签名摘要时仍要保证离线可浏览；
+     * 真正的安装校验由 APK 校验策略负责，因此这里固定使用宽松策略。
+     */
+    private val fallbackCatalogLoader = AppRemoteCatalogLoader(context, AppCatalogTrustPolicy.RELAXED)
 
     /** 商店目录数据源。 */
     private val catalogSource: ResilientAppCatalogSource = ResilientAppCatalogSource(
@@ -43,7 +53,7 @@ class AppRemoteDataSource(
         httpClient = httpClient,
         cacheFile = catalogCacheFile,
         cacheMetadataFile = catalogCacheMetadataFile,
-        fallbackSource = ResourceAppCatalogSource(catalogLoader),
+        fallbackSource = ResourceAppCatalogSource(fallbackCatalogLoader),
         logger = AppLogger(),
     )
 

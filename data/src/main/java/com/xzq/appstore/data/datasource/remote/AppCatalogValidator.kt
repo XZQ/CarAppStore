@@ -2,11 +2,40 @@ package com.xzq.appstore.data.datasource.remote
 
 import com.xzq.appstore.data.model.AppPlatform
 
+/**
+ * 目录信任元数据的强制度。
+ *
+ * 安装链路依靠目录声明的 versionCode 与签名摘要做「目录 → APK → 已安装包」一致性校验，
+ * 缺失时安装会被安全策略拒绝。提前在目录解析阶段拒绝，可以让整份目录在进入 UI 前失败关闭，
+ * 而不是让用户点到安装按钮才看到错误。Debug + LOCAL_SIM 的本地联调目录例外：
+ * 手工构造的 APK 未必带签名摘要，此时用 [RELAXED] 放行，但版本号仍不得为负。
+ */
+data class AppCatalogTrustPolicy(
+    /** 是否要求 versionCode 为正数（Android 不接受 versionCode <= 0 的包）。 */
+    val requirePositiveVersionCode: Boolean = true,
+    /** 是否要求至少提供一个签名证书摘要。 */
+    val requireSignerCertificate: Boolean = true,
+) {
+    companion object {
+        /** 生产 / 测试 / 开发环境的默认策略：信任元数据必须齐全。 */
+        val STRICT = AppCatalogTrustPolicy()
+
+        /** 仅用于 Debug + LOCAL_SIM：允许缺失签名摘要与 versionCode。 */
+        val RELAXED = AppCatalogTrustPolicy(
+            requirePositiveVersionCode = false,
+            requireSignerCertificate = false,
+        )
+    }
+}
+
 /** 校验远端目录中会进入安装与文件系统边界的关键字段。 */
 object AppCatalogValidator {
     /** 校验整个目录并原样返回合法条目。 */
-    fun validate(items: List<AppCatalogItemResponse>): List<AppCatalogItemResponse> {
-        items.forEach(::validateItem)
+    fun validate(
+        items: List<AppCatalogItemResponse>,
+        trustPolicy: AppCatalogTrustPolicy = AppCatalogTrustPolicy.STRICT,
+    ): List<AppCatalogItemResponse> {
+        items.forEach { validateItem(it, trustPolicy) }
         require(items.map { it.appId }.distinct().size == items.size) { "目录包含重复 appId" }
         val packageNames = items.map { it.packageName }.filter { it.isNotBlank() }
         require(packageNames.distinct().size == packageNames.size) { "目录包含重复 packageName" }
@@ -14,7 +43,7 @@ object AppCatalogValidator {
     }
 
     /** 校验单个目录项的稳定标识与 APK 身份元数据。 */
-    private fun validateItem(item: AppCatalogItemResponse) {
+    private fun validateItem(item: AppCatalogItemResponse, trustPolicy: AppCatalogTrustPolicy) {
         require(APP_ID_PATTERN.matches(item.appId)) { "非法目录 appId: ${item.appId}" }
         if (AppPlatform.ANDROID in item.supportedPlatforms) {
             require(PACKAGE_NAME_PATTERN.matches(item.packageName)) { "Android 目录项缺少合法 packageName: ${item.appId}" }
@@ -24,6 +53,15 @@ object AppCatalogValidator {
         require(item.versionName.isNotBlank() && item.versionName.length <= MAX_VERSION_NAME_LENGTH) { "非法目录 versionName: ${item.appId}" }
         require(item.versionCode >= 0L) { "非法目录 versionCode: ${item.appId}" }
         require(item.signerCertificateSha256.all(SIGNER_SHA256_PATTERN::matches)) { "非法目录签名摘要: ${item.appId}" }
+        // 版本号与签名摘要只对可安装到 Android 的条目有意义，纯展示的其他平台条目不强制。
+        if (AppPlatform.ANDROID in item.supportedPlatforms) {
+            if (trustPolicy.requirePositiveVersionCode) {
+                require(item.versionCode > 0L) { "目录缺少有效 versionCode: ${item.appId}" }
+            }
+            if (trustPolicy.requireSignerCertificate) {
+                require(item.signerCertificateSha256.isNotEmpty()) { "目录缺少签名摘要: ${item.appId}" }
+            }
+        }
     }
 
     private val APP_ID_PATTERN = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")

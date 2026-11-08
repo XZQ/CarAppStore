@@ -123,7 +123,9 @@ class AppRemoteDataSourceTest {
                   "appId": "test_app",
                   "packageName": "com.example.test",
                   "name": "$name",
-                  "versionName": "1.0.0"
+                  "versionName": "1.0.0",
+                  "versionCode": 1,
+                  "signerCertificateSha256": ["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"]
                 }
               ]
             }

@@ -10,16 +10,25 @@ import org.json.JSONObject
  */
 object AppCatalogJsonParser {
     /** 解析指定文本内容。 */
-    fun parse(rawText: String): List<RemoteCatalogItem> {
-        return parseResponse(rawText).apps.map { it.toRemoteCatalogItem() }
+    fun parse(
+        rawText: String,
+        trustPolicy: AppCatalogTrustPolicy = AppCatalogTrustPolicy.STRICT,
+    ): List<RemoteCatalogItem> {
+        return parseResponse(rawText, trustPolicy).apps.map { it.toRemoteCatalogItem() }
     }
 
     /** 解析指定文本内容为目录响应。 */
-    fun parseResponse(rawText: String): AppCatalogResponse {
+    fun parseResponse(
+        rawText: String,
+        trustPolicy: AppCatalogTrustPolicy = AppCatalogTrustPolicy.STRICT,
+    ): AppCatalogResponse {
         val root = JSONObject(rawText)
         val apps = requireNotNull(root.optJSONArray("apps")) { "目录 apps 必须是显式数组" }
         return AppCatalogResponse(
-            apps = AppCatalogValidator.validate(List(apps.length()) { index -> parseItem(apps.getJSONObject(index)) }),
+            apps = AppCatalogValidator.validate(
+                List(apps.length()) { index -> parseItem(apps.getJSONObject(index)) },
+                trustPolicy,
+            ),
         )
     }
 
