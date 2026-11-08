@@ -9,7 +9,6 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -195,8 +194,17 @@ class VersionedJsonStore(
     }
 
     private companion object {
-        /** 按规范化文件路径复用进程级锁，避免多个 Store 实例分别加锁后丢失更新。 */
-        val PROCESS_FILE_LOCKS = ConcurrentHashMap<String, ReentrantLock>()
+        /**
+         * 进程级锁条带数量。
+         *
+         * 早期实现用「路径 -> 锁」的 ConcurrentHashMap 缓存，路径只增不减：
+         * 每换一次账号 / 环境 / 测试临时目录都会留下一个永不回收的锁对象。
+         * 改为固定条带后内存恒定，少量不同文件共享同一把锁只影响并发度，不影响正确性。
+         */
+        const val LOCK_STRIPES = 64
+
+        /** 进程级锁条带，按规范化路径哈希选择。 */
+        val PROCESS_FILE_LOCK_STRIPES = Array(LOCK_STRIPES) { ReentrantLock() }
 
         /** schemaVersion 不存在时使用的默认值。 */
         const val SCHEMA_VERSION_UNKNOWN = -1
@@ -213,10 +221,11 @@ class VersionedJsonStore(
         /** 版本回退（读到更高 schema）时保留的原始文件后缀，最多保留一代。 */
         const val NEWER_SCHEMA_FILE_SUFFIX = ".newer-schema"
 
-        /** 返回指定文件在当前进程内共享的读写锁。 */
+        /** 返回指定文件在当前进程内共享的读写锁；同一路径始终落到同一条带。 */
         fun sharedFileLock(storeFile: File): ReentrantLock {
             val fileKey = runCatching { storeFile.canonicalPath }.getOrElse { storeFile.absolutePath }
-            return PROCESS_FILE_LOCKS.computeIfAbsent(fileKey) { ReentrantLock() }
+            val index = (fileKey.hashCode() and Int.MAX_VALUE) % LOCK_STRIPES
+            return PROCESS_FILE_LOCK_STRIPES[index]
         }
     }
 }
