@@ -53,6 +53,20 @@ class DefaultStateCenterTest {
     }
 
     @Test
+    fun `syncUninstalled 清除已失效的升级中状态`() {
+        val center = DefaultStateCenter()
+        center.syncInstalled("app.test", "1.0", 1L)
+        center.updateUpgrade("app.test", UpgradeStatus.UPGRADING)
+        assertEquals(PrimaryAction.DISABLED, center.snapshot("app.test").primaryAction)
+        center.syncUninstalled("app.test", center.snapshot("app.test"))
+        val state = center.snapshot("app.test")
+        assertEquals(InstallStatus.NOT_INSTALLED, state.installStatus)
+        assertNull(state.installedVersion)
+        assertEquals(UpgradeStatus.NONE, state.upgradeStatus)
+        assertEquals(PrimaryAction.DOWNLOAD, state.primaryAction)
+    }
+
+    @Test
     fun `snapshot 对未知应用返回默认状态`() {
         val center = DefaultStateCenter()
         val state = center.snapshot("unknown.app")

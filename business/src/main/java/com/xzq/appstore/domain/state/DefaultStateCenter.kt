@@ -67,12 +67,21 @@ class DefaultStateCenter : StateCenter {
 
     override fun syncUninstalled(appId: String, expectedState: AppState) {
         mutate(appId) {
-            if (it != expectedState || it.installStatus in setOf(InstallStatus.WAITING,
-                    InstallStatus.PENDING_USER_ACTION, InstallStatus.INSTALLING)) it
-            else it.copy(installedVersion = null, installedVersionCode = 0L,
+            if (it != expectedState || it.installStatus in ACTIVE_INSTALL_STATUSES) it
+            else it.copy(
+                installedVersion = null,
+                installedVersionCode = 0L,
                 installStatus = if (it.installStatus == InstallStatus.INSTALLED) InstallStatus.NOT_INSTALLED else it.installStatus,
-                upgradeStatus = if (it.upgradeStatus == UpgradeStatus.UPGRADING) it.upgradeStatus else UpgradeStatus.NONE)
+                // 应用已不在系统中，进行中的升级不可能再落地：保留 UPGRADING 会让卡片永久停在
+                // 「升级中」且主动作一直是 DISABLED，必须一并清除。
+                upgradeStatus = UpgradeStatus.NONE,
+            )
         }
+    }
+
+    private companion object {
+        /** 正在进行中的安装阶段：系统事实还不能覆盖这些状态，避免打断用户刚发起的安装。 */
+        val ACTIVE_INSTALL_STATUSES = setOf(InstallStatus.WAITING, InstallStatus.PENDING_USER_ACTION, InstallStatus.INSTALLING)
     }
 
     /** 更新下载维度状态，并保留未传入的历史字段。 */
