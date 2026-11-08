@@ -16,8 +16,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-MIN_JAVA_MAJOR = 17
-BASELINE_JAVA_MAJOR = 17
+MIN_JAVA_MAJOR = 21
+BASELINE_JAVA_MAJOR = 21
 REQUIRED_COMPILE_SDK = 36
 
 OK = "OK"
@@ -140,33 +140,33 @@ def check_environment(root: Path, env: dict | None = None, java_probe=None) -> R
     if java_path is None:
         report.checks.append(Check(
             "java 可执行文件", FAIL, "未找到 java，或无法执行 java -version",
-            "安装 JDK 17 并设置 JAVA_HOME，例如 Windows: $env:JAVA_HOME='<jdk-17>'；macOS/Linux: export JAVA_HOME=<jdk-17>",
+            "安装 JDK 21 并设置 JAVA_HOME，例如 Windows: $env:JAVA_HOME='<jdk-21>'；macOS/Linux: export JAVA_HOME=<jdk-21>",
         ))
     else:
         major = parse_java_major(version_output)
         if major is None:
             report.checks.append(Check(
                 "java 版本", FAIL, f"无法从 {java_path} 解析版本号",
-                "确认 java -version 输出包含 version \"17.x\" 之类的版本串",
+                "确认 java -version 输出包含 version \"21.x\" 之类的版本串",
             ))
         elif major < MIN_JAVA_MAJOR:
             report.checks.append(Check(
                 "java 版本", FAIL, f"检测到 Java {major}，AGP 8.13.2 至少需要 Java {MIN_JAVA_MAJOR}",
-                "安装 JDK 17 并让 JAVA_HOME / PATH 指向它",
+                "安装 JDK 21 并让 JAVA_HOME / PATH 指向它",
             ))
         else:
             report.checks.append(Check("java 版本", OK, f"Java {major}（{java_path}）"))
             if major != BASELINE_JAVA_MAJOR:
                 report.checks.append(Check(
                     "JDK 基线", WARN, f"工程以 JDK {BASELINE_JAVA_MAJOR} 为验证基线，当前为 Java {major}",
-                    "若构建出现异常，优先改用 JDK 17 (JBR/Temurin) 复现",
+                    "Gradle 8.14 最高支持 Java 24；若构建异常，改用 JDK 21 (JBR/Temurin) 复现",
                 ))
 
     java_home = env.get("JAVA_HOME", "").strip()
     if not java_home:
         report.checks.append(Check(
             "JAVA_HOME", WARN, "未设置；Gradle 将退而使用 PATH 中的 java",
-            "建议显式设置 JAVA_HOME 指向 JDK 17 根目录",
+            "建议显式设置 JAVA_HOME 指向 JDK 21 根目录",
         ))
     elif not (Path(java_home) / "bin").is_dir():
         report.checks.append(Check(

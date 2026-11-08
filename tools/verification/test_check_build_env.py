@@ -27,7 +27,7 @@ class BuildEnvCheckTest(unittest.TestCase):
         (self.jdk / "bin").mkdir(parents=True)
         (self.jdk / "bin" / ("java.exe" if os.name == "nt" else "java")).write_text("")
         self.env = {"ANDROID_HOME": str(self.sdk), "JAVA_HOME": str(self.jdk)}
-        self.probe = lambda env: (str(self.jdk / "bin" / "java"), 'openjdk version "17.0.9" 2023-10-17')
+        self.probe = lambda env: (str(self.jdk / "bin" / "java"), 'openjdk version "21.0.11" 2026-10-28')
 
     def check(self, env=None, probe=None):
         return envcheck.check_environment(
@@ -50,7 +50,7 @@ class BuildEnvCheckTest(unittest.TestCase):
         report = self.check(probe=probe)
         self.assertTrue(report.failed)
         self.assertEqual(self.statuses(report, "java 可执行文件"), [envcheck.FAIL])
-        self.assertIn("安装 JDK 17", envcheck.render(report))
+        self.assertIn("安装 JDK 21", envcheck.render(report))
 
     def test_java_8_is_rejected(self):
         probe = lambda env: (str(self.jdk / "bin" / "java"), 'java version "1.8.0_292"')
@@ -62,8 +62,19 @@ class BuildEnvCheckTest(unittest.TestCase):
         report = self.check(probe=lambda env: (str(self.jdk / "bin" / "java"), "not a jvm"))
         self.assertTrue(report.failed)
 
-    def test_java_21_passes_with_baseline_warning(self):
-        probe = lambda env: (str(self.jdk / "bin" / "java"), 'openjdk version "21.0.11" 2026-10-28')
+    def test_java_21_is_the_verified_baseline(self):
+        report = self.check()
+        self.assertFalse(report.failed)
+        self.assertEqual(self.statuses(report, "JDK 基线"), [])
+
+    def test_java_17_is_rejected(self):
+        probe = lambda env: (str(self.jdk / "bin" / "java"), 'openjdk version "17.0.9" 2023-10-17')
+        report = self.check(probe=probe)
+        self.assertTrue(report.failed)
+        self.assertEqual(self.statuses(report, "java 版本"), [envcheck.FAIL])
+
+    def test_newer_jdk_warns_but_passes(self):
+        probe = lambda env: (str(self.jdk / "bin" / "java"), 'openjdk version "25.0.1" 2026-01-20')
         report = self.check(probe=probe)
         self.assertFalse(report.failed)
         self.assertEqual(self.statuses(report, "JDK 基线"), [envcheck.WARN])

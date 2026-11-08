@@ -92,7 +92,7 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 - 目录 `appId` / `packageName` 白名单、重复项拒绝和下载任务 canonical path containment
 - Release 固定生产环境并使用安全空目录回退，LOCAL_SIM 目录与 Mock 能力仅在 Debug 生效
 - `VersionedJsonStore` 同文件跨实例共享锁，冷启动会对账 PackageInstaller Session 与已安装事实
-- GitHub Actions 已定义 JDK 17 单测、编译、Lint、Debug/Release APK 验证和产物归档
+- GitHub Actions 已定义 JDK 21 单测、编译、Lint、Debug/Release APK 验证和产物归档
 
 ## 外部接入状态
 
@@ -111,7 +111,7 @@ PNG 版本位于同名 `.png` 文件，见 [架构图索引](docs/architecture-d
 ## 环境要求
 
 - Android Studio 或命令行 Android Gradle 环境
-- JDK/JBR 17（AGP 8.13.2 的最低要求）
+- JDK/JBR 21（本工程 `compileOptions` / `jvmTarget` 与 CI 基线均为 21）
 - Android SDK Platform 36、Build Tools 36.x、Platform Tools
 - Android Gradle Plugin 8.13.2 / Kotlin 2.0.0 / Gradle 8.14.3（由 wrapper 固定）
 - compileSdk 36，targetSdk 36，minSdk 26
