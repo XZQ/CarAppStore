@@ -258,6 +258,19 @@ class DefaultInstallManagerTest {
     }
 
     @Test
+    fun `安装失败后清理暂存的升级目标版本`() = runBlocking {
+        val apkFile = File(workDir, "test.apk").apply { writeBytes(ByteArray(1024)) }
+        repository.saveApk(TEST_APP_ID, apkFile.absolutePath)
+        repository.stageUpgradeVersion(TEST_APP_ID, "2.0.0")
+        installer.scenario = InstallScenario.GENERIC_FAILURE
+
+        createManager().install(TEST_APP_ID)
+
+        assertEquals(InstallStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).installStatus)
+        assertNull("失败后不能留下陈旧的升级目标版本", repository.peekStagedUpgradeVersion(TEST_APP_ID))
+    }
+
+    @Test
     fun `install 正确传递升级目标版本`() = runBlocking {
         val apkFile = File(workDir, "test.apk").apply { writeBytes(ByteArray(1024)) }
         repository.saveApk(TEST_APP_ID, apkFile.absolutePath)
@@ -540,6 +553,10 @@ class DefaultInstallManagerTest {
         }
 
         override suspend fun peekStagedUpgradeVersion(appId: String) = stagedVersions[appId]
+
+        override suspend fun clearStagedUpgrade(appId: String) {
+            stagedVersions.remove(appId)
+        }
         override suspend fun saveDownloadTask(record: DownloadTaskRecord) { tasks[record.appId] = record }
         override suspend fun getDownloadTask(appId: String) = tasks[appId]
         override suspend fun getAllDownloadTasks() = tasks.values.toList()

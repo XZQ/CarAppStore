@@ -99,6 +99,11 @@ class FakeAppRepository(
         return local.peekStagedUpgradeVersion(appId)
     }
 
+    /** 清除 staged upgrade 目标版本。 */
+    override suspend fun clearStagedUpgrade(appId: String) {
+        local.consumeStagedUpgradeVersion(appId)
+    }
+
     /** 保存下载任务记录。 */
     override suspend fun saveDownloadTask(record: DownloadTaskRecord) {
         delay(10)

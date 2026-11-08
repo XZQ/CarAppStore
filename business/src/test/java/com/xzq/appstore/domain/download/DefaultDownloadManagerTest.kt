@@ -730,6 +730,10 @@ class DefaultDownloadManagerTest {
 
         override suspend fun peekStagedUpgradeVersion(appId: String): String? = stagedUpgradeVersions[appId]
 
+        override suspend fun clearStagedUpgrade(appId: String) {
+            stagedUpgradeVersions.remove(appId)
+        }
+
         override suspend fun saveDownloadTask(record: DownloadTaskRecord) {
             if (record.status == DownloadStatus.RUNNING) {
                 runningPersistCount.incrementAndGet()

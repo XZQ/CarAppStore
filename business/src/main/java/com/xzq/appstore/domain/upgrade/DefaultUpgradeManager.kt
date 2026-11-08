@@ -145,6 +145,17 @@ class DefaultUpgradeManager(
             logger.w("UpgradeManager", "Unable to execute upgrade: $appId", failure)
             finishInterruptedUpgrade(appId, targetVersionCode, BusinessText.ACTION_FAILED, "UPGRADE_FAILED")
         } finally {
+            // 升级已经收敛（成功 / 失败 / 取消）时清掉目标版本：失败路径不清理会让
+            // 下一次普通安装继续按旧目标版本校验 APK，被误判成版本不一致。
+            if (stateCenter.snapshot(appId).upgradeStatus != UpgradeStatus.UPGRADING) {
+                try {
+                    repository.clearStagedUpgrade(appId)
+                } catch (canceled: CancellationException) {
+                    throw canceled
+                } catch (failure: Exception) {
+                    logger.w("UpgradeManager", "Unable to clear staged upgrade: $appId", failure)
+                }
+            }
             lock.unlock()
         }
         return true

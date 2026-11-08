@@ -334,6 +334,22 @@ class DefaultUpgradeManagerTest {
     }
 
     @Test
+    fun `下载失败后清理暂存的升级目标版本`() = runBlocking {
+        stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
+        val manager = createManager(fileDownloader = object : FileDownloader {
+            override suspend fun download(request: DownloadRequest, control: DownloadExecutionControl, onEvent: suspend (DownloadEvent) -> Unit) {
+                onEvent(DownloadEvent.Failed(com.xzq.appstore.core.downloader.DownloadFailureCode.NETWORK_TIMEOUT, "boom"))
+            }
+        }, pollIntervalMs = 1L)
+
+        manager.startUpgrade(TEST_APP_ID)
+
+        assertEquals(UpgradeStatus.FAILED, stateCenter.snapshot(TEST_APP_ID).upgradeStatus)
+        assertEquals("2.0.0", repository.lastStagedVersion)
+        assertNull("升级收敛后必须清理目标版本", repository.stagedVersion)
+    }
+
+    @Test
     fun `startUpgrade 成功完成下载和安装后升级状态回到 NONE`() = runBlocking {
         stateCenter.syncInstalled(TEST_APP_ID, "1.0.0", 1L)
         val apkFile = File(workDir, "test.apk").apply { writeBytes(ByteArray(1024)) }
@@ -357,7 +373,9 @@ class DefaultUpgradeManagerTest {
         val manager = createManager()
         manager.startUpgrade(TEST_APP_ID)
 
-        assertEquals("2.0.0", repository.stagedVersion)
+        // 目标版本确实写入过，但升级收敛后必须清理，避免污染后续普通安装。
+        assertEquals("2.0.0", repository.lastStagedVersion)
+        assertNull(repository.stagedVersion)
     }
 
     @Test
@@ -631,6 +649,9 @@ class DefaultUpgradeManagerTest {
     private class FakeUpgradeRepository(private val workDir: File) : AppRepository {
         private val apkPaths = mutableMapOf<String, String>()
         var stagedVersion: String? = null
+
+        /** 记录最近一次暂存的目标版本，用于确认升级链路确实下发过目标版本。 */
+        var lastStagedVersion: String? = null
         private val installedAppsList = mutableListOf<InstalledApp>()
         var supportedPlatforms: Set<AppPlatform> = setOf(AppPlatform.ANDROID)
         var checksumValue: String? = null
@@ -673,9 +694,14 @@ class DefaultUpgradeManagerTest {
         override suspend fun stageUpgrade(appId: String, versionName: String) {
             stageFailure?.let { throw it }
             stagedVersion = versionName
+            lastStagedVersion = versionName
         }
 
         override suspend fun peekStagedUpgradeVersion(appId: String) = stagedVersion
+
+        override suspend fun clearStagedUpgrade(appId: String) {
+            stagedVersion = null
+        }
         override suspend fun saveDownloadTask(record: DownloadTaskRecord) = Unit
         override suspend fun getDownloadTask(appId: String): DownloadTaskRecord? = null
         override suspend fun getAllDownloadTasks() = emptyList<DownloadTaskRecord>()

@@ -330,6 +330,8 @@ class DefaultAppManagerTest {
 
         override suspend fun peekStagedUpgradeVersion(appId: String): String? = null
 
+        override suspend fun clearStagedUpgrade(appId: String) = Unit
+
         override suspend fun saveDownloadTask(record: DownloadTaskRecord) = Unit
 
         override suspend fun getDownloadTask(appId: String): DownloadTaskRecord? = null

@@ -200,6 +200,15 @@ class DefaultInstallManager(
                         errorMessage = BusinessText.installFailed(event.message),
                         errorCode = event.code.name,
                     )
+                    // 升级目标只在安装成功时有意义：失败后继续保留会让下一次普通安装
+                    // 仍按旧目标版本校验 APK，进而被误判为版本不一致。
+                    try {
+                        repository.clearStagedUpgrade(appId)
+                    } catch (canceled: CancellationException) {
+                        throw canceled
+                    } catch (failure: Exception) {
+                        logger.w("InstallManager", "Unable to clear staged upgrade: $appId", failure)
+                    }
                     tracker.track("install_fail_${event.code.name.lowercase()}_$appId")
                 }
             }

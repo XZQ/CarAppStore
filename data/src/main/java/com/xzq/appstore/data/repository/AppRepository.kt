@@ -49,6 +49,9 @@ interface AppRepository {
     /** 读取暂存的升级目标版本。 */
     suspend fun peekStagedUpgradeVersion(appId: String): String?
 
+    /** 清除暂存的升级目标版本；升级失败或安装失败后必须调用，避免陈旧目标污染后续安装。 */
+    suspend fun clearStagedUpgrade(appId: String)
+
     /** 保存下载任务记录。 */
     suspend fun saveDownloadTask(record: DownloadTaskRecord)
 

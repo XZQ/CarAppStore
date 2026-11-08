@@ -114,6 +114,10 @@ class RealAppRepository(
     /** 读取 staged upgrade 目标版本。 */
     override suspend fun peekStagedUpgradeVersion(appId: String): String? = local.peekStagedUpgradeVersion(appId)
 
+    override suspend fun clearStagedUpgrade(appId: String) {
+        local.consumeStagedUpgradeVersion(appId)
+    }
+
     /** 保存下载任务记录。 */
     override suspend fun saveDownloadTask(record: DownloadTaskRecord) {
         local.saveDownloadTask(record)
