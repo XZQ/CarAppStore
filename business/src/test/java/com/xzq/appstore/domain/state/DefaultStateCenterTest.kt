@@ -210,6 +210,44 @@ class DefaultStateCenterTest {
     }
 
     @Test
+    fun `平台不支持的安装失败不再提供重试入口`() {
+        val state = StateReducer.reduce(AppState(
+            appId = "test",
+            installStatus = InstallStatus.FAILED,
+            downloadStatus = DownloadStatus.COMPLETED,
+            localApkPath = "/data/test.apk",
+            errorCode = InstallFailureRetry.PLATFORM_UNSUPPORTED,
+        ))
+        assertEquals(PrimaryAction.UNSUPPORTED, state.primaryAction)
+    }
+
+    @Test
+    fun `产物与目录不一致的安装失败改为重新下载`() {
+        for (code in listOf("APK_SIGNER_MISMATCH", "APK_VERSION_MISMATCH", "APK_INVALID", "APK_MISSING")) {
+            val state = StateReducer.reduce(AppState(
+                appId = "test",
+                installStatus = InstallStatus.FAILED,
+                downloadStatus = DownloadStatus.COMPLETED,
+                localApkPath = "/data/test.apk",
+                errorCode = code,
+            ))
+            assertEquals(code, PrimaryAction.RETRY_DOWNLOAD, state.primaryAction)
+        }
+    }
+
+    @Test
+    fun `策略拦截保留重试安装入口等待环境恢复`() {
+        val state = StateReducer.reduce(AppState(
+            appId = "test",
+            installStatus = InstallStatus.FAILED,
+            downloadStatus = DownloadStatus.COMPLETED,
+            localApkPath = "/data/test.apk",
+            errorCode = "POLICY_BLOCKED",
+        ))
+        assertEquals(PrimaryAction.RETRY_INSTALL, state.primaryAction)
+    }
+
+    @Test
     fun `failed installation without a usable artifact offers redownload`() {
         for (status in listOf(DownloadStatus.IDLE, DownloadStatus.FAILED, DownloadStatus.CANCELED, DownloadStatus.COMPLETED)) {
             val state = StateReducer.reduce(AppState(appId = "test", installStatus = InstallStatus.FAILED, downloadStatus = status))

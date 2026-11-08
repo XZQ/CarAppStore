@@ -35,6 +35,13 @@ object StateReducer {
             base.downloadStatus == DownloadStatus.WAITING -> PrimaryAction.DISABLED
             base.downloadStatus == DownloadStatus.RUNNING -> PrimaryAction.PAUSE
             base.downloadStatus == DownloadStatus.PAUSED -> PrimaryAction.RESUME
+            // 平台 / 系统能力缺失是终态：既不重试安装，也不重新下载。
+            base.installStatus == InstallStatus.FAILED && InstallFailureRetry.isPlatformTerminal(base.errorCode) ->
+                if (base.errorCode == InstallFailureRetry.PLATFORM_UNSUPPORTED) PrimaryAction.UNSUPPORTED else PrimaryAction.DISABLED
+            // 产物本身与目录声明不一致：同一份文件重试安装必然再次失败，改为重新下载。
+            base.installStatus == InstallStatus.FAILED && InstallFailureRetry.requiresFreshArtifact(base.errorCode) ->
+                PrimaryAction.RETRY_DOWNLOAD
+            // 策略拦截（驻车 / 低存储）与环境相关，条件解除后同一份 APK 仍可安装，保留重试入口。
             base.installStatus == InstallStatus.FAILED -> if (
                 base.downloadStatus == DownloadStatus.COMPLETED && !base.localApkPath.isNullOrBlank()
             ) PrimaryAction.RETRY_INSTALL else PrimaryAction.RETRY_DOWNLOAD
