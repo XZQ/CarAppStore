@@ -61,11 +61,39 @@ object AppCatalogValidator {
             if (trustPolicy.requireSignerCertificate) {
                 require(item.signerCertificateSha256.isNotEmpty()) { "目录缺少签名摘要: ${item.appId}" }
             }
+            validateChecksum(item)
+        }
+    }
+
+    /**
+     * 校验下载链路实际支持的校验算法与摘要格式。
+     *
+     * 未知算法（如 SHA-512）或错配摘要若放行，会在下载完成时才以 CHECKSUM_MISMATCH 失败，
+     * 且产物级失败重试会清理分片重新拉取，把目录配置错误放大成反复下载。提前在目录阶段失败关闭。
+     * 允许只声明算法不带摘要值（下载源目录的既有形态）；只有摘要值没有算法则无法校验，拒绝。
+     */
+    private fun validateChecksum(item: AppCatalogItemResponse) {
+        val type = item.checksumType?.trim()?.uppercase()
+        val value = item.checksumValue?.trim()
+        if (type == null) {
+            require(value == null) { "目录 checksumValue 缺少 checksumType: ${item.appId}" }
+            return
+        }
+        val digestPattern = when (type) {
+            "SHA-256", "SHA256" -> SHA256_DIGEST_PATTERN
+            "MD5" -> MD5_DIGEST_PATTERN
+            else -> null
+        }
+        requireNotNull(digestPattern) { "目录声明了不支持的 checksumType: ${item.appId}" }
+        if (value != null) {
+            require(digestPattern.matches(value)) { "目录 checksumValue 与 checksumType 不匹配: ${item.appId}" }
         }
     }
 
     private val APP_ID_PATTERN = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
     private val PACKAGE_NAME_PATTERN = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
     private val SIGNER_SHA256_PATTERN = Regex("[A-Fa-f0-9]{64}")
+    private val SHA256_DIGEST_PATTERN = Regex("[A-Fa-f0-9]{64}")
+    private val MD5_DIGEST_PATTERN = Regex("[A-Fa-f0-9]{32}")
     private const val MAX_VERSION_NAME_LENGTH = 128
 }

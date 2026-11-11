@@ -16,6 +16,7 @@ import com.xzq.appstore.data.repository.AppRepository
 import com.xzq.appstore.domain.policy.PolicyCenter
 import com.xzq.appstore.domain.install.ApkArtifactAccess
 import com.xzq.appstore.domain.state.DownloadStatus
+import com.xzq.appstore.domain.state.InstallFailureRetry
 import com.xzq.appstore.domain.state.InstallStatus
 import com.xzq.appstore.domain.state.StateCenter
 import com.xzq.appstore.domain.text.BusinessText
@@ -381,6 +382,15 @@ class DefaultDownloadManager(
         .mapNotNull { repository.getDownloadedApk(it.appId) }
         .distinct().sumOf { File(it).length() }
 
+    /**
+     * 判断失败码是否意味着本地产物字节不可信，重试前必须丢弃引擎分片缓存。
+     *
+     * 下载侧的校验/合并/远端身份失败与安装侧的产物终态失败共用此判定；
+     * 安装侧分类直接复用 [InstallFailureRetry.requiresFreshArtifact]，与主动作归约保持同一口径。
+     */
+    private fun requiresFreshArtifact(failureCode: String?): Boolean =
+        failureCode in DOWNLOAD_ARTIFACT_FAILURE_CODES || InstallFailureRetry.requiresFreshArtifact(failureCode)
+
     private suspend fun clearCoreCache(taskId: String) {
         try {
             fileDownloader.clearTaskCache(taskId)
@@ -496,6 +506,13 @@ class DefaultDownloadManager(
         }
         val targetFile = repository.getOrCreateDownloadFile(appId)
         val current = repository.getDownloadTask(appId)
+        // 产物级失败后的重试必须重新拉取字节：引擎会直接复用已完成的分片（续传优化），
+        // 不清缓存会让「重新下载」零网络请求原样合并出同一份坏产物，陷入必然失败的重试循环。
+        // 与 StateReducer 的 RETRY_DOWNLOAD 判定共用同一分类；网络类失败不在此列，
+        // 分片字节本身可信，续传才是正确行为。
+        if (current != null && requiresFreshArtifact(current.failureCode)) {
+            clearCoreCache(current.taskId)
+        }
         val now = System.currentTimeMillis()
         val prepared = (current ?: newRecord(appId, detail, targetFile.absolutePath, now)).copy(
             status = DownloadStatus.WAITING,
@@ -1004,6 +1021,16 @@ class DefaultDownloadManager(
     private companion object {
         val ACTIVE_INSTALL_STATUSES = setOf(InstallStatus.WAITING, InstallStatus.INSTALLING, InstallStatus.PENDING_USER_ACTION)
         private const val PLATFORM_UNSUPPORTED_ERROR_CODE = "PLATFORM_UNSUPPORTED"
+
+        /**
+         * 下载侧产物级失败码：字节本身已被判定不可信，重试必须重新拉取。
+         * REMOTE_FILE_CHANGED 在探测阶段已清分片，但 Range 响应校验失败路径不会清，统一在此兜底。
+         */
+        val DOWNLOAD_ARTIFACT_FAILURE_CODES = setOf(
+            DownloadFailureCode.CHECKSUM_MISMATCH.name,
+            DownloadFailureCode.MERGE_FAILED.name,
+            DownloadFailureCode.REMOTE_FILE_CHANGED.name,
+        )
         /** 默认同时下载的 APK 数量上限（用户要求「最多同时下载 3 个 apk」）。 */
         const val DEFAULT_MAX_CONCURRENT_DOWNLOADS = 3
 

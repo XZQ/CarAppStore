@@ -59,6 +59,65 @@ class DefaultDownloadManagerTest {
     }
 
     @Test
+    fun `checksum 失败后重试会先清理引擎分片缓存再重新下载`() = runBlocking {
+        val harness = TestHarness(configureRepository = {
+            saveDownloadPreferences(DownloadPreferences(autoResumeOnLaunch = false, autoRetryEnabled = false))
+            saveDownloadTask(
+                buildDownloadTaskRecord(DownloadStatus.FAILED, 100, "", TEST_TOTAL_BYTES, TEST_TOTAL_BYTES, 1)
+                    .copy(failureCode = DownloadFailureCode.CHECKSUM_MISMATCH.name),
+            )
+        })
+
+        harness.manager.startDownload(TEST_APP_ID)
+        assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+
+        // 产物级失败不能让续传逻辑复用已完成分片：必须先清缓存，否则会零网络请求合并出同一份坏产物。
+        assertTrue(harness.downloader.clearedTaskIds.contains("download-$TEST_APP_ID"))
+        harness.manager.cancelDownload(TEST_APP_ID)
+        waitUntil { harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED }
+        harness.manager.close()
+    }
+
+    @Test
+    fun `安装判定产物不可信后重新下载会先清理引擎分片缓存`() = runBlocking {
+        val harness = TestHarness(configureRepository = {
+            saveDownloadPreferences(DownloadPreferences(autoResumeOnLaunch = false, autoRetryEnabled = false))
+            saveDownloadTask(
+                buildDownloadTaskRecord(DownloadStatus.FAILED, 0, "", 0, TEST_TOTAL_BYTES, 1)
+                    .copy(failureCode = "APK_INVALID"),
+            )
+        })
+
+        harness.manager.startDownload(TEST_APP_ID)
+        assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+
+        assertTrue(harness.downloader.clearedTaskIds.contains("download-$TEST_APP_ID"))
+        harness.manager.cancelDownload(TEST_APP_ID)
+        waitUntil { harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED }
+        harness.manager.close()
+    }
+
+    @Test
+    fun `网络失败后重试保留分片缓存走续传而不是全量重下`() = runBlocking {
+        val harness = TestHarness(configureRepository = {
+            saveDownloadPreferences(DownloadPreferences(autoResumeOnLaunch = false, autoRetryEnabled = false))
+            saveDownloadTask(
+                buildDownloadTaskRecord(DownloadStatus.FAILED, 40, "", TEST_DOWNLOADED_BYTES, TEST_TOTAL_BYTES, 1)
+                    .copy(failureCode = DownloadFailureCode.NETWORK_INTERRUPTED.name),
+            )
+        })
+
+        harness.manager.startDownload(TEST_APP_ID)
+        assertTrue(harness.downloader.startedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+
+        // 网络类失败的分片字节可信，续传是正确行为：不能误清缓存导致全量重下。
+        assertTrue(harness.downloader.clearedTaskIds.isEmpty())
+        harness.manager.cancelDownload(TEST_APP_ID)
+        waitUntil { harness.repository.getDownloadTask(TEST_APP_ID)?.status == DownloadStatus.CANCELED }
+        harness.manager.close()
+    }
+
+    @Test
     fun `cache cleanup skips installer lease and clears engine files after release`() = runBlocking {
         val access = com.xzq.appstore.domain.install.ApkArtifactAccess()
         val harness = TestHarness(artifactAccess = access)

@@ -17,11 +17,11 @@ class DownloadSourceResolver(private val config: DownloadSourceResolverConfig) {
             DownloadSourcePolicy.DIRECT_HTTP -> {
                 // 直连下载先检查环境是否允许，再校验 URL 协议是否合法。
                 if (!config.allowDirectHttp) {
-                    DownloadSourceDecision(DownloadSourcePolicy.FALLBACK_SIMULATED, DownloaderText.DIRECT_HTTP_DISABLED)
+                    simulatedOrRejected(DownloaderText.DIRECT_HTTP_DISABLED)
                 } else if (url.startsWith("http://") || url.startsWith("https://")) {
                     DownloadSourceDecision(DownloadSourcePolicy.DIRECT_HTTP, DownloaderText.DIRECT_HTTP_ENABLED)
                 } else {
-                    DownloadSourceDecision(DownloadSourcePolicy.FALLBACK_SIMULATED, DownloaderText.UNSUPPORTED_URL_PROTOCOL)
+                    simulatedOrRejected(DownloaderText.UNSUPPORTED_URL_PROTOCOL)
                 }
             }
 
@@ -30,11 +30,26 @@ class DownloadSourceResolver(private val config: DownloadSourceResolverConfig) {
                 if (config.allowMockSource) {
                     DownloadSourceDecision(DownloadSourcePolicy.MOCK, DownloaderText.MOCK_ENABLED)
                 } else {
-                    DownloadSourceDecision(DownloadSourcePolicy.FALLBACK_SIMULATED, DownloaderText.MOCK_DISABLED)
+                    simulatedOrRejected(DownloaderText.MOCK_DISABLED)
                 }
             }
 
-            DownloadSourcePolicy.FALLBACK_SIMULATED -> DownloadSourceDecision(DownloadSourcePolicy.FALLBACK_SIMULATED, DownloaderText.FALLBACK_SIMULATED)
+            DownloadSourcePolicy.FALLBACK_SIMULATED -> simulatedOrRejected(DownloaderText.FALLBACK_SIMULATED)
+
+            // 请求方显式声明拒绝（或上游已判定不可下载）时直接透传，不再尝试任何下载源。
+            DownloadSourcePolicy.REJECTED -> DownloadSourceDecision(DownloadSourcePolicy.REJECTED, DownloaderText.SOURCE_REJECTED)
         }
     }
+
+    /**
+     * 模拟下载兜底必须受环境开关约束：生产环境（allowMockSource=false）禁止模拟，
+     * 否则目录漏写 sourcePolicy 或 URL 非法时会产出假 APK 并报「下载成功」，到安装才失败。
+     * 允许模拟时回退模拟源；禁止时返回拒绝决策，由下载器收敛为失败。
+     */
+    private fun simulatedOrRejected(reason: String): DownloadSourceDecision =
+        if (config.allowMockSource) {
+            DownloadSourceDecision(DownloadSourcePolicy.FALLBACK_SIMULATED, reason)
+        } else {
+            DownloadSourceDecision(DownloadSourcePolicy.REJECTED, reason)
+        }
 }

@@ -98,8 +98,8 @@ data class DownloadRequest(
     val checksumType: String? = null,
     /** 文件校验时使用的可选期望值。 */
     val checksumValue: String? = null,
-    /** 当前请求优先采用的下载源策略。 */
-    val sourcePolicy: DownloadSourcePolicy = DownloadSourcePolicy.FALLBACK_SIMULATED,
+    /** 当前请求优先采用的下载源策略；null 表示交由解析器的环境默认策略决定。 */
+    val sourcePolicy: DownloadSourcePolicy? = null,
 )
 
 enum class DownloadFailureCode(val displayText: String, val retryable: Boolean) {

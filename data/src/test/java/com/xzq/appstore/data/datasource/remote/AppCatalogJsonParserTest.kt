@@ -5,6 +5,7 @@ import com.xzq.appstore.data.model.AppPlatform
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -33,7 +34,7 @@ class AppCatalogJsonParserTest {
         assertEquals("2.3.0", item.latestVersion)
         assertEquals("https://download.example.com/nav.map.apk", item.apkUrl)
         assertEquals("SHA-256", item.checksumType)
-        assertEquals("abc123", item.checksumValue)
+        assertEquals(TEST_CHECKSUM, item.checksumValue)
         assertEquals(DownloadSourcePolicy.DIRECT_HTTP, item.sourcePolicy)
         assertEquals(CatalogListingState.ROLLBACK, item.listingState)
         assertEquals(60, item.rolloutPercent)
@@ -58,7 +59,7 @@ class AppCatalogJsonParserTest {
         assertEquals("2.0.5", item.appInfo.versionName)
         assertEquals("2.0.5", item.upgradeInfo.latestVersion)
         assertEquals(false, item.upgradeInfo.hasUpgrade)
-        assertEquals("abc123", item.appDetail.checksumValue)
+        assertEquals(TEST_CHECKSUM, item.appDetail.checksumValue)
         assertEquals("适配座舱导航场景", item.appInfo.recommendedReason)
         assertEquals("蔚来地图团队", item.appDetail.developerName)
         assertEquals("新增沿途充电推荐", item.upgradeInfo.changelog)
@@ -173,6 +174,46 @@ class AppCatalogJsonParserTest {
         assertEquals(0L, relaxed.single().appDetail.versionCode)
     }
 
+    @Test
+    fun `目录拒绝下载链路不支持的校验算法`() {
+        val unsupported = JSONObject(identityCatalog()).apply {
+            getJSONArray("apps").getJSONObject(0).put("checksumType", "SHA-512")
+        }.toString()
+
+        assertThrows(IllegalArgumentException::class.java) { AppCatalogJsonParser.parse(unsupported) }
+    }
+
+    @Test
+    fun `目录拒绝与算法长度错配的校验摘要`() {
+        val mismatched = JSONObject(identityCatalog()).apply {
+            getJSONArray("apps").getJSONObject(0).put("checksumType", "SHA-256").put("checksumValue", "abc123")
+        }.toString()
+
+        assertThrows(IllegalArgumentException::class.java) { AppCatalogJsonParser.parse(mismatched) }
+    }
+
+    @Test
+    fun `目录拒绝只有摘要值没有算法的条目`() {
+        val valueOnly = JSONObject(identityCatalog()).apply {
+            getJSONArray("apps").getJSONObject(0).put("checksumValue", TEST_CHECKSUM)
+        }.toString()
+
+        assertThrows(IllegalArgumentException::class.java) { AppCatalogJsonParser.parse(valueOnly) }
+    }
+
+    @Test
+    fun `目录接受 MD5 与只声明算法不带摘要值的条目`() {
+        val md5 = JSONObject(identityCatalog()).apply {
+            getJSONArray("apps").getJSONObject(0).put("checksumType", "MD5").put("checksumValue", "d41d8cd98f00b204e9800998ecf8427e")
+        }.toString()
+        assertEquals("MD5", AppCatalogJsonParser.parse(md5).single().appDetail.checksumType)
+
+        val typeOnly = JSONObject(identityCatalog()).apply {
+            getJSONArray("apps").getJSONObject(0).put("checksumType", "SHA-256")
+        }.toString()
+        assertNull(AppCatalogJsonParser.parse(typeOnly).single().appDetail.checksumValue)
+    }
+
     private fun identityCatalog(
         appId: String = TEST_APP_ID,
         packageName: String = TEST_PACKAGE_NAME,
@@ -216,6 +257,7 @@ class AppCatalogJsonParserTest {
         const val TEST_PACKAGE_NAME = "com.nio.map"
         const val TEST_VERSION_CODE = 230L
         const val TEST_SIGNER = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        const val TEST_CHECKSUM = "abc1230000000000000000000000000000000000000000000000000000000000"
 
         /** 测试目录响应。 */
         const val TEST_CATALOG_JSON = """
@@ -246,7 +288,7 @@ class AppCatalogJsonParserTest {
                   "latestVersion": "2.3.0",
                   "apkUrl": "https://download.example.com/nav.map.apk",
                   "checksumType": "SHA-256",
-                  "checksumValue": "abc123",
+                  "checksumValue": "$TEST_CHECKSUM",
                   "sourcePolicy": "DIRECT_HTTP",
                   "listingState": "ROLLBACK",
                   "rolloutPercent": 60,

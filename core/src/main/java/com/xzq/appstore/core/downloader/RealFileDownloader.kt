@@ -89,6 +89,11 @@ class RealFileDownloader(
     ) = withContext(Dispatchers.IO) {
         // 先决定当前请求是否允许走真实 HTTP；不允许时直接回退到兜底实现。
         val sourceDecision = sourceResolver.resolve(request.sourcePolicy, request.url)
+        // 环境禁止模拟且真实下载不可用时拒绝：绝不能交给兜底实现产出假 APK 并报「完成」。
+        if (sourceDecision.policy == DownloadSourcePolicy.REJECTED) {
+            onEvent(DownloadEvent.Failed(DownloadFailureCode.UNKNOWN, sourceDecision.reason))
+            return@withContext
+        }
         if (sourceDecision.policy != DownloadSourcePolicy.DIRECT_HTTP) {
             fallbackDownloader?.download(request, control, onEvent) ?: onEvent(DownloadEvent.Failed(DownloadFailureCode.UNKNOWN, sourceDecision.reason))
             return@withContext
@@ -345,15 +350,17 @@ class RealFileDownloader(
         }
         // 合并前预留测试钩子，便于验证分片文件被破坏时的收口行为。
         beforeMergeHook?.invoke(plannedSegments, finalFile)
-        val mergeOk = DownloadFileHelper.mergeSegments(plannedSegments, finalFile)
+        val mergeError = DownloadFileHelper.mergeSegments(plannedSegments, finalFile)
         if (emitStoppedIfRequested(request, control, onEvent, totalBytes)) {
             // 合并期间收到停止：删除未经长度与校验值验证的合并产物，避免被误认为可用 APK；
             // 分片全部保留，恢复后无需重新下载即可重新合并。
             finalFile.delete()
             return
         }
-        if (!mergeOk) {
-            onEvent(DownloadEvent.Failed(DownloadFailureCode.MERGE_FAILED, DownloadFailureCode.MERGE_FAILED.displayText, false))
+        if (mergeError != null) {
+            // 合并失败留下的半成品不可信，删除以免被存在性复用误判为可用产物；保留诊断信息。
+            finalFile.delete()
+            onEvent(DownloadEvent.Failed(DownloadFailureCode.MERGE_FAILED, mergeError, false))
             return
         }
 
@@ -361,6 +368,8 @@ class RealFileDownloader(
         val finalSize = finalFile.length()
         val verification = DownloadFileHelper.verifyFile(finalFile, totalBytes, request.checksumType, request.checksumValue)
         if (!verification.ok) {
+            // 校验失败的产物同样删除：留着会让「已完成」的存在性复用反复指向同一份坏文件。
+            finalFile.delete()
             onEvent(DownloadEvent.Failed(verification.code, verification.message, verification.code.retryable))
             return
         }
@@ -745,9 +754,9 @@ class RealFileDownloader(
 
     /** 聚合所有分片的已下载字节数，用于计算任务级进度。优先读内存缓存，避免热路径磁盘 IO。 */
     private fun calculateAggregateDownloaded(taskId: String): Long {
-        val segments = synchronized(segmentCacheLock) {
-            segmentCache[taskId]?.values?.toList() ?: store.readSegments(taskId)
-        }
+        // 锁内只取内存快照；缓存未命中时的磁盘读放到锁外，避免慢 IO 阻塞所有并发分片的进度写入与停止响应。
+        val cached = synchronized(segmentCacheLock) { segmentCache[taskId]?.values?.toList() }
+        val segments = cached ?: store.readSegments(taskId)
         return segments.sumOf { seg ->
             maxOf(seg.downloadedBytes, File(seg.tmpFilePath).takeIf { it.exists() }?.length() ?: 0L)
         }
@@ -790,7 +799,13 @@ class RealFileDownloader(
         val snapshot = synchronized(segmentCacheLock) {
             segmentCache[taskId]?.values?.sortedBy { it.index } ?: return
         }
-        store.saveSegments(taskId, snapshot)
+        try {
+            store.saveSegments(taskId, snapshot)
+        } catch (failure: IOException) {
+            // 进度刷盘失败不中断传输：分片字节已在盘上，恢复时以文件实际长度为准。
+            // 就地记磁盘故障日志，避免异常逃逸到分片出口被误归类为网络中断。
+            logger.w("FileDownloader", "Unable to flush segment progress: $taskId", failure)
+        }
     }
 
     /** 任务执行终止后释放其分片缓存与节流时间戳，避免随任务数无限累积。 */
@@ -992,6 +1007,11 @@ class RealFileDownloader(
             connection.disconnect()
             if (target == null || (!target.protocol.equals("http", ignoreCase = true) && !target.protocol.equals("https", ignoreCase = true))) {
                 throw IOException("Invalid redirect location: ${location.orEmpty()}")
+            }
+            // 禁止 https 原始请求经重定向降级到 http：降级后传输内容可被中间人篡改，
+            // 凭证虽已按 origin 绑定不会转发，但包体完整性仍会被破坏。
+            if (url.startsWith("https://", ignoreCase = true) && target.protocol.equals("http", ignoreCase = true)) {
+                throw IOException("Redirect downgrades HTTPS to HTTP: ${location.orEmpty()}")
             }
             redirectsRemaining--
             currentUrl = target.toString()

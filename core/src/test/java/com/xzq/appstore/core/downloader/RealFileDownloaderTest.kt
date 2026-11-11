@@ -398,7 +398,8 @@ class RealFileDownloaderTest {
             }
             val failed = events.last() as DownloadEvent.Failed
             assertEquals(DownloadFailureCode.CHECKSUM_MISMATCH, failed.code)
-            assertTrue(fixture.request.targetFile.exists())
+            // 校验失败的产物必须删除，避免存在性复用反复指向同一份坏文件。
+            assertFalse(fixture.request.targetFile.exists())
         }
     }
 

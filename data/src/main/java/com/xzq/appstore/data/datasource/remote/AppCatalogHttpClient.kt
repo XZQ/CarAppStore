@@ -86,15 +86,37 @@ class HttpUrlConnectionAppCatalogHttpClient(
                 )
             }
             require(code in SUCCESS_CODE_RANGE) { buildFailureMessage(code) }
+            // 预检声明长度，超限直接失败；chunked（-1）放行后由有界读取兜底。
+            require(connection.getHeaderFieldLong(HEADER_CONTENT_LENGTH, -1L) <= MAX_CATALOG_BODY_BYTES) {
+                "catalog response exceeds size limit"
+            }
             AppCatalogHttpResponse(
                 statusCode = code,
-                body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() },
+                body = connection.inputStream.use { readBoundedBody(it) },
                 eTag = connection.getHeaderField(HEADER_ETAG),
                 lastModified = connection.getHeaderField(HEADER_LAST_MODIFIED),
             )
         } finally {
             connection.disconnect()
         }
+    }
+
+    /**
+     * 有界读取响应体：按字节累计并在超过上限时失败，避免被入侵的目录端点用超大响应打 OOM。
+     * 先累计字节再一次性解码，保证多字节 UTF-8 字符不被分块边界截断。
+     */
+    private fun readBoundedBody(input: java.io.InputStream): String {
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(READ_BUFFER_BYTES)
+        var total = 0
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            total += read
+            require(total <= MAX_CATALOG_BODY_BYTES) { "catalog response exceeds size limit" }
+            out.write(buffer, 0, read)
+        }
+        return out.toString(Charsets.UTF_8.name())
     }
 
     /** 组装非成功状态码的异常文案，区分客户端错误、服务端错误与其他，便于上游诊断。 */
@@ -118,7 +140,12 @@ class HttpUrlConnectionAppCatalogHttpClient(
         private const val HEADER_IF_MODIFIED_SINCE = "If-Modified-Since"
         private const val HEADER_ETAG = "ETag"
         private const val HEADER_LAST_MODIFIED = "Last-Modified"
+        private const val HEADER_CONTENT_LENGTH = "Content-Length"
         private const val HTTP_NOT_MODIFIED = 304
+
+        /** 目录响应体上限 4MB：正常目录远小于此，超限按失败降级，防止超大响应打 OOM。 */
+        private const val MAX_CATALOG_BODY_BYTES = 4L * 1024L * 1024L
+        private const val READ_BUFFER_BYTES = 8 * 1024
 
         // 车机弱网下 1.5s 几乎必超时，导致 HTTP 缓存形同虚设；放宽到 8s/15s。
         private const val CONNECT_TIMEOUT_MILLIS = 8_000

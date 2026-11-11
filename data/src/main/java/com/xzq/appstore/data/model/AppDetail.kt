@@ -51,8 +51,8 @@ data class AppDetail(
     val checksumType: String? = null,
     /** 可选的安装包期望校验值。 */
     val checksumValue: String? = null,
-    /** 解析下载源时优先采用的策略。 */
-    val sourcePolicy: DownloadSourcePolicy = DownloadSourcePolicy.FALLBACK_SIMULATED,
+    /** 解析下载源时优先采用的策略；null 表示目录未声明，交由当前环境默认策略决定。 */
+    val sourcePolicy: DownloadSourcePolicy? = null,
 ) {
     /** 当前客户端是否能直接下载并安装该应用。 */
     val currentPlatformSupported: Boolean

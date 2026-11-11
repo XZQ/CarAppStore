@@ -137,7 +137,9 @@ fun AppCatalogItemResponse.toRemoteCatalogItem(): RemoteCatalogItem {
             apkUrl = apkUrl,
             checksumType = checksumType,
             checksumValue = checksumValue,
-            sourcePolicy = sourcePolicy ?: DownloadSourcePolicy.FALLBACK_SIMULATED,
+            // 目录未声明策略时保持 null，由 AppRemoteDataSource 回落到当前环境默认策略；
+            // 不能硬编码 FALLBACK_SIMULATED，否则生产环境会旁路 allowMockSource 产出假 APK。
+            sourcePolicy = sourcePolicy,
         ),
         upgradeInfo = UpgradeInfo(
             appId = appId,

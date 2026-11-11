@@ -32,9 +32,9 @@ object DownloadFileHelper {
      *
      * @param segments 按 index 排序前的分片记录列表
      * @param finalFile 合并目标文件
-     * @return 合并是否成功
+     * @return 成功返回 null；失败返回诊断信息（缺分片、长度错位、写盘错误等），供上层保留可追踪的失败原因
      */
-    fun mergeSegments(segments: List<DownloadSegmentRecord>, finalFile: File): Boolean = runCatching {
+    fun mergeSegments(segments: List<DownloadSegmentRecord>, finalFile: File): String? = runCatching {
         RandomAccessFile(finalFile, "rw").use { out ->
             out.setLength(0L)
             segments.sortedBy { it.index }.forEach { seg ->
@@ -63,7 +63,7 @@ object DownloadFileHelper {
                 }
             }
         }
-    }.isSuccess
+    }.fold(onSuccess = { null }, onFailure = { it.message ?: "segment merge failed" })
 
     /**
      * 校验下载文件的长度和可选摘要值。
@@ -83,6 +83,11 @@ object DownloadFileHelper {
             return VerificationResult(false, DownloadFailureCode.FILE_INCOMPLETE, DownloaderText.fileLengthMismatch(expectedBytes, actual))
         }
         if (!checksumType.isNullOrBlank() && !checksumValue.isNullOrBlank()) {
+            // 未知算法不能静默换成 SHA-256 再比较：那会把配置错误误诊为产物损坏，
+            // 且产物级失败重试会清理分片缓存，错误诊断会放大成不必要的重复下载。
+            if (supportedAlgorithm(checksumType) == null) {
+                return VerificationResult(false, DownloadFailureCode.CHECKSUM_MISMATCH, DownloaderText.unsupportedChecksumType(checksumType))
+            }
             val actualHash = calculateHash(file, checksumType)
             if (!actualHash.equals(checksumValue, ignoreCase = true)) {
                 return VerificationResult(false, DownloadFailureCode.CHECKSUM_MISMATCH, DownloaderText.checksumMismatch(checksumType))
@@ -97,13 +102,10 @@ object DownloadFileHelper {
      * @param file 待计算文件
      * @param checksumType 校验算法名称，支持 SHA-256/SHA256/MD5
      * @return 十六进制格式的小写哈希值
+     * @throws IllegalArgumentException 算法不受支持时抛出，不做静默回退
      */
     fun calculateHash(file: File, checksumType: String): String {
-        val algo = when (checksumType.uppercase()) {
-            ALGO_SHA256, ALGO_SHA256_ALT -> ALGO_SHA256
-            ALGO_MD5 -> ALGO_MD5
-            else -> ALGO_SHA256
-        }
+        val algo = requireNotNull(supportedAlgorithm(checksumType)) { "Unsupported checksum type: $checksumType" }
         val digest = MessageDigest.getInstance(algo)
         file.inputStream().use { input ->
             val buffer = ByteArray(MERGE_BUFFER_BYTES)
@@ -114,6 +116,13 @@ object DownloadFileHelper {
             }
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /** 将校验算法名称归一化为 MessageDigest 标准名；不受支持时返回 null。 */
+    private fun supportedAlgorithm(checksumType: String): String? = when (checksumType.uppercase()) {
+        ALGO_SHA256, ALGO_SHA256_ALT -> ALGO_SHA256
+        ALGO_MD5 -> ALGO_MD5
+        else -> null
     }
 }
 

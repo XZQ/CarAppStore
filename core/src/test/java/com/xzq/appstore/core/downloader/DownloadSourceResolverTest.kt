@@ -61,12 +61,12 @@ class DownloadSourceResolverTest {
         assertEquals(DownloaderText.MOCK_ENABLED, decision.reason)
     }
 
-    /** MOCK 策略 + 环境禁用 → 回退到 FALLBACK_SIMULATED。 */
+    /** MOCK 策略 + 环境禁用模拟 → 拒绝，而不是回退模拟产出假产物。 */
     @Test
-    fun testResolveMock_disabled_fallsBack() {
+    fun testResolveMock_disabled_rejected() {
         val resolver = DownloadSourceResolver(DownloadSourceResolverConfig(allowDirectHttp = true, allowMockSource = false))
         val decision = resolver.resolve(DownloadSourcePolicy.MOCK, httpUrl)
-        assertEquals(DownloadSourcePolicy.FALLBACK_SIMULATED, decision.policy)
+        assertEquals(DownloadSourcePolicy.REJECTED, decision.policy)
         assertEquals(DownloaderText.MOCK_DISABLED, decision.reason)
     }
 
@@ -77,5 +77,39 @@ class DownloadSourceResolverTest {
         val decision = resolver.resolve(DownloadSourcePolicy.FALLBACK_SIMULATED, httpUrl)
         assertEquals(DownloadSourcePolicy.FALLBACK_SIMULATED, decision.policy)
         assertEquals(DownloaderText.FALLBACK_SIMULATED, decision.reason)
+    }
+
+    /** 生产环境禁止模拟：FALLBACK_SIMULATED 必须被拒绝，而不是产出假产物。 */
+    @Test
+    fun testResolveFallback_mockDisabled_rejected() {
+        val resolver = DownloadSourceResolver(DownloadSourceResolverConfig(allowDirectHttp = true, allowMockSource = false))
+        val decision = resolver.resolve(DownloadSourcePolicy.FALLBACK_SIMULATED, httpsUrl)
+        assertEquals(DownloadSourcePolicy.REJECTED, decision.policy)
+    }
+
+    /** 生产环境禁止模拟：DIRECT_HTTP 遇到非法 URL 不能回退模拟，必须拒绝。 */
+    @Test
+    fun testResolveDirectHttp_invalidUrl_mockDisabled_rejected() {
+        val resolver = DownloadSourceResolver(DownloadSourceResolverConfig(allowDirectHttp = true, allowMockSource = false))
+        val decision = resolver.resolve(DownloadSourcePolicy.DIRECT_HTTP, ftpUrl)
+        assertEquals(DownloadSourcePolicy.REJECTED, decision.policy)
+    }
+
+    /** 生产环境禁止模拟：DIRECT_HTTP 被环境禁用时同样拒绝，而不是回退模拟。 */
+    @Test
+    fun testResolveDirectHttp_disabled_mockDisabled_rejected() {
+        val resolver = DownloadSourceResolver(DownloadSourceResolverConfig(allowDirectHttp = false, allowMockSource = false))
+        val decision = resolver.resolve(DownloadSourcePolicy.DIRECT_HTTP, httpsUrl)
+        assertEquals(DownloadSourcePolicy.REJECTED, decision.policy)
+    }
+
+    /** 请求未声明策略时使用环境默认：生产默认 DIRECT_HTTP + 合法 URL 走真实下载。 */
+    @Test
+    fun testResolveNullPolicy_usesEnvironmentDefault() {
+        val resolver = DownloadSourceResolver(
+            DownloadSourceResolverConfig(defaultSourcePolicy = DownloadSourcePolicy.DIRECT_HTTP, allowDirectHttp = true, allowMockSource = false),
+        )
+        val decision = resolver.resolve(null, httpsUrl)
+        assertEquals(DownloadSourcePolicy.DIRECT_HTTP, decision.policy)
     }
 }

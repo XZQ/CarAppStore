@@ -11,7 +11,8 @@ class DownloadStore(private val baseDir: File) {
     /** 不跟随符号链接或记录中的外部路径，只删除本任务生成的文件。 */
     fun clearTask(taskId: String) {
         val dir = getTaskTempDir(taskId)
-        dir.listFiles()?.filter { it.name.matches(Regex("part-\\d+\\.tmp|meta\\.json(?:\\.tmp)?")) }?.forEach { file ->
+        // 含原子写临时文件与损坏/高 schema 隔离侧车，否则任务目录因残留侧车永远删不掉。
+        dir.listFiles()?.filter { it.name.matches(Regex("part-\\d+\\.tmp|meta\\.json(?:\\.tmp|\\.corrupted|\\.newer-schema)?")) }?.forEach { file ->
             if (!file.delete() && file.exists()) throw IOException("Unable to clear task cache: ${file.name}")
         }
         if (dir.listFiles()?.isEmpty() == true && !dir.delete() && dir.exists()) {

@@ -9,6 +9,9 @@ enum class DownloadSourcePolicy {
 
     /** 无法满足真实下载条件时回退模拟下载。 */
     FALLBACK_SIMULATED,
+
+    /** 仅用于解析决策：真实下载不可用且环境禁止模拟，必须失败而不是产出假产物。 */
+    REJECTED,
 }
 
 data class DownloadSourceDecision(

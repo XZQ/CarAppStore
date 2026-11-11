@@ -36,6 +36,7 @@ object DownloaderText {
     const val MOCK_ENABLED = "当前环境允许 MOCK 下载源"
     const val MOCK_DISABLED = "当前环境禁用 MOCK，回退模拟下载"
     const val FALLBACK_SIMULATED = "当前策略指定回退模拟下载"
+    const val SOURCE_REJECTED = "当前环境不允许该下载源"
 
     const val REMOTE_FILE_CHANGED_REDOWNLOAD = "远端文件已变化，需重新下载"
     const val UNKNOWN_DOWNLOAD_FAILURE = "下载失败"
@@ -46,10 +47,14 @@ object DownloaderText {
 
     private const val FILE_LENGTH_MISMATCH_FORMAT = "文件长度不一致，期望 %d，实际 %d"
     private const val CHECKSUM_MISMATCH_FORMAT = "文件校验失败，%s 不匹配"
+    private const val UNSUPPORTED_CHECKSUM_FORMAT = "文件校验失败，不支持的校验算法 %s"
 
     /** 生成文件长度不匹配文案。 */
     fun fileLengthMismatch(expectedBytes: Long, actualBytes: Long): String = FILE_LENGTH_MISMATCH_FORMAT.format(expectedBytes, actualBytes)
 
     /** 生成校验值不匹配文案。 */
     fun checksumMismatch(checksumType: String): String = CHECKSUM_MISMATCH_FORMAT.format(checksumType.uppercase())
+
+    /** 生成校验算法不受支持文案；与校验值不匹配区分，避免把配置错误误诊为产物损坏。 */
+    fun unsupportedChecksumType(checksumType: String): String = UNSUPPORTED_CHECKSUM_FORMAT.format(checksumType)
 }
