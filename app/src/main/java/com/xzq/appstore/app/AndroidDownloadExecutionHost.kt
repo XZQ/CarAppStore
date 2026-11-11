@@ -52,6 +52,22 @@ class AndroidDownloadExecutionHost(private val context: Context) : DownloadExecu
         started.complete(Unit)
     }
 
+    /**
+     * 已在前台运行的服务再次收到 start 时补握手。
+     *
+     * stop/start 竞态下，stopService 的销毁回调尚未执行，新的 startForegroundService 会被 AMS
+     * 投递给仍存活的旧实例的 onStartCommand 而非 onCreate；若不在此完成当前等待的 acquire，
+     * 新下载会空等 10 秒后以「服务不可用」失败。只补握手，不重置 recovering，避免把已结束的
+     * 恢复流程重新拉起、让服务永远无法空闲停止。
+     */
+    fun onServiceStartCommand(token: Any) {
+        if (serviceToken == null) {
+            serviceToken = token
+            starting = false
+            started.complete(Unit)
+        }
+    }
+
     fun onServiceStartFailed(failure: Exception) {
         starting = false
         started.completeExceptionally(failure)

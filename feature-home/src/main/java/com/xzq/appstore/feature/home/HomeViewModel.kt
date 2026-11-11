@@ -98,11 +98,10 @@ class HomeViewModel(
         runCatching {
             withContext(ioDispatcher) {
                 val apps = appManager.getHomeApps()
-                val recentApps = appManager.getRecentlyUsedApps()
+                // recentApps 暂无渲染消费方，不在每次刷新（下载期间 300ms 采样）里白做目录+包查询 IO。
                 HomeUiState(
                     loading = false,
                     apps = apps,
-                    recentApps = recentApps,
                     policyPrompt = appManager.getPolicyPrompt(),
                     screenState = if (apps.isEmpty()) HomeScreenState.Empty else HomeScreenState.Content,
                 )

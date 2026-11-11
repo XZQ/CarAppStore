@@ -79,6 +79,8 @@ class MyAppFragment : BaseFragment() {
     }
 
     override fun onDestroyView() {
+        // lazy adapter 跨视图重建存活，先解绑避免 RecyclerView 滞留整棵旧 item 视图树（与首页/搜索对齐）。
+        binding.recyclerMyApps.adapter = null
         super.onDestroyView()
         _binding = null
     }

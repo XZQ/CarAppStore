@@ -161,6 +161,8 @@ class DetailFragment : BaseFragment() {
         imageViews.forEachIndexed { index, imageView ->
             val source = screenshots.getOrNull(index).orEmpty()
             imageView.visibility = if (source.isBlank()) View.GONE else View.VISIBLE
+            // 截图是内容性图片，给 TalkBack 提供逐张描述，覆盖布局里通用的详情页标题。
+            imageView.contentDescription = getString(R.string.screen_detail_screenshot_description, index + 1)
             AppImageLoader.load(imageView, source)
         }
     }

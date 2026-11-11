@@ -67,19 +67,24 @@ class DownloadForegroundService : Service() {
                     stopSelf()
                 }
             }
-        } else if (initializationJob == null) {
-            initializationJob = scope.launch {
-                try {
-                    container.awaitReady()
-                    if (intent == null) container.downloadManager.resumeInterruptedDownloads()
-                    observeProgress()
-                } catch (canceled: CancellationException) {
-                    throw canceled
-                } catch (failure: Exception) {
-                    container.logger.w("DownloadService", "Unable to recover downloads", failure)
-                    stopSelf()
-                } finally {
-                    withContext(Dispatchers.Main) { host.finishRecovery(this@DownloadForegroundService) }
+        } else {
+            // stop/start 竞态下新 start 可能投递给仍存活的旧实例（不走 onCreate），
+            // 这里补一次握手完成等待中的 acquire，避免新下载空等超时失败。
+            host.onServiceStartCommand(this)
+            if (initializationJob == null) {
+                initializationJob = scope.launch {
+                    try {
+                        container.awaitReady()
+                        if (intent == null) container.downloadManager.resumeInterruptedDownloads()
+                        observeProgress()
+                    } catch (canceled: CancellationException) {
+                        throw canceled
+                    } catch (failure: Exception) {
+                        container.logger.w("DownloadService", "Unable to recover downloads", failure)
+                        stopSelf()
+                    } finally {
+                        withContext(Dispatchers.Main) { host.finishRecovery(this@DownloadForegroundService) }
+                    }
                 }
             }
         }

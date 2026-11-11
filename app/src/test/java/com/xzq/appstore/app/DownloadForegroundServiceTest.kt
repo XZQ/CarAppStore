@@ -59,4 +59,34 @@ class DownloadForegroundServiceTest {
         scope.launch { host.release("next") }
         shadowOf(Looper.getMainLooper()).idle()
     }
+
+    @Test
+    fun `start delivered to a still-alive old service completes the pending acquire`() {
+        val host = AndroidDownloadExecutionHost(RuntimeEnvironment.getApplication())
+        val scope = CoroutineScope(Dispatchers.Main.immediate)
+        val first = Any()
+        val acquire = scope.launch { host.acquire("app") }
+        shadowOf(Looper.getMainLooper()).idle()
+        host.onServiceStarted(first)
+        host.finishRecovery(first)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(acquire.isCompleted)
+        scope.launch { host.release("app") }
+        shadowOf(Looper.getMainLooper()).idle()
+
+        // 新一轮 acquire 已发出 startForegroundService，但旧实例尚未销毁：
+        // AMS 把 start 投递给旧实例的 onStartCommand（而非 onCreate），必须补握手完成等待。
+        val next = scope.launch { host.acquire("next") }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(next.isCompleted)
+        host.onServiceStartCommand(first)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(next.isCompleted)
+        assertEquals(setOf("next"), host.activeAppIds.value)
+
+        // 补握手不能把 recovering 重新拉起：空闲后服务仍应能正常停止。
+        scope.launch { host.release("next") }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(host.activeAppIds.value.isEmpty())
+    }
 }

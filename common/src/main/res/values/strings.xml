@@ -216,6 +216,7 @@
     <string name="screen_home_recent_empty">&#x6682;&#x65e0;&#x6700;&#x8fd1;&#x4f7f;&#x7528;&#x8bb0;&#x5f55;</string>
     <string name="screen_home_error_hint">&#x9996;&#x9875;&#x4fe1;&#x606f;&#x6682;&#x65f6;&#x4e0d;&#x53ef;&#x7528;&#x3002;</string>
     <string name="screen_detail_title">&#x8be6;&#x60c5;&#x9875;</string>
+    <string name="screen_detail_screenshot_description">&#x5e94;&#x7528;&#x622a;&#x56fe; %1$d</string>
     <string name="screen_detail_empty_name">&#x5e94;&#x7528;&#x8be6;&#x60c5;</string>
     <string name="screen_detail_version_format">&#x7248;&#x672c;&#xFF1A;%1$s</string>
     <string name="screen_detail_version_meta_format">&#x7248;&#x672c;&#xFF1A;%1$s | &#x5305;&#x4f53;&#xFF1A;%2$s | &#x66f4;&#x65b0;&#xFF1A;%3$s</string>
