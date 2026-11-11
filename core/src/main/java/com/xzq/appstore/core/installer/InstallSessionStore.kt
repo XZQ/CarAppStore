@@ -34,16 +34,20 @@ class InstallSessionStore(
 
     /** 更新指定安装会话的状态和失败信息。 */
     fun updateStatus(sessionId: Int, status: String, progress: Int, failureCode: String? = null, failureMessage: String? = null) {
-        val current = get(sessionId) ?: return
-        save(
-            current.copy(
+        // 读-改-写必须在同一把文件锁内完成：拆成 get()+save() 两次加锁时，
+        // 并发会话交错会各自基于旧值写回，后写覆盖先写造成状态/进度回退。
+        jsonStore.update { root ->
+            val current = readRecords(root).associateBy { it.sessionId }.toMutableMap()
+            val existing = current[sessionId] ?: return@update
+            current[sessionId] = existing.copy(
                 status = status,
                 progress = progress,
                 failureCode = failureCode,
                 failureMessage = failureMessage,
                 updatedAt = System.currentTimeMillis(),
             )
-        )
+            root.put(KEY_SESSIONS, recordsToJsonArray(current.values.sortedByDescending { it.updatedAt }))
+        }
     }
 
     /** 获取指定应用最近一次安装会话。 */

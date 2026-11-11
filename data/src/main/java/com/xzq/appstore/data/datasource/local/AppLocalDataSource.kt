@@ -17,15 +17,20 @@ import com.xzq.appstore.domain.state.DownloadStatus
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import com.xzq.appstore.core.logger.AppLogger
 import com.xzq.appstore.data.local.entity.SettingsEntity
 
 class AppLocalDataSource(
     context: Context,
     /** 统一结构化本地存储入口。 */
     private val localStoreFacade: LocalStoreFacade = InMemoryLocalStoreFacade(),
+    /** 兼容存储诊断日志入口。 */
+    private val logger: AppLogger = AppLogger(),
 ) {
     /** 当前模块统一使用的应用级 Context。 */
     private val appContext = context.applicationContext
@@ -399,28 +404,40 @@ class AppLocalDataSource(
             }
             runCatching {
                 val root = JSONObject(storeFile.readText(Charsets.UTF_8))
-                installedApps.clear()
-                installedApps.addAll(parseInstalledApps(root.optJSONArray("installedApps")))
-                downloadedApkPaths.clear()
+                // 先整体解析到临时变量，成功后再一次性替换内存镜像：
+                // 逐段 clear+重填时若中途抛错，会留下「installedApps 已更新、downloadTasks 仍空」的半更新状态。
+                val parsedInstalled = parseInstalledApps(root.optJSONArray("installedApps"))
+                val parsedApkPaths = mutableMapOf<String, String>()
                 root.optJSONObject("downloadedApkPaths")?.let { obj ->
-                    obj.keys().forEach { key -> downloadedApkPaths[key] = obj.optString(key) }
+                    obj.keys().forEach { key -> parsedApkPaths[key] = obj.optString(key) }
                 }
-                stagedUpgradeVersions.clear()
+                val parsedStaged = mutableMapOf<String, String>()
                 root.optJSONObject("stagedUpgradeVersions")?.let { obj ->
-                    obj.keys().forEach { key -> stagedUpgradeVersions[key] = obj.optString(key) }
+                    obj.keys().forEach { key -> parsedStaged[key] = obj.optString(key) }
                 }
+                val parsedTasks = parseDownloadTasks(root.optJSONArray("downloadTasks"))
+                val parsedSegments = parseDownloadSegments(root.optJSONObject("downloadSegments"))
+                val parsedPreferences = parseDownloadPreferences(root.optJSONObject("downloadPreferences"))
+                val parsedPolicy = parsePolicySettings(root.optJSONObject("policySettings"))
+                val parsedRecent = parseStringList(root.optJSONArray("recentlyOpenedPackages"))
+
+                installedApps.clear()
+                installedApps.addAll(parsedInstalled)
+                downloadedApkPaths.clear()
+                downloadedApkPaths.putAll(parsedApkPaths)
+                stagedUpgradeVersions.clear()
+                stagedUpgradeVersions.putAll(parsedStaged)
                 downloadTasks.clear()
-                downloadTasks.putAll(parseDownloadTasks(root.optJSONArray("downloadTasks")))
+                downloadTasks.putAll(parsedTasks)
                 downloadSegments.clear()
-                downloadSegments.putAll(parseDownloadSegments(root.optJSONObject("downloadSegments")))
-                parseDownloadPreferences(root.optJSONObject("downloadPreferences"))?.let {
-                    downloadPreferences = it
-                }
-                parsePolicySettings(root.optJSONObject("policySettings"))?.let {
-                    policySettings = it
-                }
+                downloadSegments.putAll(parsedSegments)
+                parsedPreferences?.let { downloadPreferences = it }
+                parsedPolicy?.let { policySettings = it }
                 recentlyOpenedPackages.clear()
-                recentlyOpenedPackages.addAll(parseStringList(root.optJSONArray("recentlyOpenedPackages")))
+                recentlyOpenedPackages.addAll(parsedRecent)
+            }.onFailure {
+                // legacy 仅是兼容镜像（facade 为权威），解析失败不阻断启动，但必须留下诊断。
+                logger.w("AppLocalDataSource", "Unable to load legacy local store; falling back to facade", it)
             }
         }
     }
@@ -508,12 +525,16 @@ class AppLocalDataSource(
     /** 将 JSON 原子写入 legacy fallback 文件（先写临时文件再替换）。 */
     private fun writeLegacyStore(root: JSONObject) {
         storeFile.parentFile?.mkdirs()
-        // 先写临时文件再替换正式文件，尽量降低写入中断造成的损坏风险。
+        // 先写临时文件再原子替换，与 VersionedJsonStore 对齐：绝不退化为 copy+delete，
+        // 否则 copy 中途崩溃会留下半写 legacy 文件。同目录 rename 在同卷内原子。
         val tempFile = File(storeFile.parentFile, storeFile.name + LEGACY_TEMP_FILE_SUFFIX)
         tempFile.writeText(root.toString(), Charsets.UTF_8)
-        if (!tempFile.renameTo(storeFile)) {
-            tempFile.copyTo(storeFile, overwrite = true)
-            tempFile.delete()
+        val moved = runCatching {
+            Files.move(tempFile.toPath(), storeFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            true
+        }.getOrElse { false }
+        if (!moved) {
+            Files.move(tempFile.toPath(), storeFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
     }
 

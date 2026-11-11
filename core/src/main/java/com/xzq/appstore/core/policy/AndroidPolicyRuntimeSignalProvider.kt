@@ -15,6 +15,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -106,7 +107,9 @@ class AndroidPolicyRuntimeSignalProvider(
 
     /** 刷新当前实时信号。 */
     private fun refreshSignals() {
-        signalsFlow.value = readSignals()
+        // 网络回调、存储广播与车况 collector 运行在不同线程：裸赋值是「读-算-写」复合操作，
+        // 先读到旧值的线程可能后写入覆盖新值。update 用 CAS 并在冲突时重读，保证最后成功写入基于最新读取。
+        signalsFlow.update { readSignals() }
     }
 
     /** 监听 OEM 车况变化并刷新聚合结果。 */

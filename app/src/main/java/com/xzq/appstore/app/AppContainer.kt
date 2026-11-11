@@ -84,7 +84,8 @@ class AppContainer(context: Context) : AppServices {
     val logger: AppLogger by lazy { AppLogger() }
 
     /** 打点器，供下载、安装、升级等链路复用。 */
-    override val eventTracker: EventTracker by lazy { FileEventTracker(storagePaths.eventLogFile, logger = logger) }
+    private val eventTrackerDelegate = lazy { FileEventTracker(storagePaths.eventLogFile, logger = logger) }
+    override val eventTracker: EventTracker by eventTrackerDelegate
 
     /** 统一数据层访问入口，当前默认采用结构化 JSON 落盘实现。 */
     val localStoreFacade: LocalStoreFacade by lazy {
@@ -363,6 +364,7 @@ class AppContainer(context: Context) : AppServices {
         initializationScope.cancel()
         if (policyCenterDelegate.isInitialized()) policyCenter.close()
         if (runtimeSignalProviderDelegate.isInitialized()) runtimeSignalProvider.close()
+        if (eventTrackerDelegate.isInitialized()) (eventTracker as FileEventTracker).close()
     }
 
     /** 系统销毁服务后由容器作用域完成暂停落盘，避免服务自己的作用域先取消清理。 */

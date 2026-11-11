@@ -4,6 +4,7 @@ import com.xzq.appstore.core.logger.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.File
 import java.nio.file.Files
@@ -98,6 +99,15 @@ class FileEventTracker(
             }
         }
         forward(TrackedEvent(timestamp, safeEvent))
+    }
+
+    /**
+     * 取消后台写作用域。容器关闭/重建时调用：否则旧 tracker 的在途写入与新 tracker 分属两个
+     * 独立单线程作用域，会对同一日志文件并发 append/轮转，轮转竞态时丢事件。
+     * 与既有取舍一致，不排空在途队列（最后不足一秒的打点允许丢失）。
+     */
+    fun close() {
+        writeScope.cancel()
     }
 
     /**
